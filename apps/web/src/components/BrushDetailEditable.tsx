@@ -2,7 +2,7 @@ import { Show, For, createSignal, createMemo, createEffect, Switch, Match } from
 import type { BrushWithPreview, BrushTipImage } from '~/lib/abr';
 import { brushTipToPngBlob, createBrushTipFromCanvas } from '~/lib/abr';
 
-type BrushDetailEditableProps {
+type BrushDetailEditableProps = {
   brush: BrushWithPreview;
   onClose: () => void;
   onSave?: (brush: BrushWithPreview) => void;

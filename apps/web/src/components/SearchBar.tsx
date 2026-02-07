@@ -1,6 +1,6 @@
 import { createSignal } from 'solid-js';
 
-type SearchBarProps {
+type SearchBarProps = {
   value: string;
   onSearch: (query: string) => void;
   placeholder?: string;

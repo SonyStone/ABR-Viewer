@@ -1,6 +1,6 @@
 import { createSignal, Show, onMount, onCleanup } from 'solid-js';
 
-type DropZoneProps {
+type DropZoneProps = {
   onFilesDropped: (files: File[]) => void;
   accept?: string;
   multiple?: boolean;

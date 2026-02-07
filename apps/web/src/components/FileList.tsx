@@ -1,7 +1,7 @@
 import { For, Show } from 'solid-js';
 import type { AbrFileWithMeta } from '~/lib/abr';
 
-type FileListProps {
+type FileListProps = {
   files: Array<{ name: string; data: AbrFileWithMeta }>;
   selectedFile: string | null;
   onSelectFile: (name: string) => void;

@@ -121,7 +121,7 @@ export class DescriptorParser {
       case 'tdta': {
         const length = this.reader.readUInt32BE();
         const data = this.reader.readBytes(length);
-        return { type: 'tdta', value: Buffer.from(data) };
+        return { type: 'tdta', value: new Uint8Array(data) };
       }
 
       case 'obj ': {

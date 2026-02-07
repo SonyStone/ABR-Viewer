@@ -3,7 +3,7 @@
  * Re-exports the core parser and adds browser-specific utilities.
  */
 
-// Re-export everything from the core package
+// Re-export everything from the browser-safe package (excludes Node.js-only modules)
 export {
   AbrParser,
   AbrWriter,
@@ -15,7 +15,7 @@ export {
   createBrush,
   createAbrFile,
   createBrushTip,
-} from 'abr-parser';
+} from 'abr-parser/browser';
 
 // Re-export core types (can be extended by browser types)
 export type {
@@ -29,9 +29,9 @@ export type {
   DescriptorValue,
   Pattern,
   ResourceBlock,
-} from 'abr-parser';
+} from 'abr-parser/browser';
 
-export type { WriteOptions } from 'abr-parser';
+export type { WriteOptions } from 'abr-parser/browser';
 
 // Browser-specific utilities
 export {

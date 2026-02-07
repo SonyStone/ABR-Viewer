@@ -197,7 +197,7 @@ export class AbrParser {
       throw new Error(`Block length ${length} exceeds remaining data ${reader.remaining}`);
     }
 
-    const data = Buffer.from(reader.readBytes(length));
+    const data = new Uint8Array(reader.readBytes(length));
 
     return { signature, key, length, data };
   }

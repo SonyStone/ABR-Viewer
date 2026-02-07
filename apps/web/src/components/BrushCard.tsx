@@ -1,7 +1,7 @@
 import { Show } from 'solid-js';
 import type { BrushWithPreview } from '~/lib/abr';
 
-type BrushCardProps {
+type BrushCardProps = {
   brush: BrushWithPreview;
   index: number;
   onClick?: () => void;

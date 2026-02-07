@@ -2,7 +2,7 @@ import { Show, For, createSignal, createMemo, Switch, Match } from 'solid-js';
 import type { BrushWithPreview } from '~/lib/abr';
 import { brushTipToPngBlob } from '~/lib/abr';
 
-type BrushDetailProps {
+type BrushDetailProps = {
   brush: BrushWithPreview;
   onClose: () => void;
   onEdit?: () => void;

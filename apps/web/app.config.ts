@@ -7,11 +7,5 @@ export default defineConfig({
       crawlLinks: true,
     },
   },
-  vite: {
-    optimizeDeps: {
-      // Include abr-parser in pre-bundling for proper handling
-      include: ['abr-parser'],
-    },
-  },
 });
 

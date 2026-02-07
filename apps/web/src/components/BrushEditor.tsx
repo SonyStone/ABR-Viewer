@@ -2,7 +2,7 @@ import { Show, createSignal, createEffect, onCleanup } from 'solid-js';
 import type { BrushWithPreview, BrushTipImage } from '~/lib/abr';
 import { brushTipToPngBlob, createBrushTipFromCanvas } from '~/lib/abr';
 
-type BrushEditorProps {
+type BrushEditorProps = {
   brush?: BrushWithPreview;
   onSave: (brush: BrushWithPreview) => void;
   onCancel: () => void;

@@ -1,5 +1,5 @@
 import { Show, For, createSignal, createMemo, createEffect } from 'solid-js';
-import { AbrParser, AbrWriter, createAbrFile, type AbrFileWithMeta, type BrushWithPreview, brushTipToPngBlob, downloadAbrFile } from '~/lib/abr';
+import { AbrParser, AbrWriter, createAbrFile, type AbrFileWithMeta, type BrushWithPreview, brushTipToPngBlob, brushTipToDataUrl, downloadAbrFile } from '~/lib/abr';
 import { DropZone } from '~/components/DropZone';
 import { BrushCard } from '~/components/BrushCard';
 import { BrushDetailEditable } from '~/components/BrushDetailEditable';
@@ -7,7 +7,7 @@ import { SearchBar } from '~/components/SearchBar';
 import { FileList } from '~/components/FileList';
 import { BrushEditor } from '~/components/BrushEditor';
 
-type LoadedFile {
+type LoadedFile = {
   name: string;
   data: AbrFileWithMeta;
   isModified?: boolean;
@@ -86,6 +86,17 @@ export default function Home() {
           const buffer = await file.arrayBuffer();
           const result = parser.parse(buffer) as AbrFileWithMeta;
           result.fileName = file.name;
+
+          // Generate preview images for sampled brushes
+          for (const brush of result.brushes) {
+            if (brush.brushTip) {
+              try {
+                (brush as BrushWithPreview).imageDataUrl = brushTipToDataUrl(brush.brushTip);
+              } catch (err) {
+                console.warn(`Failed to generate preview for brush ${brush.name}:`, err);
+              }
+            }
+          }
 
           newFiles.push({
             name: file.name,

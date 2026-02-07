@@ -3,6 +3,7 @@
  * Tests for parsing, writing, and round-trip integrity of ABR files
  */
 
+import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AbrParser } from '../src/abr-parser';
