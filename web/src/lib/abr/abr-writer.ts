@@ -59,14 +59,20 @@ export class AbrWriter {
     // Collect brushes with tips for sample block
     const sampledBrushes = abrFile.brushes.filter(b => b.brushTip && b.type === 'sampled');
     
-    // Generate UUIDs for brushes that need them
+    // Generate or preserve UUIDs for brushes
     const brushUuids = new Map<string, string>();
     for (const brush of sampledBrushes) {
-      brushUuids.set(brush.id, generateUuid());
+      // Use the preserved sampledDataUuid if available, otherwise generate new
+      const uuid = brush.sampledDataUuid || generateUuid();
+      brushUuids.set(brush.id, uuid);
     }
 
-    // Write sample block (always write, even if empty, for Photoshop compatibility)
-    if (sampledBrushes.length > 0) {
+    // Write sample block - preserve raw data if available (for Photoshop compatibility)
+    if (abrFile.rawSampleData && abrFile.rawSampleData.length > 0) {
+      // Use preserved raw sample data for perfect round-trip
+      this.writeResourceBlock(writer, SAMPLE_KEY, abrFile.rawSampleData);
+    } else if (sampledBrushes.length > 0) {
+      // Generate new sample data
       const sampleData = this.writeSampleBlock(sampledBrushes, brushUuids);
       this.writeResourceBlock(writer, SAMPLE_KEY, sampleData);
     } else {
@@ -74,8 +80,13 @@ export class AbrWriter {
       this.writeResourceBlock(writer, SAMPLE_KEY, new Uint8Array(0));
     }
     
-    // Write empty patt block for compatibility (patterns not yet supported)
-    this.writeResourceBlock(writer, 'patt', new Uint8Array(0));
+    // Write pattern block - preserve raw data if available, otherwise write empty
+    if (abrFile.rawPatternData && abrFile.rawPatternData.length > 0) {
+      this.writeResourceBlock(writer, 'patt', abrFile.rawPatternData);
+    } else {
+      // Write empty patt block for compatibility
+      this.writeResourceBlock(writer, 'patt', new Uint8Array(0));
+    }
 
     // Write descriptor block with brush settings
     const descriptorData = this.writeDescriptorBlock(abrFile.brushes, brushUuids);
@@ -286,54 +297,67 @@ export class AbrWriter {
     desc['Nm  '] = makeDescriptor.text(brush.name);
 
     // Brush definition - use proper class names for Photoshop compatibility
-    const brushDef: Record<string, DescriptorValue> = {};
-    
-    // Determine class name based on brush type
     const brushClassName = brush.type === 'computed' ? 'computedBrush' : 'sampledBrush';
 
-    // For sampled brushes, include the sampled data UUID
-    if (brush.type === 'sampled' && uuid) {
-      brushDef['sampledData'] = makeDescriptor.text(uuid);
-    }
-
-    // Basic properties
-    if (brush.diameter !== undefined) {
-      brushDef['Dmtr'] = makeDescriptor.unit('#Pxl', brush.diameter);
-    }
-    if (brush.hardness !== undefined) {
-      brushDef['Hrdn'] = makeDescriptor.unit('#Prc', brush.hardness);
-    }
-    if (brush.angle !== undefined) {
-      brushDef['Angl'] = makeDescriptor.unit('#Ang', brush.angle);
-    }
-    if (brush.roundness !== undefined) {
-      brushDef['Rndn'] = makeDescriptor.unit('#Prc', brush.roundness);
-    }
-    if (brush.spacing !== undefined) {
-      brushDef['Spcn'] = makeDescriptor.unit('#Prc', brush.spacing);
-    }
+    // Start with the original Brsh structure if available to preserve property order
+    let brushDef: Record<string, DescriptorValue> = {};
     
-    // Add Intr (interpolation) flag
-    brushDef['Intr'] = makeDescriptor.bool(true);
-    brushDef['flipX'] = makeDescriptor.bool(false);
-    brushDef['flipY'] = makeDescriptor.bool(false);
-
-    // For computed brushes, set default shape
-    if (brush.type === 'computed') {
-      if (!brushDef['Dmtr']) {
-        brushDef['Dmtr'] = makeDescriptor.unit('#Pxl', 30);
+    if (brush.settings?.['Brsh'] && typeof brush.settings['Brsh'] === 'object') {
+      // Copy original Brsh properties in their original order
+      const originalBrsh = brush.settings['Brsh'] as Record<string, unknown>;
+      for (const [key, value] of Object.entries(originalBrsh)) {
+        if (key === '__classId') continue; // Skip metadata field
+        const converted = this.convertToDescriptorValue(value);
+        if (converted) {
+          brushDef[key] = converted;
+        }
       }
-      if (!brushDef['Hrdn']) {
-        brushDef['Hrdn'] = makeDescriptor.unit('#Prc', 100);
+      
+      // Update sampledData UUID if we have a new one
+      if (brush.type === 'sampled' && uuid) {
+        brushDef['sampledData'] = makeDescriptor.text(uuid);
+      }
+    } else {
+      // Build brushDef from scratch for new brushes
+      // Basic properties - order: Dmtr, Angl, Rndn, Nm, Spcn, Intr, flipX, flipY, sampledData
+      if (brush.diameter !== undefined) {
+        brushDef['Dmtr'] = makeDescriptor.unit('#Pxl', brush.diameter);
+      }
+      if (brush.angle !== undefined) {
+        brushDef['Angl'] = makeDescriptor.unit('#Ang', brush.angle);
+      }
+      if (brush.roundness !== undefined) {
+        brushDef['Rndn'] = makeDescriptor.unit('#Prc', brush.roundness);
+      }
+      if (brush.spacing !== undefined) {
+        brushDef['Spcn'] = makeDescriptor.unit('#Prc', brush.spacing);
+      }
+      if (brush.hardness !== undefined) {
+        brushDef['Hrdn'] = makeDescriptor.unit('#Prc', brush.hardness);
+      }
+      
+      // Add Intr (interpolation) flag
+      brushDef['Intr'] = makeDescriptor.bool(true);
+      brushDef['flipX'] = makeDescriptor.bool(false);
+      brushDef['flipY'] = makeDescriptor.bool(false);
+      
+      // For sampled brushes, include the sampled data UUID at end
+      if (brush.type === 'sampled' && uuid) {
+        brushDef['sampledData'] = makeDescriptor.text(uuid);
+      }
+
+      // For computed brushes, set default shape
+      if (brush.type === 'computed') {
+        if (!brushDef['Dmtr']) {
+          brushDef['Dmtr'] = makeDescriptor.unit('#Pxl', 30);
+        }
+        if (!brushDef['Hrdn']) {
+          brushDef['Hrdn'] = makeDescriptor.unit('#Prc', 100);
+        }
       }
     }
 
     desc['Brsh'] = makeDescriptor.obj(brushClassName, brushDef, '');
-
-    // Spacing at top level too (not duplicated if already in settings)
-    if (!brush.settings?.['Spcn']) {
-      desc['Spcn'] = makeDescriptor.unit('#Prc', brush.spacing ?? 25);
-    }
 
     // Include other settings from the original brush if available
     if (brush.settings) {
@@ -348,7 +372,7 @@ export class AbrWriter {
    */
   private mergeSettings(desc: Record<string, DescriptorValue>, settings: Record<string, unknown>): void {
     for (const [key, value] of Object.entries(settings)) {
-      if (key === 'Nm  ' || key === 'Brsh' || key === 'Spcn') continue;
+      if (key === 'Nm  ' || key === 'Brsh' || key === '__classId') continue;
       
       const converted = this.convertToDescriptorValue(value);
       if (converted && !desc[key]) {
@@ -390,20 +414,25 @@ export class AbrWriter {
     if (typeof value === 'object') {
       const obj = value as Record<string, unknown>;
       
-      if ('type' in obj && 'value' in obj && typeof obj.type === 'string') {
+      // Check for enum format
+      if ('type' in obj && 'value' in obj && typeof obj.type === 'string' && !('__classId' in obj)) {
         return makeDescriptor.enum(obj.type as string, obj.value as string);
       }
 
-      if ('unit' in obj && 'value' in obj) {
+      // Check for unit format
+      if ('unit' in obj && 'value' in obj && !('__classId' in obj)) {
         return makeDescriptor.unit(obj.unit as string, obj.value as number);
       }
 
+      // Otherwise treat as nested object, preserving __classId if present
+      const classId = (obj.__classId as string) || 'null';
       const items: Record<string, DescriptorValue> = {};
       for (const [k, v] of Object.entries(obj)) {
+        if (k === '__classId') continue; // Skip the metadata field
         const converted = this.convertToDescriptorValue(v);
         if (converted) items[k] = converted;
       }
-      return makeDescriptor.obj('null', items);
+      return makeDescriptor.obj(classId, items);
     }
 
     return null;

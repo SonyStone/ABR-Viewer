@@ -11,6 +11,12 @@ export interface AbrFile {
   subVersion: number;
   brushes: Brush[];
   patterns?: Pattern[];
+  /** Raw pattern block data for round-trip preservation */
+  rawPatternData?: Uint8Array;
+  /** Raw sample block data for round-trip preservation */
+  rawSampleData?: Uint8Array;
+  /** Raw descriptor block data for round-trip preservation */
+  rawDescriptorData?: Uint8Array;
   errors: string[];
 }
 
@@ -32,6 +38,8 @@ export interface Brush {
 
   // For sampled brushes
   brushTip?: BrushTipImage;
+  /** UUID reference to the sampled data in the samp block */
+  sampledDataUuid?: string;
 
   // Data URL for browser display
   imageDataUrl?: string;
@@ -76,6 +84,8 @@ export interface BrushTipImage {
   depth: number;
   /** Raw pixel data (grayscale) */
   data: Uint8Array;
+  /** Compressed data if available (for round-trip preservation) */
+  compressedData?: Uint8Array;
 }
 
 /**

@@ -98,6 +98,49 @@ export class AbrParser {
         }
       }
 
+      // Store raw sample data for round-trip preservation
+      if (sampleBlocks.length > 0) {
+        const totalSize = sampleBlocks.reduce((sum, b) => sum + b.data.length, 0);
+        if (totalSize > 0) {
+          const sampleData = new Uint8Array(totalSize);
+          let offset = 0;
+          for (const block of sampleBlocks) {
+            sampleData.set(block.data, offset);
+            offset += block.data.length;
+          }
+          result.rawSampleData = sampleData;
+        }
+      }
+
+      // Store raw pattern data for round-trip preservation
+      if (patternBlocks.length > 0) {
+        // Concatenate all pattern block data
+        const totalSize = patternBlocks.reduce((sum, b) => sum + b.data.length, 0);
+        if (totalSize > 0) {
+          const patternData = new Uint8Array(totalSize);
+          let offset = 0;
+          for (const block of patternBlocks) {
+            patternData.set(block.data, offset);
+            offset += block.data.length;
+          }
+          result.rawPatternData = patternData;
+        }
+      }
+
+      // Store raw descriptor data for round-trip preservation
+      if (descriptorBlocks.length > 0) {
+        const totalSize = descriptorBlocks.reduce((sum, b) => sum + b.data.length, 0);
+        if (totalSize > 0) {
+          const descData = new Uint8Array(totalSize);
+          let offset = 0;
+          for (const block of descriptorBlocks) {
+            descData.set(block.data, offset);
+            offset += block.data.length;
+          }
+          result.rawDescriptorData = descData;
+        }
+      }
+
       // Parse brush descriptors
       let brushIndex = 0;
       for (const block of descriptorBlocks) {
@@ -330,7 +373,7 @@ export class AbrParser {
       // Extract brush list from the 'Brsh' key which contains VlLs
       const brushList = this.extractBrushList(desc);
 
-      // Track which samples have been used
+      // Track which samples have been used (for fallback index-based matching)
       let sampleIndex = 0;
 
       for (let i = 0; i < brushList.length; i++) {
@@ -340,6 +383,7 @@ export class AbrParser {
           const brushDefValue = brushDesc['Brsh'];
           let isSampledBrush = false;
           let isComputedBrush = false;
+          let sampledDataUuid: string | null = null;
           
           // First check the Brsh object's classId
           if (brushDefValue && brushDefValue.type === 'Objc') {
@@ -351,7 +395,7 @@ export class AbrParser {
             }
           }
           
-          // Then check for explicit brTp enum
+          // Then check for explicit brTp enum and sampledData UUID
           const innerBrushDef = getObject(brushDesc, 'Brsh');
           if (innerBrushDef) {
             const brushType = innerBrushDef['brTp'];
@@ -362,16 +406,20 @@ export class AbrParser {
                 isComputedBrush = true;
               }
             }
-            // Also check for sampledData key
-            if (innerBrushDef['sampledData']) {
+            // Check for sampledData key - this contains the UUID reference
+            const sampledData = innerBrushDef['sampledData'];
+            if (sampledData) {
               isSampledBrush = true;
+              if (sampledData.type === 'TEXT') {
+                sampledDataUuid = sampledData.value;
+              }
             }
           }
 
-          const brush = this.createBrush(brushDesc, images, isSampledBrush ? sampleIndex : -1, startIndex + i, isComputedBrush);
+          const brush = this.createBrush(brushDesc, images, isSampledBrush ? sampleIndex : -1, startIndex + i, isComputedBrush, sampledDataUuid);
           if (brush) {
             brushes.push(brush);
-            if (isSampledBrush && images.has(`sample_${sampleIndex}`)) {
+            if (isSampledBrush) {
               sampleIndex++;
             }
           }
@@ -437,7 +485,8 @@ export class AbrParser {
     images: Map<string, BrushTipImage>,
     sampleIndex: number,
     brushIndex: number,
-    forceComputedType: boolean = false
+    forceComputedType: boolean = false,
+    sampledDataUuid: string | null = null
   ): Brush | null {
     let id = getString(desc, 'Idnt') || getString(desc, 'uuid') || '';
     if (!id) {
@@ -456,6 +505,7 @@ export class AbrParser {
     let angle: number | undefined;
     let roundness: number | undefined;
     let spacing: number | undefined;
+    let finalSampledDataUuid: string | undefined = sampledDataUuid || undefined;
 
     if (brushDef) {
       // Check brush type enum if present (for backwards compatibility)
@@ -480,6 +530,14 @@ export class AbrParser {
       angle = getNumber(brushDef, 'Angl');
       roundness = getNumber(brushDef, 'Rndn');
       spacing = getNumber(brushDef, 'Spcn');
+      
+      // Get sampledData UUID if not already provided
+      if (!finalSampledDataUuid) {
+        const sampledDataVal = brushDef['sampledData'];
+        if (sampledDataVal && sampledDataVal.type === 'TEXT') {
+          finalSampledDataUuid = sampledDataVal.value as string;
+        }
+      }
     }
 
     if (diameter === undefined) diameter = getNumber(desc, 'Dmtr');
@@ -493,20 +551,9 @@ export class AbrParser {
     let brushTip: BrushTipImage | undefined;
     let imageDataUrl: string | undefined;
 
-    // First, try to find the main brush tip by UUID from Brsh.sampledData
-    if (brushDef) {
-      const sampledDataVal = brushDef['sampledData'];
-      if (sampledDataVal) {
-        let brushUuid: string | undefined;
-        if (sampledDataVal.type === 'TEXT') {
-          brushUuid = sampledDataVal.value as string;
-        } else if (typeof sampledDataVal === 'string') {
-          brushUuid = sampledDataVal;
-        }
-        if (brushUuid && images.has(brushUuid)) {
-          brushTip = images.get(brushUuid);
-        }
-      }
+    // First, try to find the main brush tip by UUID from sampledDataUuid
+    if (finalSampledDataUuid && images.has(finalSampledDataUuid)) {
+      brushTip = images.get(finalSampledDataUuid);
     }
 
     // Fallback to sample index if UUID lookup didn't work
@@ -555,6 +602,7 @@ export class AbrParser {
       angle,
       roundness,
       brushTip: this.options.extractImages ? brushTip : undefined,
+      sampledDataUuid: finalSampledDataUuid,
       imageDataUrl,
       dualBrushTip: this.options.extractImages ? dualBrushTip : undefined,
       dualBrushImageDataUrl,
@@ -629,7 +677,11 @@ export class AbrParser {
       case 'UntF':
         return { unit: value.unit, value: value.value };
       case 'Objc':
-        return this.flattenDescriptor(value.value);
+        // Preserve classId for proper serialization
+        return {
+          __classId: value.classId,
+          ...this.flattenDescriptor(value.value)
+        };
       case 'VlLs':
         return value.value.map(v => this.flattenValue(v));
       case 'tdta':
