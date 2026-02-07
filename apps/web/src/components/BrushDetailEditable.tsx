@@ -470,182 +470,192 @@ export function BrushDetailEditable(props: {
 
           {/* Right Panel - Settings Content */}
           <div class="flex-1 overflow-y-auto p-4">
-            <BrushTipPanel
-              brush={props.brush}
-              diameter={diameter}
-              setDiameter={(v) => {
-                setDiameter(v);
-                markChanged();
-              }}
-              angle={angle}
-              setAngle={(v) => {
-                setAngle(v);
-                markChanged();
-              }}
-              roundness={roundness}
-              setRoundness={(v) => {
-                setRoundness(v);
-                markChanged();
-              }}
-              hardness={hardness}
-              setHardness={(v) => {
-                setHardness(v);
-                markChanged();
-              }}
-              spacing={spacing}
-              setSpacing={(v) => {
-                setSpacing(v);
-                markChanged();
-              }}
-              flipX={flipX}
-              setFlipX={(v) => {
-                setFlipX(v);
-                markChanged();
-              }}
-              flipY={flipY}
-              setFlipY={(v) => {
-                setFlipY(v);
-                markChanged();
-              }}
-              onDownload={handleDownloadImage}
-              downloading={downloading()}
-            />
-            <ShapeDynamicsPanel
-              enabled={useShapeDynamics()}
-              sizeJitter={sizeJitter}
-              setSizeJitter={(v) => {
-                setSizeJitter(v);
-                markChanged();
-              }}
-              sizeControl={sizeControl}
-              setSizeControl={(v) => {
-                setSizeControl(v);
-                markChanged();
-              }}
-              sizeMinimum={sizeMinimum}
-              setSizeMinimum={(v) => {
-                setSizeMinimum(v);
-                markChanged();
-              }}
-              minimumDiameter={minimumDiameter}
-              setMinimumDiameter={(v) => {
-                setMinimumDiameter(v);
-                markChanged();
-              }}
-              tiltScale={tiltScale}
-              setTiltScale={(v) => {
-                setTiltScale(v);
-                markChanged();
-              }}
-              angleJitter={angleJitter}
-              setAngleJitter={(v) => {
-                setAngleJitter(v);
-                markChanged();
-              }}
-              angleControl={angleControl}
-              setAngleControl={(v) => {
-                setAngleControl(v);
-                markChanged();
-              }}
-              roundnessJitter={roundnessJitter}
-              setRoundnessJitter={(v) => {
-                setRoundnessJitter(v);
-                markChanged();
-              }}
-              roundnessControl={roundnessControl}
-              setRoundnessControl={(v) => {
-                setRoundnessControl(v);
-                markChanged();
-              }}
-              roundnessMinimum={roundnessMinimum}
-              setRoundnessMinimum={(v) => {
-                setRoundnessMinimum(v);
-                markChanged();
-              }}
-              flipXJitter={flipXJitter}
-              setFlipXJitter={(v) => {
-                setFlipXJitter(v);
-                markChanged();
-              }}
-              flipYJitter={flipYJitter}
-              setFlipYJitter={(v) => {
-                setFlipYJitter(v);
-                markChanged();
-              }}
-              brushProjection={brushProjection}
-              setBrushProjection={(v) => {
-                setBrushProjection(v);
-                markChanged();
-              }}
-            />
-            <ScatteringPanel
-              enabled={useScattering()}
-              scatter={scatter}
-              setScatter={(v) => {
-                setScatter(v);
-                markChanged();
-              }}
-              bothAxes={scatterBothAxes}
-              setBothAxes={(v) => {
-                setScatterBothAxes(v);
-                markChanged();
-              }}
-              scatterControl={scatterControl}
-              setScatterControl={(v) => {
-                setScatterControl(v);
-                markChanged();
-              }}
-              count={scatterCount}
-              setCount={(v) => {
-                setScatterCount(v);
-                markChanged();
-              }}
-              countJitter={countJitter}
-              setCountJitter={(v) => {
-                setCountJitter(v);
-                markChanged();
-              }}
-              countControl={countControl}
-              setCountControl={(v) => {
-                setCountControl(v);
-                markChanged();
-              }}
-            />
-            <TransferPanel
-              enabled={useTransfer()}
-              opacityJitter={opacityJitter}
-              setOpacityJitter={(v) => {
-                setOpacityJitter(v);
-                markChanged();
-              }}
-              opacityControl={opacityControl}
-              setOpacityControl={(v) => {
-                setOpacityControl(v);
-                markChanged();
-              }}
-              opacityMinimum={opacityMinimum}
-              setOpacityMinimum={(v) => {
-                setOpacityMinimum(v);
-                markChanged();
-              }}
-              flowJitter={flowJitter}
-              setFlowJitter={(v) => {
-                setFlowJitter(v);
-                markChanged();
-              }}
-              flowControl={flowControl}
-              setFlowControl={(v) => {
-                setFlowControl(v);
-                markChanged();
-              }}
-              flowMinimum={flowMinimum}
-              setFlowMinimum={(v) => {
-                setFlowMinimum(v);
-                markChanged();
-              }}
-            />
-            <RawSettingsPanel settings={props.brush.settings || {}} />
             <Switch>
+              <Match when={activePanel() === 'brush-tip'}>
+                <BrushTipPanel
+                  brush={props.brush}
+                  diameter={diameter}
+                  setDiameter={(v) => {
+                    setDiameter(v);
+                    markChanged();
+                  }}
+                  angle={angle}
+                  setAngle={(v) => {
+                    setAngle(v);
+                    markChanged();
+                  }}
+                  roundness={roundness}
+                  setRoundness={(v) => {
+                    setRoundness(v);
+                    markChanged();
+                  }}
+                  hardness={hardness}
+                  setHardness={(v) => {
+                    setHardness(v);
+                    markChanged();
+                  }}
+                  spacing={spacing}
+                  setSpacing={(v) => {
+                    setSpacing(v);
+                    markChanged();
+                  }}
+                  flipX={flipX}
+                  setFlipX={(v) => {
+                    setFlipX(v);
+                    markChanged();
+                  }}
+                  flipY={flipY}
+                  setFlipY={(v) => {
+                    setFlipY(v);
+                    markChanged();
+                  }}
+                  onDownload={handleDownloadImage}
+                  downloading={downloading()}
+                />
+              </Match>
+              <Match when={activePanel() === 'shape-dynamics'}>
+                <ShapeDynamicsPanel
+                  enabled={useShapeDynamics()}
+                  sizeJitter={sizeJitter}
+                  setSizeJitter={(v) => {
+                    setSizeJitter(v);
+                    markChanged();
+                  }}
+                  sizeControl={sizeControl}
+                  setSizeControl={(v) => {
+                    setSizeControl(v);
+                    markChanged();
+                  }}
+                  sizeMinimum={sizeMinimum}
+                  setSizeMinimum={(v) => {
+                    setSizeMinimum(v);
+                    markChanged();
+                  }}
+                  minimumDiameter={minimumDiameter}
+                  setMinimumDiameter={(v) => {
+                    setMinimumDiameter(v);
+                    markChanged();
+                  }}
+                  tiltScale={tiltScale}
+                  setTiltScale={(v) => {
+                    setTiltScale(v);
+                    markChanged();
+                  }}
+                  angleJitter={angleJitter}
+                  setAngleJitter={(v) => {
+                    setAngleJitter(v);
+                    markChanged();
+                  }}
+                  angleControl={angleControl}
+                  setAngleControl={(v) => {
+                    setAngleControl(v);
+                    markChanged();
+                  }}
+                  roundnessJitter={roundnessJitter}
+                  setRoundnessJitter={(v) => {
+                    setRoundnessJitter(v);
+                    markChanged();
+                  }}
+                  roundnessControl={roundnessControl}
+                  setRoundnessControl={(v) => {
+                    setRoundnessControl(v);
+                    markChanged();
+                  }}
+                  roundnessMinimum={roundnessMinimum}
+                  setRoundnessMinimum={(v) => {
+                    setRoundnessMinimum(v);
+                    markChanged();
+                  }}
+                  flipXJitter={flipXJitter}
+                  setFlipXJitter={(v) => {
+                    setFlipXJitter(v);
+                    markChanged();
+                  }}
+                  flipYJitter={flipYJitter}
+                  setFlipYJitter={(v) => {
+                    setFlipYJitter(v);
+                    markChanged();
+                  }}
+                  brushProjection={brushProjection}
+                  setBrushProjection={(v) => {
+                    setBrushProjection(v);
+                    markChanged();
+                  }}
+                />
+              </Match>
+              <Match when={activePanel() === 'scattering'}>
+                <ScatteringPanel
+                  enabled={useScattering()}
+                  scatter={scatter}
+                  setScatter={(v) => {
+                    setScatter(v);
+                    markChanged();
+                  }}
+                  bothAxes={scatterBothAxes}
+                  setBothAxes={(v) => {
+                    setScatterBothAxes(v);
+                    markChanged();
+                  }}
+                  scatterControl={scatterControl}
+                  setScatterControl={(v) => {
+                    setScatterControl(v);
+                    markChanged();
+                  }}
+                  count={scatterCount}
+                  setCount={(v) => {
+                    setScatterCount(v);
+                    markChanged();
+                  }}
+                  countJitter={countJitter}
+                  setCountJitter={(v) => {
+                    setCountJitter(v);
+                    markChanged();
+                  }}
+                  countControl={countControl}
+                  setCountControl={(v) => {
+                    setCountControl(v);
+                    markChanged();
+                  }}
+                />
+              </Match>
+              <Match when={activePanel() === 'transfer'}>
+                <TransferPanel
+                  enabled={useTransfer()}
+                  opacityJitter={opacityJitter}
+                  setOpacityJitter={(v) => {
+                    setOpacityJitter(v);
+                    markChanged();
+                  }}
+                  opacityControl={opacityControl}
+                  setOpacityControl={(v) => {
+                    setOpacityControl(v);
+                    markChanged();
+                  }}
+                  opacityMinimum={opacityMinimum}
+                  setOpacityMinimum={(v) => {
+                    setOpacityMinimum(v);
+                    markChanged();
+                  }}
+                  flowJitter={flowJitter}
+                  setFlowJitter={(v) => {
+                    setFlowJitter(v);
+                    markChanged();
+                  }}
+                  flowControl={flowControl}
+                  setFlowControl={(v) => {
+                    setFlowControl(v);
+                    markChanged();
+                  }}
+                  flowMinimum={flowMinimum}
+                  setFlowMinimum={(v) => {
+                    setFlowMinimum(v);
+                    markChanged();
+                  }}
+                />
+              </Match>
+              <Match when={activePanel() === 'raw'}>
+                <RawSettingsPanel settings={props.brush.settings || {}} />
+              </Match>
               <Match when={true}>
                 <div class="text-ps-text-muted py-8 text-center">
                   <p>Panel content for "{activePanel()}" coming soon</p>
