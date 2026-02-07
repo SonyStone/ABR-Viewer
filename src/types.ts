@@ -103,7 +103,7 @@ export type DescriptorValue =
   | { type: 'UntF'; unit: string; value: number }
   | { type: 'Objc'; classId: string; value: Record<string, DescriptorValue> }
   | { type: 'VlLs'; value: DescriptorValue[] }
-  | { type: 'tdta'; value: Buffer }
+  | { type: 'tdta'; value: Buffer | Uint8Array }
   | { type: 'obj '; value: unknown };
 
 /**

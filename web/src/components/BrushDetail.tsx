@@ -5,6 +5,9 @@ import { brushTipToPngBlob } from '~/lib/abr';
 interface BrushDetailProps {
   brush: Brush;
   onClose: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onDuplicate?: () => void;
 }
 
 // Control type mapping
@@ -120,11 +123,51 @@ export function BrushDetail(props: BrushDetailProps) {
               </p>
             </div>
           </div>
-          <button onClick={props.onClose} class="p-2 hover:bg-ps-bg-light rounded" aria-label="Close">
-            <svg class="w-5 h-5 text-ps-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div class="flex items-center gap-2">
+            {/* Action buttons */}
+            <Show when={props.onEdit}>
+              <button
+                onClick={props.onEdit}
+                class="px-3 py-1.5 text-sm bg-ps-accent hover:bg-ps-accent-hover text-white rounded flex items-center gap-2"
+                title="Edit Brush"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit
+              </button>
+            </Show>
+            <Show when={props.onDuplicate}>
+              <button
+                onClick={props.onDuplicate}
+                class="px-3 py-1.5 text-sm bg-ps-bg-light hover:bg-ps-bg-lighter text-ps-text rounded flex items-center gap-2"
+                title="Duplicate Brush"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
+            </Show>
+            <Show when={props.onDelete}>
+              <button
+                onClick={props.onDelete}
+                class="px-3 py-1.5 text-sm bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded flex items-center gap-2"
+                title="Delete Brush"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </Show>
+            <button onClick={props.onClose} class="p-2 hover:bg-ps-bg-light rounded ml-2" aria-label="Close">
+              <svg class="w-5 h-5 text-ps-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Content */}

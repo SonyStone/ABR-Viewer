@@ -42,8 +42,10 @@ export class AbrParser {
   /**
    * Parse an ABR file from a buffer
    */
-  parse(buffer: Buffer): AbrFile {
-    const reader = new BinaryReader(buffer);
+  parse(buffer: Buffer | Uint8Array): AbrFile {
+    // Convert Uint8Array to Buffer if needed
+    const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+    const reader = new BinaryReader(buf);
     const result: AbrFile = {
       version: 0,
       subVersion: 0,

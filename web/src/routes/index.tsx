@@ -1,20 +1,24 @@
 import { Show, For, createSignal, createMemo, createEffect } from 'solid-js';
-import { AbrParser, type AbrFile, type Brush, brushTipToPngBlob } from '~/lib/abr';
+import { AbrParser, AbrWriter, createAbrFile, type AbrFile, type Brush, brushTipToPngBlob } from '~/lib/abr';
 import { DropZone } from '~/components/DropZone';
 import { BrushCard } from '~/components/BrushCard';
-import { BrushDetail } from '~/components/BrushDetail';
+import { BrushDetailEditable } from '~/components/BrushDetailEditable';
 import { SearchBar } from '~/components/SearchBar';
 import { FileList } from '~/components/FileList';
+import { BrushEditor } from '~/components/BrushEditor';
 
 interface LoadedFile {
   name: string;
   data: AbrFile;
+  isModified?: boolean;
 }
 
 export default function Home() {
   const [files, setFiles] = createSignal<LoadedFile[]>([]);
   const [selectedFileName, setSelectedFileName] = createSignal<string | null>(null);
   const [selectedBrush, setSelectedBrush] = createSignal<Brush | null>(null);
+  const [editingBrush, setEditingBrush] = createSignal<Brush | null>(null);
+  const [isCreatingBrush, setIsCreatingBrush] = createSignal(false);
   const [searchQuery, setSearchQuery] = createSignal('');
   const [loading, setLoading] = createSignal(false);
   const [viewMode, setViewMode] = createSignal<'grid' | 'list'>('grid');
@@ -167,6 +171,126 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
+  // === EDITING FUNCTIONS ===
+
+  const handleCreateNewFile = () => {
+    const newFile: LoadedFile = {
+      name: `New Brushes ${files().length + 1}.abr`,
+      data: createAbrFile([]),
+      isModified: true,
+    };
+    setFiles(prev => [...prev, newFile]);
+    setSelectedFileName(newFile.name);
+  };
+
+  const handleCreateBrush = () => {
+    if (!selectedFileName()) {
+      // Create a new file first if none exists
+      handleCreateNewFile();
+    }
+    setIsCreatingBrush(true);
+    setEditingBrush(null);
+  };
+
+  const handleEditBrush = (brush: Brush) => {
+    setEditingBrush(brush);
+    setIsCreatingBrush(false);
+    setSelectedBrush(null);
+  };
+
+  const handleSaveBrush = (brush: Brush) => {
+    const fileName = selectedFileName();
+    if (!fileName) return;
+
+    setFiles(prev => prev.map(file => {
+      if (file.name !== fileName) return file;
+
+      let updatedBrushes: Brush[];
+      if (isCreatingBrush()) {
+        // Add new brush
+        updatedBrushes = [...file.data.brushes, brush];
+      } else {
+        // Update existing brush
+        updatedBrushes = file.data.brushes.map(b =>
+          b.id === brush.id ? brush : b
+        );
+      }
+
+      return {
+        ...file,
+        data: { ...file.data, brushes: updatedBrushes },
+        isModified: true,
+      };
+    }));
+
+    setEditingBrush(null);
+    setIsCreatingBrush(false);
+  };
+
+  const handleDeleteBrush = (brush: Brush) => {
+    const fileName = selectedFileName();
+    if (!fileName) return;
+
+    if (!confirm(`Delete brush "${brush.name}"?`)) return;
+
+    setFiles(prev => prev.map(file => {
+      if (file.name !== fileName) return file;
+      return {
+        ...file,
+        data: {
+          ...file.data,
+          brushes: file.data.brushes.filter(b => b.id !== brush.id),
+        },
+        isModified: true,
+      };
+    }));
+
+    setSelectedBrush(null);
+  };
+
+  const handleDuplicateBrush = (brush: Brush) => {
+    const fileName = selectedFileName();
+    if (!fileName) return;
+
+    const newBrush: Brush = {
+      ...brush,
+      id: `brush_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      name: `${brush.name} (Copy)`,
+    };
+
+    setFiles(prev => prev.map(file => {
+      if (file.name !== fileName) return file;
+      const brushIndex = file.data.brushes.findIndex(b => b.id === brush.id);
+      const newBrushes = [...file.data.brushes];
+      newBrushes.splice(brushIndex + 1, 0, newBrush);
+      return {
+        ...file,
+        data: { ...file.data, brushes: newBrushes },
+        isModified: true,
+      };
+    }));
+  };
+
+  const handleExportAbr = () => {
+    const file = selectedFile();
+    if (!file) return;
+
+    const writer = new AbrWriter();
+    writer.download(file.data, file.name);
+  };
+
+  const handleRenameFile = (oldName: string, newName: string) => {
+    if (!newName.endsWith('.abr')) {
+      newName = newName + '.abr';
+    }
+    setFiles(prev => prev.map(file => 
+      file.name === oldName ? { ...file, name: newName, isModified: true } : file
+    ));
+    if (selectedFileName() === oldName) {
+      setSelectedFileName(newName);
+    }
+  };
+
   const sampledCount = createMemo(() =>
     selectedFile()?.data.brushes.filter(b => b.type === 'sampled').length || 0
   );
@@ -188,13 +312,48 @@ export default function Home() {
               </svg>
             </div>
             <div>
-              <h1 class="text-lg font-semibold text-ps-text-bright">ABR Viewer</h1>
-              <p class="text-xs text-ps-text-muted">Photoshop Brush File Inspector</p>
+              <h1 class="text-lg font-semibold text-ps-text-bright">ABR Editor</h1>
+              <p class="text-xs text-ps-text-muted">Photoshop Brush File Editor</p>
             </div>
           </div>
 
-          <Show when={files().length > 0}>
-            <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2">
+            {/* Create new file button - always visible */}
+            <button
+              onClick={handleCreateNewFile}
+              class="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded flex items-center gap-2"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+              New File
+            </button>
+
+            <Show when={files().length > 0}>
+              {/* Add brush button */}
+              <button
+                onClick={handleCreateBrush}
+                class="px-3 py-1.5 text-sm bg-ps-accent hover:bg-ps-accent-hover text-white rounded flex items-center gap-2"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Add Brush
+              </button>
+
+              {/* Export ABR */}
+              <button
+                onClick={handleExportAbr}
+                class="px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded flex items-center gap-2"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Export ABR
+              </button>
+
+              {/* JSON export */}
               <button
                 onClick={handleDownloadJson}
                 class="px-3 py-1.5 text-sm bg-ps-bg-light hover:bg-ps-bg-lighter text-ps-text rounded flex items-center gap-2"
@@ -205,18 +364,20 @@ export default function Home() {
                 </svg>
                 JSON
               </button>
+
+              {/* All PNGs */}
               <button
                 onClick={handleDownloadAllImages}
-                class="px-3 py-1.5 text-sm bg-ps-accent hover:bg-ps-accent-hover text-white rounded flex items-center gap-2"
+                class="px-3 py-1.5 text-sm bg-ps-bg-light hover:bg-ps-bg-lighter text-ps-text rounded flex items-center gap-2"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
-                All PNGs
+                PNGs
               </button>
-            </div>
-          </Show>
+            </Show>
+          </div>
         </div>
       </header>
 
@@ -471,15 +632,53 @@ export default function Home() {
                   </button>
                 </div>
               </Show>
+
+              {/* Empty state when no brushes */}
+              <Show when={filteredBrushes().length === 0 && !searchQuery() && selectedFile()}>
+                <div class="text-center py-12">
+                  <div class="w-16 h-16 mx-auto bg-ps-bg-light rounded-full flex items-center justify-center mb-4">
+                    <svg class="w-8 h-8 text-ps-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 4v16m8-8H4" />
+                    </svg>
+                  </div>
+                  <p class="text-ps-text-muted mb-2">No brushes in this file yet</p>
+                  <button
+                    onClick={handleCreateBrush}
+                    class="px-4 py-2 bg-ps-accent hover:bg-ps-accent-hover text-white rounded text-sm"
+                  >
+                    Create your first brush
+                  </button>
+                </div>
+              </Show>
             </div>
           </div>
         </Show>
 
-        {/* Brush detail modal */}
+        {/* Brush detail modal - now editable */}
         <Show when={selectedBrush()}>
-          <BrushDetail
+          <BrushDetailEditable
             brush={selectedBrush()!}
             onClose={() => setSelectedBrush(null)}
+            onSave={(updatedBrush) => {
+              handleSaveBrush(updatedBrush);
+              setSelectedBrush(updatedBrush);
+            }}
+            onDelete={() => handleDeleteBrush(selectedBrush()!)}
+            onDuplicate={() => handleDuplicateBrush(selectedBrush()!)}
+          />
+        </Show>
+
+        {/* Brush editor modal */}
+        <Show when={editingBrush() || isCreatingBrush()}>
+          <BrushEditor
+            brush={editingBrush() || undefined}
+            isNew={isCreatingBrush()}
+            onSave={handleSaveBrush}
+            onCancel={() => {
+              setEditingBrush(null);
+              setIsCreatingBrush(false);
+            }}
           />
         </Show>
       </main>
@@ -487,7 +686,7 @@ export default function Home() {
       {/* Footer */}
       <footer class="border-t border-ps-border bg-ps-bg mt-auto">
         <div class="max-w-7xl mx-auto px-4 py-4 text-center text-xs text-ps-text-muted">
-          <p>ABR Viewer • Supports Photoshop brush files v6+, v9, v10</p>
+          <p>ABR Editor • Create, edit, and export Photoshop brush files v6+</p>
           <p class="mt-1">All processing happens locally in your browser. No files are uploaded.</p>
         </div>
       </footer>
