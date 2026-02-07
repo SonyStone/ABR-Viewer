@@ -37,7 +37,6 @@ build/
 output/
 
 # Test files
-*.test.js
-*.test.ts
 coverage/
+test-output/
 files/

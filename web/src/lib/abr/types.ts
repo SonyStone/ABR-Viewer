@@ -109,7 +109,7 @@ export type DescriptorValue =
   | { type: 'TEXT'; value: string }
   | { type: 'enum'; typeId: string; value: string }
   | { type: 'UntF'; unit: string; value: number }
-  | { type: 'Objc'; classId: string; value: Record<string, DescriptorValue> }
+  | { type: 'Objc'; classId: string; value: Record<string, DescriptorValue>; className?: string }
   | { type: 'VlLs'; value: DescriptorValue[] }
   | { type: 'tdta'; value: Uint8Array }
   | { type: 'obj '; value: unknown };

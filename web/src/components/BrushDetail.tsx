@@ -827,16 +827,17 @@ function JsonHighlight(props: { data: unknown; indent?: number }) {
   if (typeof props.data === 'string') return <span class="text-orange-400">"{props.data}"</span>;
 
   if (Array.isArray(props.data)) {
-    if (props.data.length === 0) return <span>[]</span>;
+    const arr = props.data;
+    if (arr.length === 0) return <span>[]</span>;
     return (
       <>
         {'[\n'}
-        <For each={props.data}>
+        <For each={arr}>
           {(item, i) => (
             <>
               {padding}{'  '}
               <JsonHighlight data={item} indent={indent + 1} />
-              {i() < props.data.length - 1 ? ',' : ''}
+              {i() < arr.length - 1 ? ',' : ''}
               {'\n'}
             </>
           )}

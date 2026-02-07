@@ -18,7 +18,8 @@ export class DescriptorSerializer {
    */
   serializeDescriptor(desc: Record<string, DescriptorValue>, className: string = '', classId: string = 'null'): void {
     // Write Unicode class name string (length + UTF-16 chars)
-    this.writer.writeUnicodeString(className);
+    // For empty class names, Photoshop uses length=1 with a null char
+    this.writer.writeClassName(className);
 
     // Write class ID (length-prefixed or 4-byte key)
     this.writer.writeId(classId);
@@ -54,7 +55,7 @@ export class DescriptorSerializer {
         break;
 
       case 'TEXT':
-        this.writer.writeUnicodeString(value.value);
+        this.writer.writeTextValue(value.value);
         break;
 
       case 'enum':
@@ -68,8 +69,10 @@ export class DescriptorSerializer {
         break;
 
       case 'Objc':
-        // Nested object - write class name (empty), class ID, and items
-        this.writer.writeUnicodeString(''); // Empty class name
+        // Nested object - write class name and class ID, then items
+        // For empty class names, Photoshop uses length=1 with a null char
+        const className = value.className || '';
+        this.writer.writeClassName(className);
         this.writer.writeId(value.classId);
         
         const items = value.value;
@@ -118,7 +121,7 @@ export const makeDescriptor = {
   text: (value: string): DescriptorValue => ({ type: 'TEXT', value }),
   enum: (typeId: string, value: string): DescriptorValue => ({ type: 'enum', typeId, value }),
   unit: (unit: string, value: number): DescriptorValue => ({ type: 'UntF', unit, value }),
-  obj: (classId: string, value: Record<string, DescriptorValue>): DescriptorValue => ({ type: 'Objc', classId, value }),
+  obj: (classId: string, value: Record<string, DescriptorValue>, className?: string): DescriptorValue => ({ type: 'Objc', classId, value, className }),
   list: (value: DescriptorValue[]): DescriptorValue => ({ type: 'VlLs', value }),
   data: (value: Uint8Array | Buffer): DescriptorValue => ({ type: 'tdta', value: value instanceof Uint8Array ? value : new Uint8Array(value) }),
 };

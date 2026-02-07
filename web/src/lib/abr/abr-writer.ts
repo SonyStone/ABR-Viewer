@@ -65,11 +65,17 @@ export class AbrWriter {
       brushUuids.set(brush.id, generateUuid());
     }
 
-    // Write sample block if there are sampled brushes
+    // Write sample block (always write, even if empty, for Photoshop compatibility)
     if (sampledBrushes.length > 0) {
       const sampleData = this.writeSampleBlock(sampledBrushes, brushUuids);
       this.writeResourceBlock(writer, SAMPLE_KEY, sampleData);
+    } else {
+      // Write empty samp block for compatibility
+      this.writeResourceBlock(writer, SAMPLE_KEY, new Uint8Array(0));
     }
+    
+    // Write empty patt block for compatibility (patterns not yet supported)
+    this.writeResourceBlock(writer, 'patt', new Uint8Array(0));
 
     // Write descriptor block with brush settings
     const descriptorData = this.writeDescriptorBlock(abrFile.brushes, brushUuids);
@@ -106,12 +112,7 @@ export class AbrWriter {
     writer.writeString(key, 4);
     writer.writeUInt32BE(data.length);
     writer.writeBytes(data);
-    
-    // Pad to 4-byte boundary
-    const padding = (4 - (data.length % 4)) % 4;
-    if (padding > 0) {
-      writer.writePadding(padding);
-    }
+    // Note: ABR format does not use padding after resource blocks
   }
 
   /**
@@ -259,7 +260,8 @@ export class AbrWriter {
 
     for (const brush of brushes) {
       const brushDesc = this.createBrushDescriptor(brush, uuids.get(brush.id));
-      brushList.push(makeDescriptor.obj('Brsh', brushDesc));
+      // Use 'brushPreset' as classId, empty className for Photoshop compatibility
+      brushList.push(makeDescriptor.obj('brushPreset', brushDesc, ''));
     }
 
     // Create the root descriptor
@@ -283,11 +285,11 @@ export class AbrWriter {
     // Brush name
     desc['Nm  '] = makeDescriptor.text(brush.name);
 
-    // Brush definition
+    // Brush definition - use proper class names for Photoshop compatibility
     const brushDef: Record<string, DescriptorValue> = {};
-
-    // Brush type
-    brushDef['brTp'] = makeDescriptor.enum('brTp', brush.type === 'computed' ? 'brtC' : 'brtS');
+    
+    // Determine class name based on brush type
+    const brushClassName = brush.type === 'computed' ? 'computedBrush' : 'sampledBrush';
 
     // For sampled brushes, include the sampled data UUID
     if (brush.type === 'sampled' && uuid) {
@@ -310,6 +312,11 @@ export class AbrWriter {
     if (brush.spacing !== undefined) {
       brushDef['Spcn'] = makeDescriptor.unit('#Prc', brush.spacing);
     }
+    
+    // Add Intr (interpolation) flag
+    brushDef['Intr'] = makeDescriptor.bool(true);
+    brushDef['flipX'] = makeDescriptor.bool(false);
+    brushDef['flipY'] = makeDescriptor.bool(false);
 
     // For computed brushes, set default shape
     if (brush.type === 'computed') {
@@ -321,10 +328,12 @@ export class AbrWriter {
       }
     }
 
-    desc['Brsh'] = makeDescriptor.obj('Brsh', brushDef);
+    desc['Brsh'] = makeDescriptor.obj(brushClassName, brushDef, '');
 
-    // Spacing at top level too
-    desc['Spcn'] = makeDescriptor.unit('#Prc', brush.spacing ?? 25);
+    // Spacing at top level too (not duplicated if already in settings)
+    if (!brush.settings?.['Spcn']) {
+      desc['Spcn'] = makeDescriptor.unit('#Prc', brush.spacing ?? 25);
+    }
 
     // Include other settings from the original brush if available
     if (brush.settings) {

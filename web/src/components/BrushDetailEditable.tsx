@@ -186,6 +186,80 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
   const handleSave = () => {
     if (!props.onSave) return;
 
+    // Start with original settings to preserve all fields
+    const updatedSettings = { ...props.brush.settings };
+
+    // Update only the settings that were explicitly changed
+    updatedSettings.useTipDynamics = useShapeDynamics();
+    updatedSettings.useScatter = useScattering();
+    updatedSettings.useTexture = useTexture();
+    updatedSettings.useColorDynamics = useColorDynamics();
+    updatedSettings.usePaintDynamics = useTransfer();
+    updatedSettings.useBrushPose = useBrushPose();
+    updatedSettings.useNoise = useNoise();
+    updatedSettings.Wtdg = useWetEdges();
+    updatedSettings.useBuildUp = useBuildUp();
+    updatedSettings.useSmoothing = useSmoothing();
+    updatedSettings.useProtectTexture = useProtectTexture();
+    updatedSettings.flipX = flipXJitter();
+    updatedSettings.flipY = flipYJitter();
+    updatedSettings.brushProjection = brushProjection();
+
+    // Shape dynamics - merge with existing or create new
+    if (useShapeDynamics()) {
+      updatedSettings.szVr = {
+        ...updatedSettings.szVr,
+        jitter: { unit: '#Prc', value: sizeJitter() },
+        bVTy: sizeControl(),
+        'Mnm ': { unit: '#Prc', value: sizeMinimum() },
+      };
+      updatedSettings.angleDynamics = {
+        ...updatedSettings.angleDynamics,
+        jitter: { unit: '#Ang', value: angleJitter() },
+        bVTy: angleControl(),
+      };
+      updatedSettings.roundnessDynamics = {
+        ...updatedSettings.roundnessDynamics,
+        jitter: { unit: '#Prc', value: roundnessJitter() },
+        bVTy: roundnessControl(),
+        'Mnm ': { unit: '#Prc', value: roundnessMinimum() },
+      };
+    }
+    updatedSettings.minimumDiameter = { unit: '#Prc', value: minimumDiameter() };
+    updatedSettings.tiltScale = { unit: '#Prc', value: tiltScale() };
+
+    // Scattering - merge with existing or create new
+    if (useScattering()) {
+      updatedSettings.scatter = {
+        ...updatedSettings.scatter,
+        Sctr: { unit: '#Prc', value: scatter() },
+        bothAxes: scatterBothAxes(),
+        bVTy: scatterControl(),
+        'Cnt ': scatterCount(),
+      };
+      updatedSettings.countDynamics = {
+        ...updatedSettings.countDynamics,
+        jitter: { unit: '#Prc', value: countJitter() },
+        bVTy: countControl(),
+      };
+    }
+
+    // Transfer - merge with existing or create new
+    if (useTransfer()) {
+      updatedSettings.opacityDynamics = {
+        ...updatedSettings.opacityDynamics,
+        jitter: { unit: '#Prc', value: opacityJitter() },
+        bVTy: opacityControl(),
+        'Mnm ': { unit: '#Prc', value: opacityMinimum() },
+      };
+      updatedSettings.flowDynamics = {
+        ...updatedSettings.flowDynamics,
+        jitter: { unit: '#Prc', value: flowJitter() },
+        bVTy: flowControl(),
+        'Mnm ': { unit: '#Prc', value: flowMinimum() },
+      };
+    }
+
     const updatedBrush: Brush = {
       ...props.brush,
       name: name(),
@@ -194,62 +268,7 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
       angle: angle(),
       roundness: roundness(),
       hardness: props.brush.type === 'computed' ? hardness() : props.brush.hardness,
-      settings: {
-        ...props.brush.settings,
-        useTipDynamics: useShapeDynamics(),
-        useScatter: useScattering(),
-        useTexture: useTexture(),
-        useColorDynamics: useColorDynamics(),
-        usePaintDynamics: useTransfer(),
-        useBrushPose: useBrushPose(),
-        useNoise: useNoise(),
-        Wtdg: useWetEdges(),
-        useBuildUp: useBuildUp(),
-        useSmoothing: useSmoothing(),
-        useProtectTexture: useProtectTexture(),
-        // Shape dynamics
-        szVr: useShapeDynamics() ? {
-          jitter: { unit: '#Prc', value: sizeJitter() },
-          bVTy: sizeControl(),
-          'Mnm ': { unit: '#Prc', value: sizeMinimum() },
-        } : undefined,
-        minimalDiameter: { unit: '#Prc', value: minimumDiameter() },
-        tiltScale: { unit: '#Prc', value: tiltScale() },
-        angleDynamics: useShapeDynamics() ? {
-          jitter: { unit: '#Ang', value: angleJitter() },
-          bVTy: angleControl(),
-        } : undefined,
-        roundnessDynamics: useShapeDynamics() ? {
-          jitter: { unit: '#Prc', value: roundnessJitter() },
-          bVTy: roundnessControl(),
-          'Mnm ': { unit: '#Prc', value: roundnessMinimum() },
-        } : undefined,
-        flipX: flipXJitter(),
-        flipY: flipYJitter(),
-        brushProjection: brushProjection(),
-        // Scattering
-        scatter: useScattering() ? {
-          Sctr: { unit: '#Prc', value: scatter() },
-          bothAxes: scatterBothAxes(),
-          bVTy: scatterControl(),
-          'Cnt ': scatterCount(),
-        } : undefined,
-        countDynamics: useScattering() ? {
-          jitter: { unit: '#Prc', value: countJitter() },
-          bVTy: countControl(),
-        } : undefined,
-        // Transfer
-        opacityDynamics: useTransfer() ? {
-          jitter: { unit: '#Prc', value: opacityJitter() },
-          bVTy: opacityControl(),
-          'Mnm ': { unit: '#Prc', value: opacityMinimum() },
-        } : undefined,
-        flowDynamics: useTransfer() ? {
-          jitter: { unit: '#Prc', value: flowJitter() },
-          bVTy: flowControl(),
-          'Mnm ': { unit: '#Prc', value: flowMinimum() },
-        } : undefined,
-      },
+      settings: updatedSettings,
     };
 
     props.onSave(updatedBrush);

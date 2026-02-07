@@ -336,21 +336,39 @@ export class AbrParser {
         const brushDesc = brushList[i];
         try {
           // Check if this is a sampled brush
-          const brushDefObj = getObject(brushDesc, 'Brsh');
+          const brushDefObj = desc['Brsh'];
+          const brushDefValue = brushDesc['Brsh'];
           let isSampledBrush = false;
+          let isComputedBrush = false;
           
-          if (brushDefObj) {
-            const brushType = brushDefObj['brTp'];
-            if (brushType && brushType.type === 'enum' && brushType.value === 'brtS') {
+          // First check the Brsh object's classId
+          if (brushDefValue && brushDefValue.type === 'Objc') {
+            const classId = brushDefValue.classId;
+            if (classId === 'sampledBrush' || classId === 'smpB') {
               isSampledBrush = true;
+            } else if (classId === 'computedBrush' || classId === 'cmpB') {
+              isComputedBrush = true;
+            }
+          }
+          
+          // Then check for explicit brTp enum
+          const innerBrushDef = getObject(brushDesc, 'Brsh');
+          if (innerBrushDef) {
+            const brushType = innerBrushDef['brTp'];
+            if (brushType && brushType.type === 'enum') {
+              if (brushType.value === 'brtS') {
+                isSampledBrush = true;
+              } else if (brushType.value === 'brtC') {
+                isComputedBrush = true;
+              }
             }
             // Also check for sampledData key
-            if (brushDefObj['sampledData']) {
+            if (innerBrushDef['sampledData']) {
               isSampledBrush = true;
             }
           }
           
-          const brush = this.createBrush(brushDesc, images, isSampledBrush ? sampleIndex : -1, startIndex + i);
+          const brush = this.createBrush(brushDesc, images, isSampledBrush ? sampleIndex : -1, startIndex + i, isComputedBrush);
           if (brush) {
             brushes.push(brush);
             if (isSampledBrush && images.has(`sample_${sampleIndex}`)) {
@@ -424,7 +442,8 @@ export class AbrParser {
     desc: Record<string, DescriptorValue>,
     images: Map<string, BrushTipImage>,
     sampleIndex: number,
-    brushIndex: number
+    brushIndex: number,
+    forceComputedType: boolean = false
   ): Brush | null {
     // Extract brush ID
     let id = getString(desc, 'Idnt') || getString(desc, 'uuid') || '';
@@ -438,8 +457,9 @@ export class AbrParser {
     // Get brush definition from 'Brsh' key
     const brushDef = getObject(desc, 'Brsh');
     
-    // Determine brush type from brush definition
-    let type: 'computed' | 'sampled' = 'sampled';
+    // Determine brush type
+    // If forceComputedType is set, use computed; if sampleIndex >= 0, use sampled
+    let type: 'computed' | 'sampled' = forceComputedType ? 'computed' : (sampleIndex >= 0 ? 'sampled' : 'computed');
     let diameter: number | undefined;
     let hardness: number | undefined;
     let angle: number | undefined;
@@ -447,10 +467,21 @@ export class AbrParser {
     let spacing: number | undefined;
 
     if (brushDef) {
-      // Get brush type
+      // Check brush type enum if present (for backwards compatibility)
       const brushTypeVal = brushDef['brTp'];
       if (brushTypeVal && brushTypeVal.type === 'enum') {
         type = brushTypeVal.value === 'brtC' ? 'computed' : 'sampled';
+      }
+      
+      // Also check classId from Brsh object descriptor
+      const brshDescriptor = desc['Brsh'];
+      if (brshDescriptor && brshDescriptor.type === 'Objc') {
+        const classId = brshDescriptor.classId;
+        if (classId === 'computedBrush' || classId === 'cmpB') {
+          type = 'computed';
+        } else if (classId === 'sampledBrush' || classId === 'smpB') {
+          type = 'sampled';
+        }
       }
       
       // Extract properties from brush definition

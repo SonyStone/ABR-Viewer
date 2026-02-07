@@ -138,6 +138,32 @@ export class BinaryWriter {
   }
 
   /**
+   * Write a Photoshop TEXT value (Unicode string with null terminator)
+   * TEXT values include the null terminator in their length count
+   */
+  writeTextValue(str: string): void {
+    this.writeUInt32BE(str.length + 1); // +1 for null terminator
+    for (let i = 0; i < str.length; i++) {
+      this.writeUInt16BE(str.charCodeAt(i));
+    }
+    this.writeUInt16BE(0); // null terminator
+  }
+
+  /**
+   * Write a Photoshop descriptor class name (Unicode string)
+   * For empty class names, Photoshop uses length=1 with a single null char (0x0000)
+   */
+  writeClassName(str: string): void {
+    if (str.length === 0) {
+      // Empty class name: write length=1 and a single null char
+      this.writeUInt32BE(1);
+      this.writeUInt16BE(0);
+    } else {
+      this.writeUnicodeString(str);
+    }
+  }
+
+  /**
    * Write a Photoshop-style ID (4-byte or length-prefixed)
    */
   writeId(id: string): void {
