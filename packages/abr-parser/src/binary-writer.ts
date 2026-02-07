@@ -217,18 +217,18 @@ export class BinaryWriter {
     // Collect all chunks
     const totalSize = this.getTotalSize();
     const result = new Uint8Array(totalSize);
-    
+
     let pos = 0;
     for (const chunk of this.chunks) {
       result.set(chunk, pos);
       pos += chunk.length;
     }
-    
+
     // Add remaining data from current chunk
     if (this.offset > 0) {
       result.set(this.currentChunk.subarray(0, this.offset), pos);
     }
-    
+
     return result;
   }
 

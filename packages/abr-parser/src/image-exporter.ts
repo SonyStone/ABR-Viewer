@@ -32,13 +32,13 @@ export class ImageExporter {
         success: false,
         brushId: brush.id,
         brushName: brush.name,
-        error: 'No brush tip image available',
+        error: 'No brush tip image available'
       };
     }
 
     try {
       this.ensureDir();
-      
+
       const safeName = this.sanitizeFilename(brush.name);
       const filename = `${safeName}_${brush.id.substring(0, 8)}.png`;
       const filePath = path.join(this.outputDir, filename);
@@ -49,14 +49,14 @@ export class ImageExporter {
         success: true,
         brushId: brush.id,
         brushName: brush.name,
-        filePath,
+        filePath
       };
     } catch (err) {
       return {
         success: false,
         brushId: brush.id,
         brushName: brush.name,
-        error: err instanceof Error ? err.message : String(err),
+        error: err instanceof Error ? err.message : String(err)
       };
     }
   }
@@ -65,7 +65,7 @@ export class ImageExporter {
    * Export all brush tips from an array of brushes
    */
   exportAllBrushTips(brushes: Brush[]): ExportResult[] {
-    return brushes.map(brush => this.exportBrushTip(brush));
+    return brushes.map((brush) => this.exportBrushTip(brush));
   }
 
   /**
@@ -73,7 +73,7 @@ export class ImageExporter {
    */
   private writePng(filePath: string, image: BrushTipImage): void {
     const { width, height, data } = image;
-    
+
     // Create PNG with RGBA format
     const png = new PNG({ width, height });
 
@@ -87,11 +87,11 @@ export class ImageExporter {
 
         // Grayscale value (0 = black/full paint, 255 = white/no paint)
         const gray = data[srcIdx];
-        
+
         // Convert to RGBA where:
         // - RGB is black (the brush color will be applied later)
         // - Alpha is inverse of grayscale (darker = more opaque)
-        png.data[dstIdx] = 0;     // R
+        png.data[dstIdx] = 0; // R
         png.data[dstIdx + 1] = 0; // G
         png.data[dstIdx + 2] = 0; // B
         png.data[dstIdx + 3] = 255 - gray; // A (inverted)
@@ -119,7 +119,7 @@ export class ImageExporter {
    */
   static brushTipToBuffer(image: BrushTipImage): Buffer {
     const { width, height, data } = image;
-    
+
     const png = new PNG({ width, height });
 
     for (let y = 0; y < height; y++) {
@@ -128,7 +128,7 @@ export class ImageExporter {
         const dstIdx = (y * width + x) * 4;
 
         const gray = data[srcIdx];
-        
+
         png.data[dstIdx] = 0;
         png.data[dstIdx + 1] = 0;
         png.data[dstIdx + 2] = 0;

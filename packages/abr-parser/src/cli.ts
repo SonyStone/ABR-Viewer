@@ -12,7 +12,7 @@ import { AbrFile } from './types';
 
 function main() {
   const args = process.argv.slice(2);
-  
+
   if (args.length === 0) {
     console.log('ABR Parser - Photoshop Brush File Parser');
     console.log('Usage: ts-node cli.ts <abr-file> [output-dir]');
@@ -37,7 +37,7 @@ function main() {
   const parser = new AbrParser({
     extractImages: true,
     includeRawSettings: true,
-    continueOnError: true,
+    continueOnError: true
   });
 
   // Read file and parse
@@ -54,7 +54,7 @@ function main() {
     subVersion: result.subVersion,
     brushCount: result.brushes.length,
     errors: result.errors,
-    brushes: result.brushes.map(brush => ({
+    brushes: result.brushes.map((brush) => ({
       id: brush.id,
       name: brush.name,
       type: brush.type,
@@ -64,11 +64,9 @@ function main() {
       angle: brush.angle,
       roundness: brush.roundness,
       hasBrushTip: !!brush.brushTip,
-      brushTipSize: brush.brushTip 
-        ? { width: brush.brushTip.width, height: brush.brushTip.height }
-        : null,
-      settings: brush.settings,
-    })),
+      brushTipSize: brush.brushTip ? { width: brush.brushTip.width, height: brush.brushTip.height } : null,
+      settings: brush.settings
+    }))
   };
 
   // Ensure output directory exists
@@ -127,7 +125,7 @@ function printSummary(result: AbrFile, filePath: string) {
   if (result.brushes.length > 0) {
     console.log('Brushes:');
     console.log('-'.repeat(60));
-    
+
     for (let i = 0; i < result.brushes.length; i++) {
       const brush = result.brushes[i];
       console.log(`${i + 1}. ${brush.name}`);

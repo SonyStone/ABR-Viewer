@@ -131,7 +131,7 @@ export class BinaryReader {
   readUnicodeString(): string {
     const length = this.readUInt32BE();
     if (length === 0) return '';
-    
+
     const chars: string[] = [];
     for (let i = 0; i < length; i++) {
       const charCode = this.readUInt16BE();

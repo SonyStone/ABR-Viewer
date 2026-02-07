@@ -84,7 +84,7 @@ export class DescriptorParser {
         if (nameLength > 0) {
           this.reader.skip(nameLength * 2);
         }
-        
+
         const classIdLength = this.reader.readUInt32BE();
         let classId: string;
         if (classIdLength === 0) {
@@ -190,7 +190,7 @@ export class DescriptorParser {
 export function getNumber(desc: Record<string, DescriptorValue>, key: string): number | undefined {
   const value = desc[key];
   if (!value) return undefined;
-  
+
   if (value.type === 'long' || value.type === 'doub') {
     return value.value;
   }
@@ -203,7 +203,7 @@ export function getNumber(desc: Record<string, DescriptorValue>, key: string): n
 export function getString(desc: Record<string, DescriptorValue>, key: string): string | undefined {
   const value = desc[key];
   if (!value) return undefined;
-  
+
   if (value.type === 'TEXT') {
     return value.value;
   }
@@ -216,17 +216,20 @@ export function getString(desc: Record<string, DescriptorValue>, key: string): s
 export function getBoolean(desc: Record<string, DescriptorValue>, key: string): boolean | undefined {
   const value = desc[key];
   if (!value) return undefined;
-  
+
   if (value.type === 'bool') {
     return value.value;
   }
   return undefined;
 }
 
-export function getObject(desc: Record<string, DescriptorValue>, key: string): Record<string, DescriptorValue> | undefined {
+export function getObject(
+  desc: Record<string, DescriptorValue>,
+  key: string
+): Record<string, DescriptorValue> | undefined {
   const value = desc[key];
   if (!value) return undefined;
-  
+
   if (value.type === 'Objc') {
     return value.value;
   }
@@ -236,7 +239,7 @@ export function getObject(desc: Record<string, DescriptorValue>, key: string): R
 export function getList(desc: Record<string, DescriptorValue>, key: string): DescriptorValue[] | undefined {
   const value = desc[key];
   if (!value) return undefined;
-  
+
   if (value.type === 'VlLs') {
     return value.value;
   }

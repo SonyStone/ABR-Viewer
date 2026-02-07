@@ -3,7 +3,7 @@
  * These functions use browser APIs (Canvas, Blob) and won't work in Node.js
  */
 
-import type { Brush as CoreBrush, BrushTipImage, AbrFile as CoreAbrFile } from 'abr-parser';
+import type { BrushTipImage, AbrFile as CoreAbrFile, Brush as CoreBrush } from 'abr-parser';
 
 /**
  * Extended Brush type with browser-specific display properties
@@ -15,7 +15,7 @@ export type BrushWithPreview = CoreBrush & {
   dualBrushTip?: BrushTipImage;
   /** Data URL for browser display of dual brush tip */
   dualBrushImageDataUrl?: string;
-}
+};
 
 /**
  * Extended AbrFile type with browser-specific properties
@@ -25,7 +25,7 @@ export type AbrFileWithMeta = CoreAbrFile & {
   fileName?: string;
   /** Brushes with preview data URLs */
   brushes: BrushWithPreview[];
-}
+};
 
 /**
  * Convert brush tip to PNG Blob for download
@@ -75,29 +75,29 @@ export function brushTipToPngBlob(brushTip: BrushTipImage): Promise<Blob> {
 export function createBrushTipFromCanvas(canvas: HTMLCanvasElement): BrushTipImage {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Could not get canvas context');
-  
+
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const grayscale = new Uint8Array(canvas.width * canvas.height);
-  
+
   // Convert RGBA to grayscale (using luminosity method weighted by alpha)
   for (let i = 0; i < grayscale.length; i++) {
     const r = imageData.data[i * 4];
     const g = imageData.data[i * 4 + 1];
     const b = imageData.data[i * 4 + 2];
     const a = imageData.data[i * 4 + 3];
-    
+
     // For brush tips, darker = more opaque paint
     // We invert and use alpha to determine brush opacity
     const luminosity = 0.299 * r + 0.587 * g + 0.114 * b;
     // Invert and apply alpha
     grayscale[i] = Math.round((255 - luminosity) * (a / 255));
   }
-  
+
   return {
     width: canvas.width,
     height: canvas.height,
     depth: 8,
-    data: grayscale,
+    data: grayscale
   };
 }
 
@@ -108,22 +108,22 @@ export async function createBrushTipFromImage(img: HTMLImageElement, maxSize: nu
   // Scale down if needed
   let width = img.width;
   let height = img.height;
-  
+
   if (width > maxSize || height > maxSize) {
     const scale = maxSize / Math.max(width, height);
     width = Math.round(width * scale);
     height = Math.round(height * scale);
   }
-  
+
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
-  
+
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Could not get canvas context');
-  
+
   ctx.drawImage(img, 0, 0, width, height);
-  
+
   return createBrushTipFromCanvas(canvas);
 }
 

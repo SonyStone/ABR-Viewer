@@ -123,9 +123,7 @@ export const ZDegrees = z.number().min(-360).max(360);
 export const ZPixels = z.number().int().min(0);
 
 /** Dynamic control types for brush properties */
-export const DynamicControlType = z.enum([
-  'off', 'fade', 'penPressure', 'penTilt', 'stylusWheel', 'rotation'
-]);
+export const DynamicControlType = z.enum(['off', 'fade', 'penPressure', 'penTilt', 'stylusWheel', 'rotation']);
 export type DynamicControlType = z.infer<typeof DynamicControlType>;
 
 /** Zod schema for dynamic brush control */
@@ -133,7 +131,7 @@ export const ZDynamicControl = z.object({
   value: ZPercent,
   control: DynamicControlType,
   fadeSteps: z.number().int().min(1).optional(),
-  minimumValue: ZPercent.optional(),
+  minimumValue: ZPercent.optional()
 });
 
 /** Zod schema for brush dynamics */
@@ -144,7 +142,7 @@ export const ZBrushDynamics = z.object({
   scatterJitter: ZDynamicControl.optional(),
   countJitter: ZDynamicControl.optional(),
   opacityJitter: ZDynamicControl.optional(),
-  flowJitter: ZDynamicControl.optional(),
+  flowJitter: ZDynamicControl.optional()
 });
 
 /** Zod schema for brush tip image */
@@ -153,7 +151,7 @@ export const ZBrushTipImage = z.object({
   height: ZPixels.min(1).max(8192),
   depth: z.union([z.literal(8), z.literal(16)]), // 8-bit or 16-bit grayscale
   data: z.custom<Uint8Array>((val) => val instanceof Uint8Array),
-  compressedData: z.custom<Uint8Array>((val) => val instanceof Uint8Array).optional(),
+  compressedData: z.custom<Uint8Array>((val) => val instanceof Uint8Array).optional()
 });
 
 /** Brush type discriminator */
@@ -173,7 +171,7 @@ export const ZBrush = z.object({
   dynamics: ZBrushDynamics.optional(),
   brushTip: ZBrushTipImage.optional(),
   sampledDataUuid: z.string().optional(),
-  settings: z.record(z.string(), z.unknown()),
+  settings: z.record(z.string(), z.unknown())
 });
 
 /** Zod schema for pattern */
@@ -182,13 +180,13 @@ export const ZPattern = z.object({
   name: z.string(),
   width: ZPixels.min(1),
   height: ZPixels.min(1),
-  data: z.instanceof(Uint8Array).optional(),
+  data: z.instanceof(Uint8Array).optional()
 });
 
 /** ABR file version */
 export const ZAbrVersion = z.object({
   major: ZU16,
-  minor: ZU16,
+  minor: ZU16
 });
 
 /** Zod schema for ABR file */
@@ -200,14 +198,14 @@ export const ZAbrFile = z.object({
   rawPatternData: z.instanceof(Uint8Array).optional(),
   rawSampleData: z.instanceof(Uint8Array).optional(),
   rawDescriptorData: z.instanceof(Uint8Array).optional(),
-  errors: z.array(z.string()),
+  errors: z.array(z.string())
 });
 
 /** Zod schema for parse options */
 export const ZParseOptions = z.object({
   extractImages: z.boolean().optional().default(true),
   includeRawSettings: z.boolean().optional().default(true),
-  continueOnError: z.boolean().optional().default(true),
+  continueOnError: z.boolean().optional().default(true)
 });
 
 /** Zod schema for export result */
@@ -216,7 +214,7 @@ export const ZExportResult = z.object({
   brushId: z.string(),
   brushName: z.string(),
   filePath: z.string().optional(),
-  error: z.string().optional(),
+  error: z.string().optional()
 });
 
 // ============================================================================
@@ -259,12 +257,12 @@ export type ResourceBlock = {
   key: string;
   length: number;
   data: Uint8Array;
-}
+};
 
 /**
  * Photoshop Descriptor value types
  */
-export type DescriptorValue = 
+export type DescriptorValue =
   | { type: 'long'; value: number }
   | { type: 'doub'; value: number }
   | { type: 'bool'; value: boolean }

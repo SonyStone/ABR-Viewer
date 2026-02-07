@@ -1,13 +1,13 @@
-import { Show, For, createSignal, createMemo, createEffect, Switch, Match } from 'solid-js';
-import type { BrushWithPreview, BrushTipImage } from '~/lib/abr';
-import { brushTipToPngBlob, createBrushTipFromCanvas } from '~/lib/abr';
+import { ComponentProps, createEffect, createMemo, createSignal, For, Match, Show, Switch } from 'solid-js';
+import type { BrushWithPreview } from '~/lib/abr';
+import { brushTipToPngBlob } from '~/lib/abr';
 
-type BrushDetailEditableProps = {
-  brush: BrushWithPreview;
-  onClose: () => void;
-  onSave?: (brush: BrushWithPreview) => void;
-  onDelete?: () => void;
-  onDuplicate?: () => void;
+declare module 'solid-js' {
+  namespace JSX {
+    interface IntrinsicElements {
+      'brush-detail-editable': ComponentProps<'div'>;
+    }
+  }
 }
 
 // Control type options
@@ -17,10 +17,16 @@ const CONTROL_OPTIONS = [
   { value: 3, label: 'Pen Tilt' },
   { value: 4, label: 'Stylus Wheel' },
   { value: 5, label: 'Rotation' },
-  { value: 1, label: 'Fade' },
+  { value: 1, label: 'Fade' }
 ];
 
-export function BrushDetailEditable(props: BrushDetailEditableProps) {
+export function BrushDetailEditable(props: {
+  brush: BrushWithPreview;
+  onClose: () => void;
+  onSave?: (brush: BrushWithPreview) => void;
+  onDelete?: () => void;
+  onDuplicate?: () => void;
+}) {
   const [activePanel, setActivePanel] = createSignal<string>('brush-tip');
   const [hasChanges, setHasChanges] = createSignal(false);
   const [downloading, setDownloading] = createSignal(false);
@@ -84,7 +90,7 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
   createEffect(() => {
     const settings = props.brush.settings || {};
     const brushDef = (settings.Brsh as Record<string, unknown>) || {};
-    
+
     // Extract flip values
     setFlipX(brushDef.flipX === true);
     setFlipY(brushDef.flipY === true);
@@ -150,19 +156,74 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
 
   const panels = createMemo(() => [
     { id: 'brush-tip', label: 'Brush Tip Shape', always: true },
-    { id: 'shape-dynamics', label: 'Shape Dynamics', enabled: useShapeDynamics, setEnabled: setUseShapeDynamics },
-    { id: 'scattering', label: 'Scattering', enabled: useScattering, setEnabled: setUseScattering },
-    { id: 'texture', label: 'Texture', enabled: useTexture, setEnabled: setUseTexture },
-    { id: 'dual-brush', label: 'Dual Brush', enabled: useDualBrush, setEnabled: setUseDualBrush },
-    { id: 'color-dynamics', label: 'Color Dynamics', enabled: useColorDynamics, setEnabled: setUseColorDynamics },
-    { id: 'transfer', label: 'Transfer', enabled: useTransfer, setEnabled: setUseTransfer },
-    { id: 'brush-pose', label: 'Brush Pose', enabled: useBrushPose, setEnabled: setUseBrushPose },
+    {
+      id: 'shape-dynamics',
+      label: 'Shape Dynamics',
+      enabled: useShapeDynamics,
+      setEnabled: setUseShapeDynamics
+    },
+    {
+      id: 'scattering',
+      label: 'Scattering',
+      enabled: useScattering,
+      setEnabled: setUseScattering
+    },
+    {
+      id: 'texture',
+      label: 'Texture',
+      enabled: useTexture,
+      setEnabled: setUseTexture
+    },
+    {
+      id: 'dual-brush',
+      label: 'Dual Brush',
+      enabled: useDualBrush,
+      setEnabled: setUseDualBrush
+    },
+    {
+      id: 'color-dynamics',
+      label: 'Color Dynamics',
+      enabled: useColorDynamics,
+      setEnabled: setUseColorDynamics
+    },
+    {
+      id: 'transfer',
+      label: 'Transfer',
+      enabled: useTransfer,
+      setEnabled: setUseTransfer
+    },
+    {
+      id: 'brush-pose',
+      label: 'Brush Pose',
+      enabled: useBrushPose,
+      setEnabled: setUseBrushPose
+    },
     { id: 'noise', label: 'Noise', enabled: useNoise, setEnabled: setUseNoise },
-    { id: 'wet-edges', label: 'Wet Edges', enabled: useWetEdges, setEnabled: setUseWetEdges },
-    { id: 'build-up', label: 'Build-up', enabled: useBuildUp, setEnabled: setUseBuildUp },
-    { id: 'smoothing', label: 'Smoothing', enabled: useSmoothing, setEnabled: setUseSmoothing },
-    { id: 'protect-texture', label: 'Protect Texture', enabled: useProtectTexture, setEnabled: setUseProtectTexture },
-    { id: 'raw', label: 'Raw Settings', always: true },
+    {
+      id: 'wet-edges',
+      label: 'Wet Edges',
+      enabled: useWetEdges,
+      setEnabled: setUseWetEdges
+    },
+    {
+      id: 'build-up',
+      label: 'Build-up',
+      enabled: useBuildUp,
+      setEnabled: setUseBuildUp
+    },
+    {
+      id: 'smoothing',
+      label: 'Smoothing',
+      enabled: useSmoothing,
+      setEnabled: setUseSmoothing
+    },
+    {
+      id: 'protect-texture',
+      label: 'Protect Texture',
+      enabled: useProtectTexture,
+      setEnabled: setUseProtectTexture
+    },
+    { id: 'raw', label: 'Raw Settings', always: true }
   ]);
 
   const handleDownloadImage = async () => {
@@ -208,55 +269,58 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
     // Shape dynamics - merge with existing or create new
     if (useShapeDynamics()) {
       updatedSettings.szVr = {
-        ...(updatedSettings.szVr as Record<string, unknown> || {}),
+        ...((updatedSettings.szVr as Record<string, unknown>) || {}),
         jitter: { unit: '#Prc', value: sizeJitter() },
         bVTy: sizeControl(),
-        'Mnm ': { unit: '#Prc', value: sizeMinimum() },
+        'Mnm ': { unit: '#Prc', value: sizeMinimum() }
       };
       updatedSettings.angleDynamics = {
-        ...(updatedSettings.angleDynamics as Record<string, unknown> || {}),
+        ...((updatedSettings.angleDynamics as Record<string, unknown>) || {}),
         jitter: { unit: '#Ang', value: angleJitter() },
-        bVTy: angleControl(),
+        bVTy: angleControl()
       };
       updatedSettings.roundnessDynamics = {
-        ...(updatedSettings.roundnessDynamics as Record<string, unknown> || {}),
+        ...((updatedSettings.roundnessDynamics as Record<string, unknown>) || {}),
         jitter: { unit: '#Prc', value: roundnessJitter() },
         bVTy: roundnessControl(),
-        'Mnm ': { unit: '#Prc', value: roundnessMinimum() },
+        'Mnm ': { unit: '#Prc', value: roundnessMinimum() }
       };
     }
-    updatedSettings.minimumDiameter = { unit: '#Prc', value: minimumDiameter() };
+    updatedSettings.minimumDiameter = {
+      unit: '#Prc',
+      value: minimumDiameter()
+    };
     updatedSettings.tiltScale = { unit: '#Prc', value: tiltScale() };
 
     // Scattering - merge with existing or create new
     if (useScattering()) {
       updatedSettings.scatter = {
-        ...(updatedSettings.scatter as Record<string, unknown> || {}),
+        ...((updatedSettings.scatter as Record<string, unknown>) || {}),
         Sctr: { unit: '#Prc', value: scatter() },
         bothAxes: scatterBothAxes(),
         bVTy: scatterControl(),
-        'Cnt ': scatterCount(),
+        'Cnt ': scatterCount()
       };
       updatedSettings.countDynamics = {
-        ...(updatedSettings.countDynamics as Record<string, unknown> || {}),
+        ...((updatedSettings.countDynamics as Record<string, unknown>) || {}),
         jitter: { unit: '#Prc', value: countJitter() },
-        bVTy: countControl(),
+        bVTy: countControl()
       };
     }
 
     // Transfer - merge with existing or create new
     if (useTransfer()) {
       updatedSettings.opacityDynamics = {
-        ...(updatedSettings.opacityDynamics as Record<string, unknown> || {}),
+        ...((updatedSettings.opacityDynamics as Record<string, unknown>) || {}),
         jitter: { unit: '#Prc', value: opacityJitter() },
         bVTy: opacityControl(),
-        'Mnm ': { unit: '#Prc', value: opacityMinimum() },
+        'Mnm ': { unit: '#Prc', value: opacityMinimum() }
       };
       updatedSettings.flowDynamics = {
-        ...(updatedSettings.flowDynamics as Record<string, unknown> || {}),
+        ...((updatedSettings.flowDynamics as Record<string, unknown>) || {}),
         jitter: { unit: '#Prc', value: flowJitter() },
         bVTy: flowControl(),
-        'Mnm ': { unit: '#Prc', value: flowMinimum() },
+        'Mnm ': { unit: '#Prc', value: flowMinimum() }
       };
     }
 
@@ -268,7 +332,7 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
       angle: angle(),
       roundness: roundness(),
       hardness: props.brush.type === 'computed' ? hardness() : props.brush.hardness,
-      settings: updatedSettings,
+      settings: updatedSettings
     };
 
     props.onSave(updatedBrush);
@@ -276,28 +340,38 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
   };
 
   return (
-    <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={props.onClose}>
+    <brush-detail-editable
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+      onClick={props.onClose}
+    >
       <div
-        class="bg-ps-bg rounded-lg shadow-ps-lg max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+        class="bg-ps-bg shadow-ps-lg flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div class="flex items-center justify-between p-4 border-b border-ps-border bg-ps-bg-dark">
+        <div class="border-ps-border bg-ps-bg-dark flex items-center justify-between border-b p-4">
           <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded bg-ps-accent/20 flex items-center justify-center">
-              <svg class="w-4 h-4 text-ps-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            <div class="bg-ps-accent/20 flex h-8 w-8 items-center justify-center rounded">
+              <svg class="text-ps-accent h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                />
               </svg>
             </div>
             <div>
               <input
                 type="text"
                 value={name()}
-                onInput={(e) => { setName(e.currentTarget.value); markChanged(); }}
-                class="text-lg font-medium text-ps-text-bright bg-transparent border-b border-transparent hover:border-ps-border focus:border-ps-accent focus:outline-none px-1 -ml-1"
+                onInput={(e) => {
+                  setName(e.currentTarget.value);
+                  markChanged();
+                }}
+                class="text-ps-text-bright hover:border-ps-border focus:border-ps-accent -ml-1 border-b border-transparent bg-transparent px-1 text-lg font-medium focus:outline-none"
               />
-              <p class="text-xs text-ps-text-muted">
+              <p class="text-ps-text-muted text-xs">
                 {props.brush.type === 'computed' ? 'Computed Brush' : 'Sampled Brush'} • ID: {props.brush.id}
               </p>
             </div>
@@ -307,14 +381,14 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
               <button
                 onClick={handleSave}
                 disabled={!hasChanges()}
-                class={`px-3 py-1.5 text-sm rounded flex items-center gap-2 ${
+                class={`flex items-center gap-2 rounded px-3 py-1.5 text-sm ${
                   hasChanges()
-                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                    ? 'bg-green-600 text-white hover:bg-green-700'
                     : 'bg-ps-bg-light text-ps-text-muted cursor-not-allowed'
                 }`}
                 title="Save Changes"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                 </svg>
                 Save
@@ -323,29 +397,37 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
             <Show when={props.onDuplicate}>
               <button
                 onClick={props.onDuplicate}
-                class="p-2 text-sm bg-ps-bg-light hover:bg-ps-bg-lighter text-ps-text rounded"
+                class="bg-ps-bg-light hover:bg-ps-bg-lighter text-ps-text rounded p-2 text-sm"
                 title="Duplicate Brush"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  />
                 </svg>
               </button>
             </Show>
             <Show when={props.onDelete}>
               <button
                 onClick={props.onDelete}
-                class="p-2 text-sm bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded"
+                class="rounded bg-red-600/20 p-2 text-sm text-red-400 hover:bg-red-600/30"
                 title="Delete Brush"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
                 </svg>
               </button>
             </Show>
-            <button onClick={props.onClose} class="p-2 hover:bg-ps-bg-light rounded ml-2" aria-label="Close">
-              <svg class="w-5 h-5 text-ps-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button onClick={props.onClose} class="hover:bg-ps-bg-light ml-2 rounded p-2" aria-label="Close">
+              <svg class="text-ps-text-muted h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -353,9 +435,9 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
         </div>
 
         {/* Content */}
-        <div class="flex-1 flex overflow-hidden">
+        <div class="flex flex-1 overflow-hidden">
           {/* Left Panel - Feature Toggles */}
-          <div class="w-52 bg-ps-bg-dark border-r border-ps-border overflow-y-auto flex-shrink-0">
+          <div class="bg-ps-bg-dark border-ps-border w-52 flex-shrink-0 overflow-y-auto border-r">
             <For each={panels()}>
               {(panel) => (
                 <button
@@ -363,10 +445,7 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
                     setActivePanel(panel.id);
                     // Toggle feature if clicking on checkbox area
                   }}
-                  class={`
-                    w-full px-3 py-2 text-left text-sm flex items-center gap-2
-                    ${activePanel() === panel.id ? 'bg-ps-bg-light text-ps-text-bright' : 'text-ps-text hover:bg-ps-bg-light/50'}
-                  `}
+                  class={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${activePanel() === panel.id ? 'bg-ps-bg-light text-ps-text-bright' : 'text-ps-text hover:bg-ps-bg-light/50'} `}
                 >
                   <Show when={!panel.always && panel.setEnabled}>
                     <input
@@ -377,7 +456,7 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
                         markChanged();
                       }}
                       onClick={(e) => e.stopPropagation()}
-                      class="w-4 h-4 rounded border-ps-border bg-ps-bg-dark checked:bg-ps-accent checked:border-ps-accent"
+                      class="border-ps-border bg-ps-bg-dark checked:bg-ps-accent checked:border-ps-accent h-4 w-4 rounded"
                     />
                   </Show>
                   <Show when={panel.always}>
@@ -391,73 +470,184 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
 
           {/* Right Panel - Settings Content */}
           <div class="flex-1 overflow-y-auto p-4">
+            <BrushTipPanel
+              brush={props.brush}
+              diameter={diameter}
+              setDiameter={(v) => {
+                setDiameter(v);
+                markChanged();
+              }}
+              angle={angle}
+              setAngle={(v) => {
+                setAngle(v);
+                markChanged();
+              }}
+              roundness={roundness}
+              setRoundness={(v) => {
+                setRoundness(v);
+                markChanged();
+              }}
+              hardness={hardness}
+              setHardness={(v) => {
+                setHardness(v);
+                markChanged();
+              }}
+              spacing={spacing}
+              setSpacing={(v) => {
+                setSpacing(v);
+                markChanged();
+              }}
+              flipX={flipX}
+              setFlipX={(v) => {
+                setFlipX(v);
+                markChanged();
+              }}
+              flipY={flipY}
+              setFlipY={(v) => {
+                setFlipY(v);
+                markChanged();
+              }}
+              onDownload={handleDownloadImage}
+              downloading={downloading()}
+            />
+            <ShapeDynamicsPanel
+              enabled={useShapeDynamics()}
+              sizeJitter={sizeJitter}
+              setSizeJitter={(v) => {
+                setSizeJitter(v);
+                markChanged();
+              }}
+              sizeControl={sizeControl}
+              setSizeControl={(v) => {
+                setSizeControl(v);
+                markChanged();
+              }}
+              sizeMinimum={sizeMinimum}
+              setSizeMinimum={(v) => {
+                setSizeMinimum(v);
+                markChanged();
+              }}
+              minimumDiameter={minimumDiameter}
+              setMinimumDiameter={(v) => {
+                setMinimumDiameter(v);
+                markChanged();
+              }}
+              tiltScale={tiltScale}
+              setTiltScale={(v) => {
+                setTiltScale(v);
+                markChanged();
+              }}
+              angleJitter={angleJitter}
+              setAngleJitter={(v) => {
+                setAngleJitter(v);
+                markChanged();
+              }}
+              angleControl={angleControl}
+              setAngleControl={(v) => {
+                setAngleControl(v);
+                markChanged();
+              }}
+              roundnessJitter={roundnessJitter}
+              setRoundnessJitter={(v) => {
+                setRoundnessJitter(v);
+                markChanged();
+              }}
+              roundnessControl={roundnessControl}
+              setRoundnessControl={(v) => {
+                setRoundnessControl(v);
+                markChanged();
+              }}
+              roundnessMinimum={roundnessMinimum}
+              setRoundnessMinimum={(v) => {
+                setRoundnessMinimum(v);
+                markChanged();
+              }}
+              flipXJitter={flipXJitter}
+              setFlipXJitter={(v) => {
+                setFlipXJitter(v);
+                markChanged();
+              }}
+              flipYJitter={flipYJitter}
+              setFlipYJitter={(v) => {
+                setFlipYJitter(v);
+                markChanged();
+              }}
+              brushProjection={brushProjection}
+              setBrushProjection={(v) => {
+                setBrushProjection(v);
+                markChanged();
+              }}
+            />
+            <ScatteringPanel
+              enabled={useScattering()}
+              scatter={scatter}
+              setScatter={(v) => {
+                setScatter(v);
+                markChanged();
+              }}
+              bothAxes={scatterBothAxes}
+              setBothAxes={(v) => {
+                setScatterBothAxes(v);
+                markChanged();
+              }}
+              scatterControl={scatterControl}
+              setScatterControl={(v) => {
+                setScatterControl(v);
+                markChanged();
+              }}
+              count={scatterCount}
+              setCount={(v) => {
+                setScatterCount(v);
+                markChanged();
+              }}
+              countJitter={countJitter}
+              setCountJitter={(v) => {
+                setCountJitter(v);
+                markChanged();
+              }}
+              countControl={countControl}
+              setCountControl={(v) => {
+                setCountControl(v);
+                markChanged();
+              }}
+            />
+            <TransferPanel
+              enabled={useTransfer()}
+              opacityJitter={opacityJitter}
+              setOpacityJitter={(v) => {
+                setOpacityJitter(v);
+                markChanged();
+              }}
+              opacityControl={opacityControl}
+              setOpacityControl={(v) => {
+                setOpacityControl(v);
+                markChanged();
+              }}
+              opacityMinimum={opacityMinimum}
+              setOpacityMinimum={(v) => {
+                setOpacityMinimum(v);
+                markChanged();
+              }}
+              flowJitter={flowJitter}
+              setFlowJitter={(v) => {
+                setFlowJitter(v);
+                markChanged();
+              }}
+              flowControl={flowControl}
+              setFlowControl={(v) => {
+                setFlowControl(v);
+                markChanged();
+              }}
+              flowMinimum={flowMinimum}
+              setFlowMinimum={(v) => {
+                setFlowMinimum(v);
+                markChanged();
+              }}
+            />
+            <RawSettingsPanel settings={props.brush.settings || {}} />
             <Switch>
-              <Match when={activePanel() === 'brush-tip'}>
-                <BrushTipPanel
-                  brush={props.brush}
-                  diameter={diameter}
-                  setDiameter={(v) => { setDiameter(v); markChanged(); }}
-                  angle={angle}
-                  setAngle={(v) => { setAngle(v); markChanged(); }}
-                  roundness={roundness}
-                  setRoundness={(v) => { setRoundness(v); markChanged(); }}
-                  hardness={hardness}
-                  setHardness={(v) => { setHardness(v); markChanged(); }}
-                  spacing={spacing}
-                  setSpacing={(v) => { setSpacing(v); markChanged(); }}
-                  flipX={flipX}
-                  setFlipX={(v) => { setFlipX(v); markChanged(); }}
-                  flipY={flipY}
-                  setFlipY={(v) => { setFlipY(v); markChanged(); }}
-                  onDownload={handleDownloadImage}
-                  downloading={downloading()}
-                />
-              </Match>
-              <Match when={activePanel() === 'shape-dynamics'}>
-                <ShapeDynamicsPanel
-                  enabled={useShapeDynamics()}
-                  sizeJitter={sizeJitter} setSizeJitter={(v) => { setSizeJitter(v); markChanged(); }}
-                  sizeControl={sizeControl} setSizeControl={(v) => { setSizeControl(v); markChanged(); }}
-                  sizeMinimum={sizeMinimum} setSizeMinimum={(v) => { setSizeMinimum(v); markChanged(); }}
-                  minimumDiameter={minimumDiameter} setMinimumDiameter={(v) => { setMinimumDiameter(v); markChanged(); }}
-                  tiltScale={tiltScale} setTiltScale={(v) => { setTiltScale(v); markChanged(); }}
-                  angleJitter={angleJitter} setAngleJitter={(v) => { setAngleJitter(v); markChanged(); }}
-                  angleControl={angleControl} setAngleControl={(v) => { setAngleControl(v); markChanged(); }}
-                  roundnessJitter={roundnessJitter} setRoundnessJitter={(v) => { setRoundnessJitter(v); markChanged(); }}
-                  roundnessControl={roundnessControl} setRoundnessControl={(v) => { setRoundnessControl(v); markChanged(); }}
-                  roundnessMinimum={roundnessMinimum} setRoundnessMinimum={(v) => { setRoundnessMinimum(v); markChanged(); }}
-                  flipXJitter={flipXJitter} setFlipXJitter={(v) => { setFlipXJitter(v); markChanged(); }}
-                  flipYJitter={flipYJitter} setFlipYJitter={(v) => { setFlipYJitter(v); markChanged(); }}
-                  brushProjection={brushProjection} setBrushProjection={(v) => { setBrushProjection(v); markChanged(); }}
-                />
-              </Match>
-              <Match when={activePanel() === 'scattering'}>
-                <ScatteringPanel
-                  enabled={useScattering()}
-                  scatter={scatter} setScatter={(v) => { setScatter(v); markChanged(); }}
-                  bothAxes={scatterBothAxes} setBothAxes={(v) => { setScatterBothAxes(v); markChanged(); }}
-                  scatterControl={scatterControl} setScatterControl={(v) => { setScatterControl(v); markChanged(); }}
-                  count={scatterCount} setCount={(v) => { setScatterCount(v); markChanged(); }}
-                  countJitter={countJitter} setCountJitter={(v) => { setCountJitter(v); markChanged(); }}
-                  countControl={countControl} setCountControl={(v) => { setCountControl(v); markChanged(); }}
-                />
-              </Match>
-              <Match when={activePanel() === 'transfer'}>
-                <TransferPanel
-                  enabled={useTransfer()}
-                  opacityJitter={opacityJitter} setOpacityJitter={(v) => { setOpacityJitter(v); markChanged(); }}
-                  opacityControl={opacityControl} setOpacityControl={(v) => { setOpacityControl(v); markChanged(); }}
-                  opacityMinimum={opacityMinimum} setOpacityMinimum={(v) => { setOpacityMinimum(v); markChanged(); }}
-                  flowJitter={flowJitter} setFlowJitter={(v) => { setFlowJitter(v); markChanged(); }}
-                  flowControl={flowControl} setFlowControl={(v) => { setFlowControl(v); markChanged(); }}
-                  flowMinimum={flowMinimum} setFlowMinimum={(v) => { setFlowMinimum(v); markChanged(); }}
-                />
-              </Match>
-              <Match when={activePanel() === 'raw'}>
-                <RawSettingsPanel settings={props.brush.settings || {}} />
-              </Match>
               <Match when={true}>
-                <div class="text-center text-ps-text-muted py-8">
+                <div class="text-ps-text-muted py-8 text-center">
                   <p>Panel content for "{activePanel()}" coming soon</p>
                 </div>
               </Match>
@@ -465,7 +655,7 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
           </div>
         </div>
       </div>
-    </div>
+    </brush-detail-editable>
   );
 }
 
@@ -494,7 +684,7 @@ function SliderInput(props: {
 }) {
   return (
     <div class="flex items-center gap-3 py-2">
-      <span class="text-ps-text-muted text-sm w-32 flex-shrink-0">{props.label}</span>
+      <span class="text-ps-text-muted w-32 flex-shrink-0 text-sm">{props.label}</span>
       <input
         type="range"
         min={props.min ?? 0}
@@ -502,9 +692,9 @@ function SliderInput(props: {
         step={props.step ?? 1}
         value={props.value()}
         onInput={(e) => props.setValue(parseFloat(e.currentTarget.value))}
-        class="flex-1 h-1 bg-ps-bg-lighter rounded appearance-none cursor-pointer"
+        class="bg-ps-bg-lighter h-1 flex-1 cursor-pointer appearance-none rounded"
       />
-      <div class="w-20 flex items-center">
+      <div class="flex w-20 items-center">
         <input
           type="number"
           min={props.min ?? 0}
@@ -512,47 +702,37 @@ function SliderInput(props: {
           step={props.step ?? 1}
           value={props.value()}
           onInput={(e) => props.setValue(parseFloat(e.currentTarget.value) || 0)}
-          class="w-16 bg-ps-bg-dark border border-ps-border rounded px-2 py-1 text-sm text-right text-ps-text"
+          class="bg-ps-bg-dark border-ps-border text-ps-text w-16 rounded border px-2 py-1 text-right text-sm"
         />
-        <span class="text-ps-text-muted text-sm ml-1">{props.unit ?? '%'}</span>
+        <span class="text-ps-text-muted ml-1 text-sm">{props.unit ?? '%'}</span>
       </div>
     </div>
   );
 }
 
-function ControlSelect(props: {
-  label: string;
-  value: () => number;
-  setValue: (v: number) => void;
-}) {
+function ControlSelect(props: { label: string; value: () => number; setValue: (v: number) => void }) {
   return (
-    <div class="flex items-center gap-3 py-1 ml-8">
-      <span class="text-ps-text-muted text-sm w-24">{props.label}</span>
+    <div class="ml-8 flex items-center gap-3 py-1">
+      <span class="text-ps-text-muted w-24 text-sm">{props.label}</span>
       <select
         value={props.value()}
         onChange={(e) => props.setValue(parseInt(e.currentTarget.value))}
-        class="flex-1 bg-ps-bg-dark border border-ps-border rounded px-2 py-1 text-sm text-ps-text"
+        class="bg-ps-bg-dark border-ps-border text-ps-text flex-1 rounded border px-2 py-1 text-sm"
       >
-        <For each={CONTROL_OPTIONS}>
-          {(opt) => <option value={opt.value}>{opt.label}</option>}
-        </For>
+        <For each={CONTROL_OPTIONS}>{(opt) => <option value={opt.value}>{opt.label}</option>}</For>
       </select>
     </div>
   );
 }
 
-function CheckboxInput(props: {
-  label: string;
-  checked: () => boolean;
-  setChecked: (v: boolean) => void;
-}) {
+function CheckboxInput(props: { label: string; checked: () => boolean; setChecked: (v: boolean) => void }) {
   return (
-    <label class="flex items-center gap-2 py-1 cursor-pointer">
+    <label class="flex cursor-pointer items-center gap-2 py-1">
       <input
         type="checkbox"
         checked={props.checked()}
         onChange={(e) => props.setChecked(e.currentTarget.checked)}
-        class="w-4 h-4 rounded border-ps-border bg-ps-bg-dark checked:bg-ps-accent"
+        class="border-ps-border bg-ps-bg-dark checked:bg-ps-accent h-4 w-4 rounded"
       />
       <span class="text-ps-text text-sm">{props.label}</span>
     </label>
@@ -581,12 +761,12 @@ function BrushTipPanel(props: {
 }) {
   return (
     <div>
-      <h3 class="text-ps-text-bright font-medium mb-4 pb-2 border-b border-ps-border">Brush Tip Shape</h3>
+      <h3 class="text-ps-text-bright border-ps-border mb-4 border-b pb-2 font-medium">Brush Tip Shape</h3>
 
-      <div class="grid md:grid-cols-2 gap-6">
+      <div class="grid gap-6 md:grid-cols-2">
         {/* Preview */}
         <div class="space-y-4">
-          <div class="aspect-square checkered-bg rounded-lg overflow-hidden relative max-w-64 mx-auto">
+          <div class="checkered-bg relative mx-auto aspect-square max-w-64 overflow-hidden rounded-lg">
             <Show
               when={props.brush.imageDataUrl}
               fallback={
@@ -600,9 +780,9 @@ function BrushTipPanel(props: {
               <img
                 src={props.brush.imageDataUrl}
                 alt={props.brush.name}
-                class="absolute inset-0 w-full h-full object-contain p-2"
+                class="absolute inset-0 h-full w-full object-contain p-2"
                 style={{
-                  transform: `rotate(${props.angle()}deg) scaleX(${props.flipX() ? -1 : 1}) scaleY(${props.flipY() ? -1 : 1})`,
+                  transform: `rotate(${props.angle()}deg) scaleX(${props.flipX() ? -1 : 1}) scaleY(${props.flipY() ? -1 : 1})`
                 }}
               />
             </Show>
@@ -612,7 +792,7 @@ function BrushTipPanel(props: {
             <button
               onClick={props.onDownload}
               disabled={props.downloading}
-              class="w-full py-2 px-4 bg-ps-accent hover:bg-ps-accent-hover disabled:opacity-50 text-white rounded text-sm"
+              class="bg-ps-accent hover:bg-ps-accent-hover w-full rounded px-4 py-2 text-sm text-white disabled:opacity-50"
             >
               {props.downloading ? 'Downloading...' : 'Download PNG'}
             </button>
@@ -621,28 +801,14 @@ function BrushTipPanel(props: {
 
         {/* Settings */}
         <div class="space-y-1">
-          <SliderInput
-            label="Size"
-            value={props.diameter}
-            setValue={props.setDiameter}
-            min={1}
-            max={2500}
-            unit=" px"
-          />
-          
-          <div class="flex items-center gap-4 py-2 ml-8">
+          <SliderInput label="Size" value={props.diameter} setValue={props.setDiameter} min={1} max={2500} unit=" px" />
+
+          <div class="ml-8 flex items-center gap-4 py-2">
             <CheckboxInput label="Flip X" checked={props.flipX} setChecked={props.setFlipX} />
             <CheckboxInput label="Flip Y" checked={props.flipY} setChecked={props.setFlipY} />
           </div>
 
-          <SliderInput
-            label="Angle"
-            value={props.angle}
-            setValue={props.setAngle}
-            min={-180}
-            max={180}
-            unit="°"
-          />
+          <SliderInput label="Angle" value={props.angle} setValue={props.setAngle} min={-180} max={180} unit="°" />
 
           <SliderInput
             label="Roundness"
@@ -664,7 +830,7 @@ function BrushTipPanel(props: {
             />
           </Show>
 
-          <div class="pt-4 border-t border-ps-border mt-4">
+          <div class="border-ps-border mt-4 border-t pt-4">
             <SliderInput
               label="Spacing"
               value={props.spacing}
@@ -682,24 +848,37 @@ function BrushTipPanel(props: {
 
 function ShapeDynamicsPanel(props: {
   enabled: boolean;
-  sizeJitter: () => number; setSizeJitter: (v: number) => void;
-  sizeControl: () => number; setSizeControl: (v: number) => void;
-  sizeMinimum: () => number; setSizeMinimum: (v: number) => void;
-  minimumDiameter: () => number; setMinimumDiameter: (v: number) => void;
-  tiltScale: () => number; setTiltScale: (v: number) => void;
-  angleJitter: () => number; setAngleJitter: (v: number) => void;
-  angleControl: () => number; setAngleControl: (v: number) => void;
-  roundnessJitter: () => number; setRoundnessJitter: (v: number) => void;
-  roundnessControl: () => number; setRoundnessControl: (v: number) => void;
-  roundnessMinimum: () => number; setRoundnessMinimum: (v: number) => void;
-  flipXJitter: () => boolean; setFlipXJitter: (v: boolean) => void;
-  flipYJitter: () => boolean; setFlipYJitter: (v: boolean) => void;
-  brushProjection: () => boolean; setBrushProjection: (v: boolean) => void;
+  sizeJitter: () => number;
+  setSizeJitter: (v: number) => void;
+  sizeControl: () => number;
+  setSizeControl: (v: number) => void;
+  sizeMinimum: () => number;
+  setSizeMinimum: (v: number) => void;
+  minimumDiameter: () => number;
+  setMinimumDiameter: (v: number) => void;
+  tiltScale: () => number;
+  setTiltScale: (v: number) => void;
+  angleJitter: () => number;
+  setAngleJitter: (v: number) => void;
+  angleControl: () => number;
+  setAngleControl: (v: number) => void;
+  roundnessJitter: () => number;
+  setRoundnessJitter: (v: number) => void;
+  roundnessControl: () => number;
+  setRoundnessControl: (v: number) => void;
+  roundnessMinimum: () => number;
+  setRoundnessMinimum: (v: number) => void;
+  flipXJitter: () => boolean;
+  setFlipXJitter: (v: boolean) => void;
+  flipYJitter: () => boolean;
+  setFlipYJitter: (v: boolean) => void;
+  brushProjection: () => boolean;
+  setBrushProjection: (v: boolean) => void;
 }) {
   return (
-    <div class={props.enabled ? '' : 'opacity-50 pointer-events-none'}>
-      <h3 class="text-ps-text-bright font-medium mb-4 pb-2 border-b border-ps-border flex items-center gap-2">
-        <div class={`w-4 h-4 rounded ${props.enabled ? 'bg-ps-accent' : 'bg-ps-bg-lighter'}`} />
+    <div class={props.enabled ? '' : 'pointer-events-none opacity-50'}>
+      <h3 class="text-ps-text-bright border-ps-border mb-4 flex items-center gap-2 border-b pb-2 font-medium">
+        <div class={`h-4 w-4 rounded ${props.enabled ? 'bg-ps-accent' : 'bg-ps-bg-lighter'}`} />
         Shape Dynamics
       </h3>
 
@@ -713,18 +892,24 @@ function ShapeDynamicsPanel(props: {
         <SliderInput label="Minimum Diameter" value={props.minimumDiameter} setValue={props.setMinimumDiameter} />
         <SliderInput label="Tilt Scale" value={props.tiltScale} setValue={props.setTiltScale} max={200} />
 
-        <div class="pt-4 border-t border-ps-border">
-          <SliderInput label="Angle Jitter" value={props.angleJitter} setValue={props.setAngleJitter} unit="°" max={360} />
+        <div class="border-ps-border border-t pt-4">
+          <SliderInput
+            label="Angle Jitter"
+            value={props.angleJitter}
+            setValue={props.setAngleJitter}
+            unit="°"
+            max={360}
+          />
           <ControlSelect label="Control" value={props.angleControl} setValue={props.setAngleControl} />
         </div>
 
-        <div class="pt-4 border-t border-ps-border">
+        <div class="border-ps-border border-t pt-4">
           <SliderInput label="Roundness Jitter" value={props.roundnessJitter} setValue={props.setRoundnessJitter} />
           <ControlSelect label="Control" value={props.roundnessControl} setValue={props.setRoundnessControl} />
           <SliderInput label="Minimum" value={props.roundnessMinimum} setValue={props.setRoundnessMinimum} />
         </div>
 
-        <div class="pt-4 border-t border-ps-border flex items-center gap-6">
+        <div class="border-ps-border flex items-center gap-6 border-t pt-4">
           <CheckboxInput label="Flip X Jitter" checked={props.flipXJitter} setChecked={props.setFlipXJitter} />
           <CheckboxInput label="Flip Y Jitter" checked={props.flipYJitter} setChecked={props.setFlipYJitter} />
         </div>
@@ -737,17 +922,23 @@ function ShapeDynamicsPanel(props: {
 
 function ScatteringPanel(props: {
   enabled: boolean;
-  scatter: () => number; setScatter: (v: number) => void;
-  bothAxes: () => boolean; setBothAxes: (v: boolean) => void;
-  scatterControl: () => number; setScatterControl: (v: number) => void;
-  count: () => number; setCount: (v: number) => void;
-  countJitter: () => number; setCountJitter: (v: number) => void;
-  countControl: () => number; setCountControl: (v: number) => void;
+  scatter: () => number;
+  setScatter: (v: number) => void;
+  bothAxes: () => boolean;
+  setBothAxes: (v: boolean) => void;
+  scatterControl: () => number;
+  setScatterControl: (v: number) => void;
+  count: () => number;
+  setCount: (v: number) => void;
+  countJitter: () => number;
+  setCountJitter: (v: number) => void;
+  countControl: () => number;
+  setCountControl: (v: number) => void;
 }) {
   return (
-    <div class={props.enabled ? '' : 'opacity-50 pointer-events-none'}>
-      <h3 class="text-ps-text-bright font-medium mb-4 pb-2 border-b border-ps-border flex items-center gap-2">
-        <div class={`w-4 h-4 rounded ${props.enabled ? 'bg-ps-accent' : 'bg-ps-bg-lighter'}`} />
+    <div class={props.enabled ? '' : 'pointer-events-none opacity-50'}>
+      <h3 class="text-ps-text-bright border-ps-border mb-4 flex items-center gap-2 border-b pb-2 font-medium">
+        <div class={`h-4 w-4 rounded ${props.enabled ? 'bg-ps-accent' : 'bg-ps-bg-lighter'}`} />
         Scattering
       </h3>
 
@@ -758,7 +949,7 @@ function ScatteringPanel(props: {
           <ControlSelect label="Control" value={props.scatterControl} setValue={props.setScatterControl} />
         </div>
 
-        <div class="pt-4 border-t border-ps-border">
+        <div class="border-ps-border border-t pt-4">
           <SliderInput label="Count" value={props.count} setValue={props.setCount} min={1} max={16} unit="" />
           <SliderInput label="Count Jitter" value={props.countJitter} setValue={props.setCountJitter} />
           <ControlSelect label="Control" value={props.countControl} setValue={props.setCountControl} />
@@ -770,17 +961,23 @@ function ScatteringPanel(props: {
 
 function TransferPanel(props: {
   enabled: boolean;
-  opacityJitter: () => number; setOpacityJitter: (v: number) => void;
-  opacityControl: () => number; setOpacityControl: (v: number) => void;
-  opacityMinimum: () => number; setOpacityMinimum: (v: number) => void;
-  flowJitter: () => number; setFlowJitter: (v: number) => void;
-  flowControl: () => number; setFlowControl: (v: number) => void;
-  flowMinimum: () => number; setFlowMinimum: (v: number) => void;
+  opacityJitter: () => number;
+  setOpacityJitter: (v: number) => void;
+  opacityControl: () => number;
+  setOpacityControl: (v: number) => void;
+  opacityMinimum: () => number;
+  setOpacityMinimum: (v: number) => void;
+  flowJitter: () => number;
+  setFlowJitter: (v: number) => void;
+  flowControl: () => number;
+  setFlowControl: (v: number) => void;
+  flowMinimum: () => number;
+  setFlowMinimum: (v: number) => void;
 }) {
   return (
-    <div class={props.enabled ? '' : 'opacity-50 pointer-events-none'}>
-      <h3 class="text-ps-text-bright font-medium mb-4 pb-2 border-b border-ps-border flex items-center gap-2">
-        <div class={`w-4 h-4 rounded ${props.enabled ? 'bg-ps-accent' : 'bg-ps-bg-lighter'}`} />
+    <div class={props.enabled ? '' : 'pointer-events-none opacity-50'}>
+      <h3 class="text-ps-text-bright border-ps-border mb-4 flex items-center gap-2 border-b pb-2 font-medium">
+        <div class={`h-4 w-4 rounded ${props.enabled ? 'bg-ps-accent' : 'bg-ps-bg-lighter'}`} />
         Transfer
       </h3>
 
@@ -791,7 +988,7 @@ function TransferPanel(props: {
           <SliderInput label="Minimum" value={props.opacityMinimum} setValue={props.setOpacityMinimum} />
         </div>
 
-        <div class="pt-4 border-t border-ps-border">
+        <div class="border-ps-border border-t pt-4">
           <SliderInput label="Flow Jitter" value={props.flowJitter} setValue={props.setFlowJitter} />
           <ControlSelect label="Control" value={props.flowControl} setValue={props.setFlowControl} />
           <SliderInput label="Minimum" value={props.flowMinimum} setValue={props.setFlowMinimum} />
@@ -804,8 +1001,8 @@ function TransferPanel(props: {
 function RawSettingsPanel(props: { settings: Record<string, unknown> }) {
   return (
     <div>
-      <h3 class="text-ps-text-bright font-medium mb-4 pb-2 border-b border-ps-border">Raw Settings</h3>
-      <pre class="bg-ps-bg-dark rounded p-4 text-xs text-ps-text-muted overflow-auto max-h-96 font-mono">
+      <h3 class="text-ps-text-bright border-ps-border mb-4 border-b pb-2 font-medium">Raw Settings</h3>
+      <pre class="bg-ps-bg-dark text-ps-text-muted max-h-96 overflow-auto rounded p-4 font-mono text-xs">
         {JSON.stringify(props.settings, null, 2)}
       </pre>
     </div>

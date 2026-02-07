@@ -1,20 +1,13 @@
 /**
  * ABR (Photoshop Brush) File Parser
  * Supports ABR version 6+ (modern format)
- * 
+ *
  * Universal module - works in both Node.js and browser environments.
  */
 
 import { BinaryReader } from './binary-reader';
-import { DescriptorParser, getNumber, getString, getObject, getBoolean } from './descriptor-parser';
-import {
-  AbrFile,
-  Brush,
-  BrushTipImage,
-  ResourceBlock,
-  ParseOptions,
-  DescriptorValue,
-} from './types';
+import { DescriptorParser, getNumber, getObject, getString } from './descriptor-parser';
+import { AbrFile, Brush, BrushTipImage, DescriptorValue, ParseOptions, ResourceBlock } from './types';
 
 const PHOTOSHOP_SIGNATURE = '8BIM';
 const SAMPLE_KEY = 'samp';
@@ -28,7 +21,7 @@ export class AbrParser {
     this.options = {
       extractImages: options.extractImages ?? true,
       includeRawSettings: options.includeRawSettings ?? true,
-      continueOnError: options.continueOnError ?? true,
+      continueOnError: options.continueOnError ?? true
     };
   }
 
@@ -54,7 +47,7 @@ export class AbrParser {
       version: 0,
       subVersion: 0,
       brushes: [],
-      errors: [],
+      errors: []
     };
 
     try {
@@ -168,7 +161,6 @@ export class AbrParser {
           if (!this.options.continueOnError) throw err;
         }
       }
-
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       result.errors.push(`Fatal error parsing ABR file: ${message}`);
@@ -224,45 +216,45 @@ export class AbrParser {
       try {
         // ABR v6+ sample format (subversion 2):
         // - 38 bytes: UUID string ('$' + 36 chars UUID) + null terminator
-        // - 263 bytes: additional header data  
+        // - 263 bytes: additional header data
         // - 16 bytes: bounds (top, left, bottom, right - 4 bytes each)
         // - 2 bytes: depth
         // - 1 byte: compression
         // - variable: image data
         //
         // Total header before bounds: 38 + 263 = 301 bytes
-        
+
         // For subversion 1, the header is smaller (38 + 10 = 48 bytes)
         const uuidLength = 37; // '$' + 36 char UUID
         const headerPaddingSize = subVersion === 1 ? 10 : 263;
         const headerSize = uuidLength + 1 + headerPaddingSize; // uuid + null + padding
-        
+
         if (reader.remaining < headerSize + 19) {
           // Not enough data for header + bounds + depth + compression
           reader.seek(brushEnd);
           imageIndex++;
           continue;
         }
-        
+
         // Read UUID (starts with '$', e.g. "$3479c62f-65c9-11de-bdeb-a55e96b1a87")
         const uuidWithPrefix = reader.readString(uuidLength);
         reader.skip(1); // null terminator
-        
+
         // Extract the UUID without the leading '$'
         // The descriptor stores UUIDs without the '$' and with the last character
         // Sample UUID: $3479c62f-65c9-11de-bdeb-a55e96b1a87 (37 chars, last char may be truncated)
         // Desc UUID: 3479c62f-65c9-11de-bdeb-a55e96b1a876 (36 chars)
         let sampleUuid = uuidWithPrefix.startsWith('$') ? uuidWithPrefix.substring(1) : uuidWithPrefix;
-        
+
         // Skip the rest of the header padding
         reader.skip(headerPaddingSize);
-        
+
         // Read bounds: top, left, bottom, right (each 4 bytes, signed big-endian)
         const top = reader.readUInt32BE();
         const left = reader.readUInt32BE();
         const bottom = reader.readUInt32BE();
         const right = reader.readUInt32BE();
-        
+
         const width = right - left;
         const height = bottom - top;
 
@@ -274,10 +266,10 @@ export class AbrParser {
 
         // Bit depth (2 bytes)
         const depth = reader.readUInt16BE();
-        
+
         // Compression type (1 byte): 0 = raw, 1 = RLE
         const compression = reader.readUInt8();
-        
+
         // Validate depth and compression
         if ((depth !== 8 && depth !== 16) || (compression !== 0 && compression !== 1)) {
           // Invalid format, skip this sample
@@ -289,7 +281,7 @@ export class AbrParser {
         // Generate a sample ID for matching with descriptors
         // Use the UUID for matching - normalize by taking first 35 chars (UUIDs match on prefix)
         const normalizedUuid = sampleUuid.replace(/\0/g, '').substring(0, 35).toLowerCase();
-        
+
         // Store both by UUID and by index (for fallback)
         const brushIdByIndex = `sample_${imageIndex}`;
 
@@ -359,14 +351,13 @@ export class AbrParser {
           width,
           height,
           depth,
-          data: imageData,
+          data: imageData
         };
-        
+
         // Store by normalized UUID for matching with descriptor sampledData
         images.set(normalizedUuid, brushTipImage);
         // Also store by index as fallback
         images.set(brushIdByIndex, brushTipImage);
-
       } catch (err) {
         // Skip this brush sample on error
       }
@@ -387,19 +378,19 @@ export class AbrParser {
 
     // Descriptor block starts with version (4 bytes)
     const version = reader.readUInt32BE();
-    
+
     // Parse the main descriptor
     const parser = new DescriptorParser(reader);
-    
+
     try {
       const desc = parser.parseDescriptor();
-      
+
       // Extract brush list from the 'Brsh' key which contains VlLs
       const brushList = this.extractBrushList(desc);
-      
+
       // Track which samples have been used (for fallback index-based matching)
       let sampleIndex = 0;
-      
+
       for (let i = 0; i < brushList.length; i++) {
         const brushDesc = brushList[i];
         try {
@@ -409,7 +400,7 @@ export class AbrParser {
           let isSampledBrush = false;
           let isComputedBrush = false;
           let sampledDataUuid: string | null = null;
-          
+
           // First check the Brsh object's classId
           if (brushDefValue && brushDefValue.type === 'Objc') {
             const classId = brushDefValue.classId;
@@ -419,7 +410,7 @@ export class AbrParser {
               isComputedBrush = true;
             }
           }
-          
+
           // Then check for explicit brTp enum and sampledData UUID
           const innerBrushDef = getObject(brushDesc, 'Brsh');
           if (innerBrushDef) {
@@ -440,8 +431,15 @@ export class AbrParser {
               }
             }
           }
-          
-          const brush = this.createBrush(brushDesc, images, isSampledBrush ? sampleIndex : -1, startIndex + i, isComputedBrush, sampledDataUuid);
+
+          const brush = this.createBrush(
+            brushDesc,
+            images,
+            isSampledBrush ? sampleIndex : -1,
+            startIndex + i,
+            isComputedBrush,
+            sampledDataUuid
+          );
           if (brush) {
             brushes.push(brush);
             if (isSampledBrush) {
@@ -469,7 +467,7 @@ export class AbrParser {
 
     // The brush list is in 'Brsh' key as a VlLs (value list)
     const brsh = desc['Brsh'];
-    
+
     if (brsh && brsh.type === 'VlLs') {
       for (const item of brsh.value) {
         if (item.type === 'Objc') {
@@ -530,10 +528,10 @@ export class AbrParser {
 
     // Get brush definition from 'Brsh' key
     const brushDef = getObject(desc, 'Brsh');
-    
+
     // Determine brush type
     // If forceComputedType is set, use computed; if sampleIndex >= 0, use sampled
-    let type: 'computed' | 'sampled' = forceComputedType ? 'computed' : (sampleIndex >= 0 ? 'sampled' : 'computed');
+    let type: 'computed' | 'sampled' = forceComputedType ? 'computed' : sampleIndex >= 0 ? 'sampled' : 'computed';
     let diameter: number | undefined;
     let hardness: number | undefined;
     let angle: number | undefined;
@@ -546,7 +544,7 @@ export class AbrParser {
       if (brushTypeVal && brushTypeVal.type === 'enum') {
         type = brushTypeVal.value === 'brtC' ? 'computed' : 'sampled';
       }
-      
+
       // Also check classId from Brsh object descriptor
       const brshDescriptor = desc['Brsh'];
       if (brshDescriptor && brshDescriptor.type === 'Objc') {
@@ -557,7 +555,7 @@ export class AbrParser {
           type = 'sampled';
         }
       }
-      
+
       // Extract properties from brush definition
       diameter = getNumber(brushDef, 'Dmtr');
       hardness = getNumber(brushDef, 'Hrdn');
@@ -579,13 +577,13 @@ export class AbrParser {
     // Try to find brush tip image
     // First try UUID-based matching (preferred), then fall back to index
     let brushTip: BrushTipImage | undefined;
-    
+
     if (sampledDataUuid) {
       // Normalize the UUID from descriptor (remove any null chars, lowercase, take first 35 chars)
       const normalizedUuid = sampledDataUuid.replace(/\0/g, '').substring(0, 35).toLowerCase();
       brushTip = images.get(normalizedUuid);
     }
-    
+
     // Fallback to index-based matching
     if (!brushTip && sampleIndex >= 0) {
       brushTip = images.get(`sample_${sampleIndex}`);
@@ -602,7 +600,7 @@ export class AbrParser {
       roundness,
       brushTip: this.options.extractImages ? brushTip : undefined,
       sampledDataUuid: sampledDataUuid || undefined,
-      settings: this.options.includeRawSettings ? this.flattenDescriptor(desc) : {},
+      settings: this.options.includeRawSettings ? this.flattenDescriptor(desc) : {}
     };
 
     return brush;
@@ -639,7 +637,7 @@ export class AbrParser {
           ...this.flattenDescriptor(value.value)
         };
       case 'VlLs':
-        return value.value.map(v => this.flattenValue(v));
+        return value.value.map((v) => this.flattenValue(v));
       case 'tdta':
         return `<binary data: ${value.value.length} bytes>`;
       default:

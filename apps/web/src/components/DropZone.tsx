@@ -1,11 +1,11 @@
-import { createSignal, Show, onMount, onCleanup } from 'solid-js';
+import { createSignal, onCleanup, onMount, Show } from 'solid-js';
 
 type DropZoneProps = {
   onFilesDropped: (files: File[]) => void;
   accept?: string;
   multiple?: boolean;
   disabled?: boolean;
-}
+};
 
 export function DropZone(props: DropZoneProps) {
   const [isDragging, setIsDragging] = createSignal(false);
@@ -46,9 +46,7 @@ export function DropZone(props: DropZoneProps) {
 
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
-      const fileArray = Array.from(files).filter(
-        file => file.name.toLowerCase().endsWith('.abr')
-      );
+      const fileArray = Array.from(files).filter((file) => file.name.toLowerCase().endsWith('.abr'));
       if (fileArray.length > 0) {
         props.onFilesDropped(props.multiple ? fileArray : [fileArray[0]]);
       }
@@ -111,15 +109,11 @@ export function DropZone(props: DropZoneProps) {
   return (
     <div
       ref={dropZoneRef}
-      class={`
-        relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
-        transition-all duration-200 ease-in-out
-        ${isDragging()
+      class={`relative cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-all duration-200 ease-in-out ${
+        isDragging()
           ? 'border-ps-accent bg-ps-accent/10 drop-zone-active'
           : 'border-ps-border hover:border-ps-border-light hover:bg-ps-bg-light/30'
-        }
-        ${props.disabled ? 'opacity-50 cursor-not-allowed' : ''}
-      `}
+      } ${props.disabled ? 'cursor-not-allowed opacity-50' : ''} `}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -142,12 +136,11 @@ export function DropZone(props: DropZoneProps) {
 
       <div class="flex flex-col items-center gap-4">
         {/* Icon */}
-        <div class={`
-          w-16 h-16 rounded-full flex items-center justify-center
-          ${isDragging() ? 'bg-ps-accent/20' : 'bg-ps-bg-lighter'}
-        `}>
+        <div
+          class={`flex h-16 w-16 items-center justify-center rounded-full ${isDragging() ? 'bg-ps-accent/20' : 'bg-ps-bg-lighter'} `}
+        >
           <svg
-            class={`w-8 h-8 ${isDragging() ? 'text-ps-accent' : 'text-ps-text-muted'}`}
+            class={`h-8 w-8 ${isDragging() ? 'text-ps-accent' : 'text-ps-text-muted'}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -167,26 +160,20 @@ export function DropZone(props: DropZoneProps) {
             when={isDragging()}
             fallback={
               <>
-                <p class="text-ps-text-bright text-lg font-medium mb-1">
-                  Drop .abr files here
-                </p>
-                <p class="text-ps-text-muted text-sm">
-                  or click to browse • Supports multiple files
-                </p>
+                <p class="text-ps-text-bright mb-1 text-lg font-medium">Drop .abr files here</p>
+                <p class="text-ps-text-muted text-sm">or click to browse • Supports multiple files</p>
               </>
             }
           >
-            <p class="text-ps-accent text-lg font-medium">
-              Release to upload
-            </p>
+            <p class="text-ps-accent text-lg font-medium">Release to upload</p>
           </Show>
         </div>
 
         {/* Supported formats hint */}
-        <div class="flex items-center gap-2 text-xs text-ps-text-muted">
-          <span class="px-2 py-1 bg-ps-bg-lighter rounded">ABR v6+</span>
-          <span class="px-2 py-1 bg-ps-bg-lighter rounded">ABR v9</span>
-          <span class="px-2 py-1 bg-ps-bg-lighter rounded">ABR v10</span>
+        <div class="text-ps-text-muted flex items-center gap-2 text-xs">
+          <span class="bg-ps-bg-lighter rounded px-2 py-1">ABR v6+</span>
+          <span class="bg-ps-bg-lighter rounded px-2 py-1">ABR v9</span>
+          <span class="bg-ps-bg-lighter rounded px-2 py-1">ABR v10</span>
         </div>
       </div>
     </div>

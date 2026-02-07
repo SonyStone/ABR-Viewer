@@ -11,36 +11,36 @@ export {
   BinaryWriter,
   DescriptorParser,
   DescriptorSerializer,
-  makeDescriptor,
-  createBrush,
   createAbrFile,
+  createBrush,
   createBrushTip,
+  makeDescriptor
 } from 'abr-parser/browser';
 
 // Re-export core types (can be extended by browser types)
 export type {
-  Brush,
   AbrFile,
-  BrushTipImage,
+  Brush,
   BrushDynamics,
-  DynamicControl,
-  ParseOptions,
-  ExportResult,
+  BrushTipImage,
   DescriptorValue,
+  DynamicControl,
+  ExportResult,
+  ParseOptions,
   Pattern,
-  ResourceBlock,
+  ResourceBlock
 } from 'abr-parser/browser';
 
 export type { WriteOptions } from 'abr-parser/browser';
 
 // Browser-specific utilities
 export {
-  brushTipToPngBlob,
   brushTipToDataUrl,
+  brushTipToPngBlob,
   createBrushTipFromCanvas,
   createBrushTipFromImage,
-  downloadAbrFile,
+  downloadAbrFile
 } from './browser-utils';
 
 // Browser-specific extended types
-export type { BrushWithPreview, AbrFileWithMeta } from './browser-utils';
+export type { AbrFileWithMeta, BrushWithPreview } from './browser-utils';

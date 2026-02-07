@@ -4,10 +4,10 @@
  */
 
 import * as fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 import { BinaryWriter } from './binary-writer';
 import { DescriptorSerializer, makeDescriptor } from './descriptor-serializer';
 import { AbrFile, Brush, BrushTipImage, DescriptorValue } from './types';
-import { v4 as uuidv4 } from 'uuid';
 
 const PHOTOSHOP_SIGNATURE = '8BIM';
 const SAMPLE_KEY = 'samp';
@@ -22,7 +22,7 @@ export type WriteOptions = {
   useRleCompression?: boolean;
   /** Preserve raw descriptor data for perfect round-trip (default: false) */
   preserveRawDescriptor?: boolean;
-}
+};
 
 export class AbrWriter {
   private options: Required<WriteOptions>;
@@ -32,7 +32,7 @@ export class AbrWriter {
       version: options.version ?? 6,
       subVersion: options.subVersion ?? 2,
       useRleCompression: options.useRleCompression ?? true,
-      preserveRawDescriptor: options.preserveRawDescriptor ?? false,
+      preserveRawDescriptor: options.preserveRawDescriptor ?? false
     };
   }
 
@@ -55,8 +55,8 @@ export class AbrWriter {
     writer.writeUInt16BE(this.options.subVersion);
 
     // Collect brushes with tips for sample block
-    const sampledBrushes = abrFile.brushes.filter(b => b.brushTip && b.type === 'sampled');
-    
+    const sampledBrushes = abrFile.brushes.filter((b) => b.brushTip && b.type === 'sampled');
+
     // Generate or preserve UUIDs for brushes
     const brushUuids = new Map<string, string>();
     for (const brush of sampledBrushes) {
@@ -77,7 +77,7 @@ export class AbrWriter {
       // Write empty samp block for compatibility
       this.writeResourceBlock(writer, SAMPLE_KEY, new Uint8Array(0));
     }
-    
+
     // Write pattern block - preserve raw data if available, otherwise write empty
     if (abrFile.rawPatternData && abrFile.rawPatternData.length > 0) {
       this.writeResourceBlock(writer, 'patt', abrFile.rawPatternData);
@@ -134,10 +134,10 @@ export class AbrWriter {
 
       // Write image bounds (top, left, bottom, right)
       const { width, height } = brush.brushTip;
-      sampleWriter.writeUInt32BE(0);        // top
-      sampleWriter.writeUInt32BE(0);        // left
-      sampleWriter.writeUInt32BE(height);   // bottom
-      sampleWriter.writeUInt32BE(width);    // right
+      sampleWriter.writeUInt32BE(0); // top
+      sampleWriter.writeUInt32BE(0); // left
+      sampleWriter.writeUInt32BE(height); // bottom
+      sampleWriter.writeUInt32BE(width); // right
 
       // Write depth (8-bit grayscale)
       sampleWriter.writeUInt16BE(8);
@@ -173,7 +173,7 @@ export class AbrWriter {
    */
   private writeRleCompressedImage(writer: BinaryWriter, brushTip: BrushTipImage): void {
     const { width, height, data } = brushTip;
-    
+
     // First, compress all rows and calculate byte counts
     const compressedRows: Uint8Array[] = [];
     const rowByteCounts: number[] = [];
@@ -207,9 +207,7 @@ export class AbrWriter {
     while (i < data.length) {
       // Look for a run of identical bytes
       let runLength = 1;
-      while (i + runLength < data.length && 
-             data[i + runLength] === data[i] && 
-             runLength < 128) {
+      while (i + runLength < data.length && data[i + runLength] === data[i] && runLength < 128) {
         runLength++;
       }
 
@@ -223,9 +221,11 @@ export class AbrWriter {
         let literalLength = 1;
         while (i + literalLength < data.length && literalLength < 128) {
           // Check if next position starts a run of 3+
-          if (i + literalLength + 2 < data.length &&
-              data[i + literalLength] === data[i + literalLength + 1] &&
-              data[i + literalLength] === data[i + literalLength + 2]) {
+          if (
+            i + literalLength + 2 < data.length &&
+            data[i + literalLength] === data[i + literalLength + 1] &&
+            data[i + literalLength] === data[i + literalLength + 2]
+          ) {
             break;
           }
           literalLength++;
@@ -263,7 +263,7 @@ export class AbrWriter {
 
     // Create the root descriptor
     const rootDesc: Record<string, DescriptorValue> = {
-      'Brsh': makeDescriptor.list(brushList),
+      Brsh: makeDescriptor.list(brushList)
     };
 
     // Serialize the descriptor
@@ -287,7 +287,7 @@ export class AbrWriter {
 
     // Start with the original Brsh structure if available to preserve property order
     let brushDef: Record<string, DescriptorValue> = {};
-    
+
     if (brush.settings?.['Brsh'] && typeof brush.settings['Brsh'] === 'object') {
       // Copy original Brsh properties in their original order
       const originalBrsh = brush.settings['Brsh'] as Record<string, unknown>;
@@ -297,7 +297,7 @@ export class AbrWriter {
           brushDef[key] = converted;
         }
       }
-      
+
       // Update sampledData UUID if we have a new one
       if (brush.type === 'sampled' && uuid) {
         brushDef['sampledData'] = makeDescriptor.text(uuid);
@@ -320,12 +320,12 @@ export class AbrWriter {
       if (brush.hardness !== undefined) {
         brushDef['Hrdn'] = makeDescriptor.unit('#Prc', brush.hardness);
       }
-      
+
       // Add Intr (interpolation) flag
       brushDef['Intr'] = makeDescriptor.bool(true);
       brushDef['flipX'] = makeDescriptor.bool(false);
       brushDef['flipY'] = makeDescriptor.bool(false);
-      
+
       // For sampled brushes, include the sampled data UUID at end
       if (brush.type === 'sampled' && uuid) {
         brushDef['sampledData'] = makeDescriptor.text(uuid);
@@ -359,7 +359,7 @@ export class AbrWriter {
     // Copy settings that aren't already set
     for (const [key, value] of Object.entries(settings)) {
       if (key === 'Nm  ' || key === 'Brsh' || key === 'Spcn') continue;
-      
+
       const converted = this.convertToDescriptorValue(value);
       if (converted && !desc[key]) {
         desc[key] = converted;
@@ -399,7 +399,7 @@ export class AbrWriter {
 
     if (typeof value === 'object') {
       const obj = value as Record<string, unknown>;
-      
+
       // Check for enum format
       if ('type' in obj && 'value' in obj && typeof obj.type === 'string' && !('__classId' in obj)) {
         return makeDescriptor.enum(obj.type as string, obj.value as string);
@@ -448,7 +448,7 @@ export function createBrush(params: {
     angle: params.angle ?? 0,
     roundness: params.roundness ?? 100,
     brushTip: params.brushTip,
-    settings: {},
+    settings: {}
   };
 }
 
@@ -460,7 +460,7 @@ export function createAbrFile(brushes: Brush[] = []): AbrFile {
     version: 6,
     subVersion: 2,
     brushes,
-    errors: [],
+    errors: []
   };
 }
 
@@ -472,6 +472,6 @@ export function createBrushTip(width: number, height: number, data: Uint8Array):
     width,
     height,
     depth: 8,
-    data,
+    data
   };
 }

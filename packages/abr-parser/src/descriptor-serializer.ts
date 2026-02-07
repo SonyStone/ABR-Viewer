@@ -74,11 +74,11 @@ export class DescriptorSerializer {
         const className = value.className || '';
         this.writer.writeClassName(className);
         this.writer.writeId(value.classId);
-        
+
         const items = value.value;
         const objKeys = Object.keys(items);
         this.writer.writeUInt32BE(objKeys.length);
-        
+
         for (const key of objKeys) {
           this.writer.writeId(key);
           this.serializeValue(items[key]);
@@ -121,7 +121,15 @@ export const makeDescriptor = {
   text: (value: string): DescriptorValue => ({ type: 'TEXT', value }),
   enum: (typeId: string, value: string): DescriptorValue => ({ type: 'enum', typeId, value }),
   unit: (unit: string, value: number): DescriptorValue => ({ type: 'UntF', unit, value }),
-  obj: (classId: string, value: Record<string, DescriptorValue>, className?: string): DescriptorValue => ({ type: 'Objc', classId, value, className }),
+  obj: (classId: string, value: Record<string, DescriptorValue>, className?: string): DescriptorValue => ({
+    type: 'Objc',
+    classId,
+    value,
+    className
+  }),
   list: (value: DescriptorValue[]): DescriptorValue => ({ type: 'VlLs', value }),
-  data: (value: Uint8Array | Buffer): DescriptorValue => ({ type: 'tdta', value: value instanceof Uint8Array ? value : new Uint8Array(value) }),
+  data: (value: Uint8Array | Buffer): DescriptorValue => ({
+    type: 'tdta',
+    value: value instanceof Uint8Array ? value : new Uint8Array(value)
+  })
 };
