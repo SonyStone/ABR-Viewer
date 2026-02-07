@@ -9,6 +9,7 @@
     "preview": "vinxi build && vinxi start"
   },
   "dependencies": {
+    "@kobalte/core": "^0.13.11",
     "@solidjs/router": "^0.15.3",
     "@solidjs/start": "^1.1.0",
     "abr-parser": "workspace:*",

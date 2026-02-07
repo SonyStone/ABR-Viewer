@@ -1,4 +1,5 @@
-import { ComponentProps, createEffect, createMemo, createSignal, For, Match, Show, Switch } from 'solid-js';
+import { Collapsible } from '@kobalte/core/collapsible';
+import { ComponentProps, createEffect, createMemo, createSignal, For, Show } from 'solid-js';
 import type { BrushWithPreview } from '~/lib/abr';
 import { brushTipToPngBlob } from '~/lib/abr';
 
@@ -27,9 +28,17 @@ export function BrushDetailEditable(props: {
   onDelete?: () => void;
   onDuplicate?: () => void;
 }) {
-  const [activePanel, setActivePanel] = createSignal<string>('brush-tip');
   const [hasChanges, setHasChanges] = createSignal(false);
   const [downloading, setDownloading] = createSignal(false);
+  let scrollContainerRef: HTMLDivElement | undefined;
+
+  // Function to scroll to a section
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(`section-${sectionId}`);
+    if (element && scrollContainerRef) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   // Editable state - core properties
   const [name, setName] = createSignal(props.brush.name);
@@ -442,10 +451,9 @@ export function BrushDetailEditable(props: {
               {(panel) => (
                 <button
                   onClick={() => {
-                    setActivePanel(panel.id);
-                    // Toggle feature if clicking on checkbox area
+                    scrollToSection(panel.id);
                   }}
-                  class={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${activePanel() === panel.id ? 'bg-ps-bg-light text-ps-text-bright' : 'text-ps-text hover:bg-ps-bg-light/50'} `}
+                  class={`text-ps-text hover:bg-ps-bg-light/50 flex w-full items-center gap-2 px-3 py-2 text-left text-sm`}
                 >
                   <Show when={!panel.always && panel.setEnabled}>
                     <input
@@ -468,204 +476,412 @@ export function BrushDetailEditable(props: {
             </For>
           </div>
 
-          {/* Right Panel - Settings Content */}
-          <div class="flex-1 overflow-y-auto p-4">
-            <Switch>
-              <Match when={activePanel() === 'brush-tip'}>
-                <BrushTipPanel
-                  brush={props.brush}
-                  diameter={diameter}
-                  setDiameter={(v) => {
-                    setDiameter(v);
-                    markChanged();
-                  }}
-                  angle={angle}
-                  setAngle={(v) => {
-                    setAngle(v);
-                    markChanged();
-                  }}
-                  roundness={roundness}
-                  setRoundness={(v) => {
-                    setRoundness(v);
-                    markChanged();
-                  }}
-                  hardness={hardness}
-                  setHardness={(v) => {
-                    setHardness(v);
-                    markChanged();
-                  }}
-                  spacing={spacing}
-                  setSpacing={(v) => {
-                    setSpacing(v);
-                    markChanged();
-                  }}
-                  flipX={flipX}
-                  setFlipX={(v) => {
-                    setFlipX(v);
-                    markChanged();
-                  }}
-                  flipY={flipY}
-                  setFlipY={(v) => {
-                    setFlipY(v);
-                    markChanged();
-                  }}
-                  onDownload={handleDownloadImage}
-                  downloading={downloading()}
-                />
-              </Match>
-              <Match when={activePanel() === 'shape-dynamics'}>
-                <ShapeDynamicsPanel
-                  enabled={useShapeDynamics()}
-                  sizeJitter={sizeJitter}
-                  setSizeJitter={(v) => {
-                    setSizeJitter(v);
-                    markChanged();
-                  }}
-                  sizeControl={sizeControl}
-                  setSizeControl={(v) => {
-                    setSizeControl(v);
-                    markChanged();
-                  }}
-                  sizeMinimum={sizeMinimum}
-                  setSizeMinimum={(v) => {
-                    setSizeMinimum(v);
-                    markChanged();
-                  }}
-                  minimumDiameter={minimumDiameter}
-                  setMinimumDiameter={(v) => {
-                    setMinimumDiameter(v);
-                    markChanged();
-                  }}
-                  tiltScale={tiltScale}
-                  setTiltScale={(v) => {
-                    setTiltScale(v);
-                    markChanged();
-                  }}
-                  angleJitter={angleJitter}
-                  setAngleJitter={(v) => {
-                    setAngleJitter(v);
-                    markChanged();
-                  }}
-                  angleControl={angleControl}
-                  setAngleControl={(v) => {
-                    setAngleControl(v);
-                    markChanged();
-                  }}
-                  roundnessJitter={roundnessJitter}
-                  setRoundnessJitter={(v) => {
-                    setRoundnessJitter(v);
-                    markChanged();
-                  }}
-                  roundnessControl={roundnessControl}
-                  setRoundnessControl={(v) => {
-                    setRoundnessControl(v);
-                    markChanged();
-                  }}
-                  roundnessMinimum={roundnessMinimum}
-                  setRoundnessMinimum={(v) => {
-                    setRoundnessMinimum(v);
-                    markChanged();
-                  }}
-                  flipXJitter={flipXJitter}
-                  setFlipXJitter={(v) => {
-                    setFlipXJitter(v);
-                    markChanged();
-                  }}
-                  flipYJitter={flipYJitter}
-                  setFlipYJitter={(v) => {
-                    setFlipYJitter(v);
-                    markChanged();
-                  }}
-                  brushProjection={brushProjection}
-                  setBrushProjection={(v) => {
-                    setBrushProjection(v);
-                    markChanged();
-                  }}
-                />
-              </Match>
-              <Match when={activePanel() === 'scattering'}>
-                <ScatteringPanel
-                  enabled={useScattering()}
-                  scatter={scatter}
-                  setScatter={(v) => {
-                    setScatter(v);
-                    markChanged();
-                  }}
-                  bothAxes={scatterBothAxes}
-                  setBothAxes={(v) => {
-                    setScatterBothAxes(v);
-                    markChanged();
-                  }}
-                  scatterControl={scatterControl}
-                  setScatterControl={(v) => {
-                    setScatterControl(v);
-                    markChanged();
-                  }}
-                  count={scatterCount}
-                  setCount={(v) => {
-                    setScatterCount(v);
-                    markChanged();
-                  }}
-                  countJitter={countJitter}
-                  setCountJitter={(v) => {
-                    setCountJitter(v);
-                    markChanged();
-                  }}
-                  countControl={countControl}
-                  setCountControl={(v) => {
-                    setCountControl(v);
-                    markChanged();
-                  }}
-                />
-              </Match>
-              <Match when={activePanel() === 'transfer'}>
-                <TransferPanel
-                  enabled={useTransfer()}
-                  opacityJitter={opacityJitter}
-                  setOpacityJitter={(v) => {
-                    setOpacityJitter(v);
-                    markChanged();
-                  }}
-                  opacityControl={opacityControl}
-                  setOpacityControl={(v) => {
-                    setOpacityControl(v);
-                    markChanged();
-                  }}
-                  opacityMinimum={opacityMinimum}
-                  setOpacityMinimum={(v) => {
-                    setOpacityMinimum(v);
-                    markChanged();
-                  }}
-                  flowJitter={flowJitter}
-                  setFlowJitter={(v) => {
-                    setFlowJitter(v);
-                    markChanged();
-                  }}
-                  flowControl={flowControl}
-                  setFlowControl={(v) => {
-                    setFlowControl(v);
-                    markChanged();
-                  }}
-                  flowMinimum={flowMinimum}
-                  setFlowMinimum={(v) => {
-                    setFlowMinimum(v);
-                    markChanged();
-                  }}
-                />
-              </Match>
-              <Match when={activePanel() === 'raw'}>
-                <RawSettingsPanel settings={props.brush.settings || {}} />
-              </Match>
-              <Match when={true}>
-                <div class="text-ps-text-muted py-8 text-center">
-                  <p>Panel content for "{activePanel()}" coming soon</p>
-                </div>
-              </Match>
-            </Switch>
+          {/* Right Panel - Settings Content (All sections as collapsibles) */}
+          <div ref={scrollContainerRef} class="flex-1 space-y-2 overflow-y-auto p-4">
+            {/* Brush Tip Shape */}
+            <CollapsibleSection id="brush-tip" title="Brush Tip Shape" defaultOpen={true}>
+              <BrushTipPanel
+                brush={props.brush}
+                diameter={diameter}
+                setDiameter={(v) => {
+                  setDiameter(v);
+                  markChanged();
+                }}
+                angle={angle}
+                setAngle={(v) => {
+                  setAngle(v);
+                  markChanged();
+                }}
+                roundness={roundness}
+                setRoundness={(v) => {
+                  setRoundness(v);
+                  markChanged();
+                }}
+                hardness={hardness}
+                setHardness={(v) => {
+                  setHardness(v);
+                  markChanged();
+                }}
+                spacing={spacing}
+                setSpacing={(v) => {
+                  setSpacing(v);
+                  markChanged();
+                }}
+                flipX={flipX}
+                setFlipX={(v) => {
+                  setFlipX(v);
+                  markChanged();
+                }}
+                flipY={flipY}
+                setFlipY={(v) => {
+                  setFlipY(v);
+                  markChanged();
+                }}
+                onDownload={handleDownloadImage}
+                downloading={downloading()}
+              />
+            </CollapsibleSection>
+
+            {/* Shape Dynamics */}
+            <CollapsibleSection
+              id="shape-dynamics"
+              title="Shape Dynamics"
+              enabled={useShapeDynamics()}
+              defaultOpen={useShapeDynamics()}
+              onToggleEnabled={(v) => {
+                setUseShapeDynamics(v);
+                markChanged();
+              }}
+            >
+              <ShapeDynamicsPanel
+                enabled={useShapeDynamics()}
+                sizeJitter={sizeJitter}
+                setSizeJitter={(v) => {
+                  setSizeJitter(v);
+                  markChanged();
+                }}
+                sizeControl={sizeControl}
+                setSizeControl={(v) => {
+                  setSizeControl(v);
+                  markChanged();
+                }}
+                sizeMinimum={sizeMinimum}
+                setSizeMinimum={(v) => {
+                  setSizeMinimum(v);
+                  markChanged();
+                }}
+                minimumDiameter={minimumDiameter}
+                setMinimumDiameter={(v) => {
+                  setMinimumDiameter(v);
+                  markChanged();
+                }}
+                tiltScale={tiltScale}
+                setTiltScale={(v) => {
+                  setTiltScale(v);
+                  markChanged();
+                }}
+                angleJitter={angleJitter}
+                setAngleJitter={(v) => {
+                  setAngleJitter(v);
+                  markChanged();
+                }}
+                angleControl={angleControl}
+                setAngleControl={(v) => {
+                  setAngleControl(v);
+                  markChanged();
+                }}
+                roundnessJitter={roundnessJitter}
+                setRoundnessJitter={(v) => {
+                  setRoundnessJitter(v);
+                  markChanged();
+                }}
+                roundnessControl={roundnessControl}
+                setRoundnessControl={(v) => {
+                  setRoundnessControl(v);
+                  markChanged();
+                }}
+                roundnessMinimum={roundnessMinimum}
+                setRoundnessMinimum={(v) => {
+                  setRoundnessMinimum(v);
+                  markChanged();
+                }}
+                flipXJitter={flipXJitter}
+                setFlipXJitter={(v) => {
+                  setFlipXJitter(v);
+                  markChanged();
+                }}
+                flipYJitter={flipYJitter}
+                setFlipYJitter={(v) => {
+                  setFlipYJitter(v);
+                  markChanged();
+                }}
+                brushProjection={brushProjection}
+                setBrushProjection={(v) => {
+                  setBrushProjection(v);
+                  markChanged();
+                }}
+              />
+            </CollapsibleSection>
+
+            {/* Scattering */}
+            <CollapsibleSection
+              id="scattering"
+              title="Scattering"
+              enabled={useScattering()}
+              defaultOpen={useScattering()}
+              onToggleEnabled={(v) => {
+                setUseScattering(v);
+                markChanged();
+              }}
+            >
+              <ScatteringPanel
+                enabled={useScattering()}
+                scatter={scatter}
+                setScatter={(v) => {
+                  setScatter(v);
+                  markChanged();
+                }}
+                bothAxes={scatterBothAxes}
+                setBothAxes={(v) => {
+                  setScatterBothAxes(v);
+                  markChanged();
+                }}
+                scatterControl={scatterControl}
+                setScatterControl={(v) => {
+                  setScatterControl(v);
+                  markChanged();
+                }}
+                count={scatterCount}
+                setCount={(v) => {
+                  setScatterCount(v);
+                  markChanged();
+                }}
+                countJitter={countJitter}
+                setCountJitter={(v) => {
+                  setCountJitter(v);
+                  markChanged();
+                }}
+                countControl={countControl}
+                setCountControl={(v) => {
+                  setCountControl(v);
+                  markChanged();
+                }}
+              />
+            </CollapsibleSection>
+
+            {/* Texture */}
+            <CollapsibleSection
+              id="texture"
+              title="Texture"
+              enabled={useTexture()}
+              defaultOpen={useTexture()}
+              onToggleEnabled={(v) => {
+                setUseTexture(v);
+                markChanged();
+              }}
+            >
+              <div class="text-ps-text-muted py-4 text-center text-sm">Texture settings coming soon</div>
+            </CollapsibleSection>
+
+            {/* Dual Brush */}
+            <CollapsibleSection
+              id="dual-brush"
+              title="Dual Brush"
+              enabled={useDualBrush()}
+              defaultOpen={useDualBrush()}
+              onToggleEnabled={(v) => {
+                setUseDualBrush(v);
+                markChanged();
+              }}
+            >
+              <div class="text-ps-text-muted py-4 text-center text-sm">Dual Brush settings coming soon</div>
+            </CollapsibleSection>
+
+            {/* Color Dynamics */}
+            <CollapsibleSection
+              id="color-dynamics"
+              title="Color Dynamics"
+              enabled={useColorDynamics()}
+              defaultOpen={useColorDynamics()}
+              onToggleEnabled={(v) => {
+                setUseColorDynamics(v);
+                markChanged();
+              }}
+            >
+              <div class="text-ps-text-muted py-4 text-center text-sm">Color Dynamics settings coming soon</div>
+            </CollapsibleSection>
+
+            {/* Transfer */}
+            <CollapsibleSection
+              id="transfer"
+              title="Transfer"
+              enabled={useTransfer()}
+              defaultOpen={useTransfer()}
+              onToggleEnabled={(v) => {
+                setUseTransfer(v);
+                markChanged();
+              }}
+            >
+              <TransferPanel
+                enabled={useTransfer()}
+                opacityJitter={opacityJitter}
+                setOpacityJitter={(v) => {
+                  setOpacityJitter(v);
+                  markChanged();
+                }}
+                opacityControl={opacityControl}
+                setOpacityControl={(v) => {
+                  setOpacityControl(v);
+                  markChanged();
+                }}
+                opacityMinimum={opacityMinimum}
+                setOpacityMinimum={(v) => {
+                  setOpacityMinimum(v);
+                  markChanged();
+                }}
+                flowJitter={flowJitter}
+                setFlowJitter={(v) => {
+                  setFlowJitter(v);
+                  markChanged();
+                }}
+                flowControl={flowControl}
+                setFlowControl={(v) => {
+                  setFlowControl(v);
+                  markChanged();
+                }}
+                flowMinimum={flowMinimum}
+                setFlowMinimum={(v) => {
+                  setFlowMinimum(v);
+                  markChanged();
+                }}
+              />
+            </CollapsibleSection>
+
+            {/* Brush Pose */}
+            <CollapsibleSection
+              id="brush-pose"
+              title="Brush Pose"
+              enabled={useBrushPose()}
+              defaultOpen={useBrushPose()}
+              onToggleEnabled={(v) => {
+                setUseBrushPose(v);
+                markChanged();
+              }}
+            >
+              <div class="text-ps-text-muted py-4 text-center text-sm">Brush Pose settings coming soon</div>
+            </CollapsibleSection>
+
+            {/* Noise */}
+            <CollapsibleSection
+              id="noise"
+              title="Noise"
+              enabled={useNoise()}
+              defaultOpen={useNoise()}
+              onToggleEnabled={(v) => {
+                setUseNoise(v);
+                markChanged();
+              }}
+            >
+              <div class="text-ps-text-muted py-4 text-center text-sm">Noise adds randomness to brush strokes</div>
+            </CollapsibleSection>
+
+            {/* Wet Edges */}
+            <CollapsibleSection
+              id="wet-edges"
+              title="Wet Edges"
+              enabled={useWetEdges()}
+              defaultOpen={useWetEdges()}
+              onToggleEnabled={(v) => {
+                setUseWetEdges(v);
+                markChanged();
+              }}
+            >
+              <div class="text-ps-text-muted py-4 text-center text-sm">Wet Edges creates a watercolor-like effect</div>
+            </CollapsibleSection>
+
+            {/* Build-up */}
+            <CollapsibleSection
+              id="build-up"
+              title="Build-up"
+              enabled={useBuildUp()}
+              defaultOpen={useBuildUp()}
+              onToggleEnabled={(v) => {
+                setUseBuildUp(v);
+                markChanged();
+              }}
+            >
+              <div class="text-ps-text-muted py-4 text-center text-sm">
+                Build-up simulates traditional airbrush techniques
+              </div>
+            </CollapsibleSection>
+
+            {/* Smoothing */}
+            <CollapsibleSection
+              id="smoothing"
+              title="Smoothing"
+              enabled={useSmoothing()}
+              defaultOpen={useSmoothing()}
+              onToggleEnabled={(v) => {
+                setUseSmoothing(v);
+                markChanged();
+              }}
+            >
+              <div class="text-ps-text-muted py-4 text-center text-sm">Smoothing reduces jitter in brush strokes</div>
+            </CollapsibleSection>
+
+            {/* Protect Texture */}
+            <CollapsibleSection
+              id="protect-texture"
+              title="Protect Texture"
+              enabled={useProtectTexture()}
+              defaultOpen={useProtectTexture()}
+              onToggleEnabled={(v) => {
+                setUseProtectTexture(v);
+                markChanged();
+              }}
+            >
+              <div class="text-ps-text-muted py-4 text-center text-sm">
+                Protect Texture preserves texture when using preset brushes
+              </div>
+            </CollapsibleSection>
+
+            {/* Raw Settings */}
+            <CollapsibleSection id="raw" title="Raw Settings" defaultOpen={false}>
+              <RawSettingsPanel settings={props.brush.settings || {}} />
+            </CollapsibleSection>
           </div>
         </div>
       </div>
     </brush-detail-editable>
+  );
+}
+
+// Collapsible Section Component
+function CollapsibleSection(props: {
+  id: string;
+  title: string;
+  children: any;
+  enabled?: boolean;
+  onToggleEnabled?: (v: boolean) => void;
+  defaultOpen?: boolean;
+}) {
+  const [isOpen, setIsOpen] = createSignal(props.defaultOpen ?? true);
+
+  return (
+    <div id={`section-${props.id}`} class="bg-ps-bg-dark border-ps-border overflow-hidden rounded-lg border">
+      <Collapsible open={isOpen()} onOpenChange={setIsOpen}>
+        <Collapsible.Trigger class="text-ps-text-bright hover:bg-ps-bg-light/50 flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium">
+          <div class="flex items-center gap-3">
+            <Show when={props.onToggleEnabled !== undefined}>
+              <input
+                type="checkbox"
+                checked={props.enabled}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  props.onToggleEnabled?.(e.currentTarget.checked);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                class="border-ps-border bg-ps-bg-dark checked:bg-ps-accent checked:border-ps-accent h-4 w-4 rounded"
+              />
+            </Show>
+            <span class={props.onToggleEnabled !== undefined && !props.enabled ? 'opacity-50' : ''}>{props.title}</span>
+          </div>
+          <svg
+            class={`h-4 w-4 transition-transform duration-200 ${isOpen() ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </Collapsible.Trigger>
+        <Collapsible.Content class="border-ps-border border-t px-4 py-3">
+          <div class={props.onToggleEnabled !== undefined && !props.enabled ? 'pointer-events-none opacity-50' : ''}>
+            {props.children}
+          </div>
+        </Collapsible.Content>
+      </Collapsible>
+    </div>
   );
 }
 
@@ -770,86 +986,75 @@ function BrushTipPanel(props: {
   downloading: boolean;
 }) {
   return (
-    <div>
-      <h3 class="text-ps-text-bright border-ps-border mb-4 border-b pb-2 font-medium">Brush Tip Shape</h3>
-
-      <div class="grid gap-6 md:grid-cols-2">
-        {/* Preview */}
-        <div class="space-y-4">
-          <div class="checkered-bg relative mx-auto aspect-square max-w-64 overflow-hidden rounded-lg">
-            <Show
-              when={props.brush.imageDataUrl}
-              fallback={
-                <div class="absolute inset-0 flex items-center justify-center">
-                  <p class="text-ps-text-muted text-sm">
-                    {props.brush.type === 'computed' ? 'Computed brush' : 'No preview'}
-                  </p>
-                </div>
-              }
-            >
-              <img
-                src={props.brush.imageDataUrl}
-                alt={props.brush.name}
-                class="absolute inset-0 h-full w-full object-contain p-2"
-                style={{
-                  transform: `rotate(${props.angle()}deg) scaleX(${props.flipX() ? -1 : 1}) scaleY(${props.flipY() ? -1 : 1})`
-                }}
-              />
-            </Show>
-          </div>
-
-          <Show when={props.brush.brushTip}>
-            <button
-              onClick={props.onDownload}
-              disabled={props.downloading}
-              class="bg-ps-accent hover:bg-ps-accent-hover w-full rounded px-4 py-2 text-sm text-white disabled:opacity-50"
-            >
-              {props.downloading ? 'Downloading...' : 'Download PNG'}
-            </button>
+    <div class="grid gap-6 md:grid-cols-2">
+      {/* Preview */}
+      <div class="space-y-4">
+        <div class="checkered-bg relative mx-auto aspect-square max-w-64 overflow-hidden rounded-lg">
+          <Show
+            when={props.brush.imageDataUrl}
+            fallback={
+              <div class="absolute inset-0 flex items-center justify-center">
+                <p class="text-ps-text-muted text-sm">
+                  {props.brush.type === 'computed' ? 'Computed brush' : 'No preview'}
+                </p>
+              </div>
+            }
+          >
+            <img
+              src={props.brush.imageDataUrl}
+              alt={props.brush.name}
+              class="absolute inset-0 h-full w-full object-contain p-2"
+              style={{
+                transform: `rotate(${props.angle()}deg) scaleX(${props.flipX() ? -1 : 1}) scaleY(${props.flipY() ? -1 : 1})`
+              }}
+            />
           </Show>
         </div>
 
-        {/* Settings */}
-        <div class="space-y-1">
-          <SliderInput label="Size" value={props.diameter} setValue={props.setDiameter} min={1} max={2500} unit=" px" />
+        <Show when={props.brush.brushTip}>
+          <button
+            onClick={props.onDownload}
+            disabled={props.downloading}
+            class="bg-ps-accent hover:bg-ps-accent-hover w-full rounded px-4 py-2 text-sm text-white disabled:opacity-50"
+          >
+            {props.downloading ? 'Downloading...' : 'Download PNG'}
+          </button>
+        </Show>
+      </div>
 
-          <div class="ml-8 flex items-center gap-4 py-2">
-            <CheckboxInput label="Flip X" checked={props.flipX} setChecked={props.setFlipX} />
-            <CheckboxInput label="Flip Y" checked={props.flipY} setChecked={props.setFlipY} />
-          </div>
+      {/* Settings */}
+      <div class="space-y-1">
+        <SliderInput label="Size" value={props.diameter} setValue={props.setDiameter} min={1} max={2500} unit=" px" />
 
-          <SliderInput label="Angle" value={props.angle} setValue={props.setAngle} min={-180} max={180} unit="°" />
+        <div class="ml-8 flex items-center gap-4 py-2">
+          <CheckboxInput label="Flip X" checked={props.flipX} setChecked={props.setFlipX} />
+          <CheckboxInput label="Flip Y" checked={props.flipY} setChecked={props.setFlipY} />
+        </div>
 
+        <SliderInput label="Angle" value={props.angle} setValue={props.setAngle} min={-180} max={180} unit="°" />
+
+        <SliderInput
+          label="Roundness"
+          value={props.roundness}
+          setValue={props.setRoundness}
+          min={0}
+          max={100}
+          unit="%"
+        />
+
+        <Show when={props.brush.type === 'computed'}>
           <SliderInput
-            label="Roundness"
-            value={props.roundness}
-            setValue={props.setRoundness}
+            label="Hardness"
+            value={props.hardness}
+            setValue={props.setHardness}
             min={0}
             max={100}
             unit="%"
           />
+        </Show>
 
-          <Show when={props.brush.type === 'computed'}>
-            <SliderInput
-              label="Hardness"
-              value={props.hardness}
-              setValue={props.setHardness}
-              min={0}
-              max={100}
-              unit="%"
-            />
-          </Show>
-
-          <div class="border-ps-border mt-4 border-t pt-4">
-            <SliderInput
-              label="Spacing"
-              value={props.spacing}
-              setValue={props.setSpacing}
-              min={1}
-              max={1000}
-              unit="%"
-            />
-          </div>
+        <div class="border-ps-border mt-4 border-t pt-4">
+          <SliderInput label="Spacing" value={props.spacing} setValue={props.setSpacing} min={1} max={1000} unit="%" />
         </div>
       </div>
     </div>
@@ -886,46 +1091,39 @@ function ShapeDynamicsPanel(props: {
   setBrushProjection: (v: boolean) => void;
 }) {
   return (
-    <div class={props.enabled ? '' : 'pointer-events-none opacity-50'}>
-      <h3 class="text-ps-text-bright border-ps-border mb-4 flex items-center gap-2 border-b pb-2 font-medium">
-        <div class={`h-4 w-4 rounded ${props.enabled ? 'bg-ps-accent' : 'bg-ps-bg-lighter'}`} />
-        Shape Dynamics
-      </h3>
-
-      <div class="space-y-4">
-        <div>
-          <SliderInput label="Size Jitter" value={props.sizeJitter} setValue={props.setSizeJitter} />
-          <ControlSelect label="Control" value={props.sizeControl} setValue={props.setSizeControl} />
-          <SliderInput label="Minimum" value={props.sizeMinimum} setValue={props.setSizeMinimum} />
-        </div>
-
-        <SliderInput label="Minimum Diameter" value={props.minimumDiameter} setValue={props.setMinimumDiameter} />
-        <SliderInput label="Tilt Scale" value={props.tiltScale} setValue={props.setTiltScale} max={200} />
-
-        <div class="border-ps-border border-t pt-4">
-          <SliderInput
-            label="Angle Jitter"
-            value={props.angleJitter}
-            setValue={props.setAngleJitter}
-            unit="°"
-            max={360}
-          />
-          <ControlSelect label="Control" value={props.angleControl} setValue={props.setAngleControl} />
-        </div>
-
-        <div class="border-ps-border border-t pt-4">
-          <SliderInput label="Roundness Jitter" value={props.roundnessJitter} setValue={props.setRoundnessJitter} />
-          <ControlSelect label="Control" value={props.roundnessControl} setValue={props.setRoundnessControl} />
-          <SliderInput label="Minimum" value={props.roundnessMinimum} setValue={props.setRoundnessMinimum} />
-        </div>
-
-        <div class="border-ps-border flex items-center gap-6 border-t pt-4">
-          <CheckboxInput label="Flip X Jitter" checked={props.flipXJitter} setChecked={props.setFlipXJitter} />
-          <CheckboxInput label="Flip Y Jitter" checked={props.flipYJitter} setChecked={props.setFlipYJitter} />
-        </div>
-
-        <CheckboxInput label="Brush Projection" checked={props.brushProjection} setChecked={props.setBrushProjection} />
+    <div class="space-y-4">
+      <div>
+        <SliderInput label="Size Jitter" value={props.sizeJitter} setValue={props.setSizeJitter} />
+        <ControlSelect label="Control" value={props.sizeControl} setValue={props.setSizeControl} />
+        <SliderInput label="Minimum" value={props.sizeMinimum} setValue={props.setSizeMinimum} />
       </div>
+
+      <SliderInput label="Minimum Diameter" value={props.minimumDiameter} setValue={props.setMinimumDiameter} />
+      <SliderInput label="Tilt Scale" value={props.tiltScale} setValue={props.setTiltScale} max={200} />
+
+      <div class="border-ps-border border-t pt-4">
+        <SliderInput
+          label="Angle Jitter"
+          value={props.angleJitter}
+          setValue={props.setAngleJitter}
+          unit="°"
+          max={360}
+        />
+        <ControlSelect label="Control" value={props.angleControl} setValue={props.setAngleControl} />
+      </div>
+
+      <div class="border-ps-border border-t pt-4">
+        <SliderInput label="Roundness Jitter" value={props.roundnessJitter} setValue={props.setRoundnessJitter} />
+        <ControlSelect label="Control" value={props.roundnessControl} setValue={props.setRoundnessControl} />
+        <SliderInput label="Minimum" value={props.roundnessMinimum} setValue={props.setRoundnessMinimum} />
+      </div>
+
+      <div class="border-ps-border flex items-center gap-6 border-t pt-4">
+        <CheckboxInput label="Flip X Jitter" checked={props.flipXJitter} setChecked={props.setFlipXJitter} />
+        <CheckboxInput label="Flip Y Jitter" checked={props.flipYJitter} setChecked={props.setFlipYJitter} />
+      </div>
+
+      <CheckboxInput label="Brush Projection" checked={props.brushProjection} setChecked={props.setBrushProjection} />
     </div>
   );
 }
@@ -946,24 +1144,17 @@ function ScatteringPanel(props: {
   setCountControl: (v: number) => void;
 }) {
   return (
-    <div class={props.enabled ? '' : 'pointer-events-none opacity-50'}>
-      <h3 class="text-ps-text-bright border-ps-border mb-4 flex items-center gap-2 border-b pb-2 font-medium">
-        <div class={`h-4 w-4 rounded ${props.enabled ? 'bg-ps-accent' : 'bg-ps-bg-lighter'}`} />
-        Scattering
-      </h3>
+    <div class="space-y-4">
+      <div>
+        <SliderInput label="Scatter" value={props.scatter} setValue={props.setScatter} max={1000} />
+        <CheckboxInput label="Both Axes" checked={props.bothAxes} setChecked={props.setBothAxes} />
+        <ControlSelect label="Control" value={props.scatterControl} setValue={props.setScatterControl} />
+      </div>
 
-      <div class="space-y-4">
-        <div>
-          <SliderInput label="Scatter" value={props.scatter} setValue={props.setScatter} max={1000} />
-          <CheckboxInput label="Both Axes" checked={props.bothAxes} setChecked={props.setBothAxes} />
-          <ControlSelect label="Control" value={props.scatterControl} setValue={props.setScatterControl} />
-        </div>
-
-        <div class="border-ps-border border-t pt-4">
-          <SliderInput label="Count" value={props.count} setValue={props.setCount} min={1} max={16} unit="" />
-          <SliderInput label="Count Jitter" value={props.countJitter} setValue={props.setCountJitter} />
-          <ControlSelect label="Control" value={props.countControl} setValue={props.setCountControl} />
-        </div>
+      <div class="border-ps-border border-t pt-4">
+        <SliderInput label="Count" value={props.count} setValue={props.setCount} min={1} max={16} unit="" />
+        <SliderInput label="Count Jitter" value={props.countJitter} setValue={props.setCountJitter} />
+        <ControlSelect label="Control" value={props.countControl} setValue={props.setCountControl} />
       </div>
     </div>
   );
@@ -985,24 +1176,17 @@ function TransferPanel(props: {
   setFlowMinimum: (v: number) => void;
 }) {
   return (
-    <div class={props.enabled ? '' : 'pointer-events-none opacity-50'}>
-      <h3 class="text-ps-text-bright border-ps-border mb-4 flex items-center gap-2 border-b pb-2 font-medium">
-        <div class={`h-4 w-4 rounded ${props.enabled ? 'bg-ps-accent' : 'bg-ps-bg-lighter'}`} />
-        Transfer
-      </h3>
+    <div class="space-y-4">
+      <div>
+        <SliderInput label="Opacity Jitter" value={props.opacityJitter} setValue={props.setOpacityJitter} />
+        <ControlSelect label="Control" value={props.opacityControl} setValue={props.setOpacityControl} />
+        <SliderInput label="Minimum" value={props.opacityMinimum} setValue={props.setOpacityMinimum} />
+      </div>
 
-      <div class="space-y-4">
-        <div>
-          <SliderInput label="Opacity Jitter" value={props.opacityJitter} setValue={props.setOpacityJitter} />
-          <ControlSelect label="Control" value={props.opacityControl} setValue={props.setOpacityControl} />
-          <SliderInput label="Minimum" value={props.opacityMinimum} setValue={props.setOpacityMinimum} />
-        </div>
-
-        <div class="border-ps-border border-t pt-4">
-          <SliderInput label="Flow Jitter" value={props.flowJitter} setValue={props.setFlowJitter} />
-          <ControlSelect label="Control" value={props.flowControl} setValue={props.setFlowControl} />
-          <SliderInput label="Minimum" value={props.flowMinimum} setValue={props.setFlowMinimum} />
-        </div>
+      <div class="border-ps-border border-t pt-4">
+        <SliderInput label="Flow Jitter" value={props.flowJitter} setValue={props.setFlowJitter} />
+        <ControlSelect label="Control" value={props.flowControl} setValue={props.setFlowControl} />
+        <SliderInput label="Minimum" value={props.flowMinimum} setValue={props.setFlowMinimum} />
       </div>
     </div>
   );
@@ -1010,11 +1194,8 @@ function TransferPanel(props: {
 
 function RawSettingsPanel(props: { settings: Record<string, unknown> }) {
   return (
-    <div>
-      <h3 class="text-ps-text-bright border-ps-border mb-4 border-b pb-2 font-medium">Raw Settings</h3>
-      <pre class="bg-ps-bg-dark text-ps-text-muted max-h-96 overflow-auto rounded p-4 font-mono text-xs">
-        {JSON.stringify(props.settings, null, 2)}
-      </pre>
-    </div>
+    <pre class="bg-ps-bg text-ps-text-muted max-h-96 overflow-auto rounded p-4 font-mono text-xs">
+      {JSON.stringify(props.settings, null, 2)}
+    </pre>
   );
 }
