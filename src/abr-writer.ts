@@ -13,7 +13,7 @@ const PHOTOSHOP_SIGNATURE = '8BIM';
 const SAMPLE_KEY = 'samp';
 const DESCRIPTOR_KEY = 'desc';
 
-export interface WriteOptions {
+export type WriteOptions {
   /** ABR major version (default: 6) */
   version?: number;
   /** ABR minor version (default: 2) */

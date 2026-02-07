@@ -1,8 +1,8 @@
 import { For, Show } from 'solid-js';
-import type { AbrFile } from '~/lib/abr';
+import type { AbrFileWithMeta } from '~/lib/abr';
 
-interface FileListProps {
-  files: Array<{ name: string; data: AbrFile }>;
+type FileListProps {
+  files: Array<{ name: string; data: AbrFileWithMeta }>;
   selectedFile: string | null;
   onSelectFile: (name: string) => void;
   onRemoveFile: (name: string) => void;

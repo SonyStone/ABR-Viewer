@@ -1,9 +1,10 @@
 /**
  * ABR (Photoshop Brush) File Parser
  * Supports ABR version 6+ (modern format)
+ * 
+ * Universal module - works in both Node.js and browser environments.
  */
 
-import * as fs from 'fs';
 import { BinaryReader } from './binary-reader';
 import { DescriptorParser, getNumber, getString, getObject, getBoolean } from './descriptor-parser';
 import {
@@ -32,20 +33,23 @@ export class AbrParser {
   }
 
   /**
-   * Parse an ABR file from a file path
+   * Parse an ABR file from a file path (Node.js only)
+   * For browser use, use parse() with ArrayBuffer instead.
    */
   parseFile(filePath: string): AbrFile {
+    // Dynamic require to avoid bundling fs in browser builds
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const fs = require('fs');
     const buffer = fs.readFileSync(filePath);
     return this.parse(buffer);
   }
 
   /**
-   * Parse an ABR file from a buffer
+   * Parse an ABR file from a buffer or ArrayBuffer
+   * Works in both Node.js (Buffer) and browser (ArrayBuffer) environments.
    */
-  parse(buffer: Buffer | Uint8Array): AbrFile {
-    // Convert Uint8Array to Buffer if needed
-    const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
-    const reader = new BinaryReader(buf);
+  parse(buffer: ArrayBuffer | Uint8Array | ArrayBufferView): AbrFile {
+    const reader = new BinaryReader(buffer);
     const result: AbrFile = {
       version: 0,
       subVersion: 0,
@@ -203,7 +207,7 @@ export class AbrParser {
    * @param data - The raw sample block data
    * @param subVersion - The ABR subversion (1 or 2)
    */
-  private parseSampleBlock(data: Buffer, subVersion: number): Map<string, BrushTipImage> {
+  private parseSampleBlock(data: Uint8Array, subVersion: number): Map<string, BrushTipImage> {
     const reader = new BinaryReader(data);
     const images = new Map<string, BrushTipImage>();
     let imageIndex = 0;
@@ -377,7 +381,7 @@ export class AbrParser {
   /**
    * Parse a descriptor block containing brush settings
    */
-  private parseDescriptorBlock(data: Buffer, images: Map<string, BrushTipImage>, startIndex: number): Brush[] {
+  private parseDescriptorBlock(data: Uint8Array, images: Map<string, BrushTipImage>, startIndex: number): Brush[] {
     const reader = new BinaryReader(data);
     const brushes: Brush[] = [];
 

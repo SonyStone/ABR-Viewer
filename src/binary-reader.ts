@@ -1,13 +1,26 @@
 /**
- * Binary Reader - Big-endian reader for Photoshop file formats
+ * Binary Reader - Universal reader for both Node.js and browser
+ * Supports big-endian reading for Photoshop file formats
  */
 
 export class BinaryReader {
-  private buffer: Buffer;
+  private data: DataView;
+  private bytes: Uint8Array;
   private offset: number = 0;
 
-  constructor(buffer: Buffer) {
-    this.buffer = buffer;
+  constructor(buffer: ArrayBuffer | Uint8Array | ArrayBufferView) {
+    // Normalize to Uint8Array (works in both Node.js and browser)
+    if (buffer instanceof ArrayBuffer) {
+      this.bytes = new Uint8Array(buffer);
+      this.data = new DataView(buffer);
+    } else if (buffer instanceof Uint8Array) {
+      this.bytes = buffer;
+      this.data = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+    } else {
+      // ArrayBufferView (including Node.js Buffer which extends Uint8Array)
+      this.bytes = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+      this.data = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+    }
   }
 
   get position(): number {
@@ -15,16 +28,16 @@ export class BinaryReader {
   }
 
   get length(): number {
-    return this.buffer.length;
+    return this.bytes.length;
   }
 
   get remaining(): number {
-    return this.buffer.length - this.offset;
+    return this.bytes.length - this.offset;
   }
 
   seek(offset: number): void {
-    if (offset < 0 || offset > this.buffer.length) {
-      throw new Error(`Invalid seek offset: ${offset}, buffer length: ${this.buffer.length}`);
+    if (offset < 0 || offset > this.bytes.length) {
+      throw new Error(`Invalid seek offset: ${offset}, buffer length: ${this.bytes.length}`);
     }
     this.offset = offset;
   }
@@ -33,60 +46,60 @@ export class BinaryReader {
     this.offset += bytes;
   }
 
-  peek(bytes: number): Buffer {
-    return this.buffer.subarray(this.offset, this.offset + bytes);
+  peek(bytes: number): Uint8Array {
+    return this.bytes.subarray(this.offset, this.offset + bytes);
   }
 
-  readBytes(length: number): Buffer {
-    const result = this.buffer.subarray(this.offset, this.offset + length);
+  readBytes(length: number): Uint8Array {
+    const result = this.bytes.subarray(this.offset, this.offset + length);
     this.offset += length;
     return result;
   }
 
   readUInt8(): number {
-    const value = this.buffer.readUInt8(this.offset);
+    const value = this.data.getUint8(this.offset);
     this.offset += 1;
     return value;
   }
 
   readInt8(): number {
-    const value = this.buffer.readInt8(this.offset);
+    const value = this.data.getInt8(this.offset);
     this.offset += 1;
     return value;
   }
 
   readUInt16BE(): number {
-    const value = this.buffer.readUInt16BE(this.offset);
+    const value = this.data.getUint16(this.offset, false);
     this.offset += 2;
     return value;
   }
 
   readInt16BE(): number {
-    const value = this.buffer.readInt16BE(this.offset);
+    const value = this.data.getInt16(this.offset, false);
     this.offset += 2;
     return value;
   }
 
   readUInt32BE(): number {
-    const value = this.buffer.readUInt32BE(this.offset);
+    const value = this.data.getUint32(this.offset, false);
     this.offset += 4;
     return value;
   }
 
   readInt32BE(): number {
-    const value = this.buffer.readInt32BE(this.offset);
+    const value = this.data.getInt32(this.offset, false);
     this.offset += 4;
     return value;
   }
 
   readDoubleBE(): number {
-    const value = this.buffer.readDoubleBE(this.offset);
+    const value = this.data.getFloat64(this.offset, false);
     this.offset += 8;
     return value;
   }
 
   readFloatBE(): number {
-    const value = this.buffer.readFloatBE(this.offset);
+    const value = this.data.getFloat32(this.offset, false);
     this.offset += 4;
     return value;
   }
@@ -96,10 +109,11 @@ export class BinaryReader {
    */
   readString(length: number): string {
     const bytes = this.readBytes(length);
-    // Remove null characters
+    // Find null terminator
     let end = bytes.indexOf(0);
     if (end === -1) end = length;
-    return bytes.subarray(0, end).toString('ascii');
+    // Convert to string without Buffer.toString()
+    return String.fromCharCode(...bytes.subarray(0, end));
   }
 
   /**
@@ -144,14 +158,14 @@ export class BinaryReader {
    * Check if we're at or past the end of the buffer
    */
   isEof(): boolean {
-    return this.offset >= this.buffer.length;
+    return this.offset >= this.bytes.length;
   }
 
   /**
    * Get a slice of the buffer from current position
    */
-  slice(length: number): Buffer {
-    return this.buffer.subarray(this.offset, this.offset + length);
+  slice(length: number): Uint8Array {
+    return this.bytes.subarray(this.offset, this.offset + length);
   }
 
   /**
@@ -159,6 +173,6 @@ export class BinaryReader {
    */
   subReader(length: number): BinaryReader {
     const subBuffer = this.readBytes(length);
-    return new BinaryReader(Buffer.from(subBuffer));
+    return new BinaryReader(subBuffer);
   }
 }

@@ -40,7 +40,9 @@ function main() {
     continueOnError: true,
   });
 
-  const result = parser.parseFile(inputFile);
+  // Read file and parse
+  const fileBuffer = fs.readFileSync(inputFile);
+  const result = parser.parse(fileBuffer);
 
   // Print summary
   printSummary(result, inputFile);

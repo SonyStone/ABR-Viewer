@@ -126,7 +126,7 @@ class AbrParser {
   parse(buffer: Buffer): AbrFile;
 }
 
-interface ParseOptions {
+type ParseOptions {
   extractImages?: boolean;      // Default: true
   includeRawSettings?: boolean; // Default: true
   continueOnError?: boolean;    // Default: true

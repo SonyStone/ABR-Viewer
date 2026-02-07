@@ -1,5 +1,5 @@
 import { Show, For, createSignal, createMemo, createEffect } from 'solid-js';
-import { AbrParser, AbrWriter, createAbrFile, type AbrFile, type Brush, brushTipToPngBlob } from '~/lib/abr';
+import { AbrParser, AbrWriter, createAbrFile, type AbrFileWithMeta, type BrushWithPreview, brushTipToPngBlob, downloadAbrFile } from '~/lib/abr';
 import { DropZone } from '~/components/DropZone';
 import { BrushCard } from '~/components/BrushCard';
 import { BrushDetailEditable } from '~/components/BrushDetailEditable';
@@ -7,17 +7,17 @@ import { SearchBar } from '~/components/SearchBar';
 import { FileList } from '~/components/FileList';
 import { BrushEditor } from '~/components/BrushEditor';
 
-interface LoadedFile {
+type LoadedFile {
   name: string;
-  data: AbrFile;
+  data: AbrFileWithMeta;
   isModified?: boolean;
 }
 
 export default function Home() {
   const [files, setFiles] = createSignal<LoadedFile[]>([]);
   const [selectedFileName, setSelectedFileName] = createSignal<string | null>(null);
-  const [selectedBrush, setSelectedBrush] = createSignal<Brush | null>(null);
-  const [editingBrush, setEditingBrush] = createSignal<Brush | null>(null);
+  const [selectedBrush, setSelectedBrush] = createSignal<BrushWithPreview | null>(null);
+  const [editingBrush, setEditingBrush] = createSignal<BrushWithPreview | null>(null);
   const [isCreatingBrush, setIsCreatingBrush] = createSignal(false);
   const [searchQuery, setSearchQuery] = createSignal('');
   const [loading, setLoading] = createSignal(false);
@@ -84,7 +84,7 @@ export default function Home() {
       for (const file of droppedFiles) {
         try {
           const buffer = await file.arrayBuffer();
-          const result = parser.parse(buffer);
+          const result = parser.parse(buffer) as AbrFileWithMeta;
           result.fileName = file.name;
 
           newFiles.push({
@@ -113,7 +113,7 @@ export default function Home() {
     }
   };
 
-  const handleDownloadImage = async (brush: Brush) => {
+  const handleDownloadImage = async (brush: BrushWithPreview) => {
     if (!brush.brushTip) return;
 
     try {
@@ -192,20 +192,20 @@ export default function Home() {
     setEditingBrush(null);
   };
 
-  const handleEditBrush = (brush: Brush) => {
+  const handleEditBrush = (brush: BrushWithPreview) => {
     setEditingBrush(brush);
     setIsCreatingBrush(false);
     setSelectedBrush(null);
   };
 
-  const handleSaveBrush = (brush: Brush) => {
+  const handleSaveBrush = (brush: BrushWithPreview) => {
     const fileName = selectedFileName();
     if (!fileName) return;
 
     setFiles(prev => prev.map(file => {
       if (file.name !== fileName) return file;
 
-      let updatedBrushes: Brush[];
+      let updatedBrushes: BrushWithPreview[];
       if (isCreatingBrush()) {
         // Add new brush
         updatedBrushes = [...file.data.brushes, brush];
@@ -227,7 +227,7 @@ export default function Home() {
     setIsCreatingBrush(false);
   };
 
-  const handleDeleteBrush = (brush: Brush) => {
+  const handleDeleteBrush = (brush: BrushWithPreview) => {
     const fileName = selectedFileName();
     if (!fileName) return;
 
@@ -248,11 +248,11 @@ export default function Home() {
     setSelectedBrush(null);
   };
 
-  const handleDuplicateBrush = (brush: Brush) => {
+  const handleDuplicateBrush = (brush: BrushWithPreview) => {
     const fileName = selectedFileName();
     if (!fileName) return;
 
-    const newBrush: Brush = {
+    const newBrush: BrushWithPreview = {
       ...brush,
       id: `brush_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name: `${brush.name} (Copy)`,
@@ -276,7 +276,8 @@ export default function Home() {
     if (!file) return;
 
     const writer = new AbrWriter();
-    writer.download(file.data, file.name);
+    const abrData = writer.write(file.data);
+    downloadAbrFile(abrData, file.name);
   };
 
   const handleRenameFile = (oldName: string, newName: string) => {

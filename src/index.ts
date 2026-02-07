@@ -6,7 +6,8 @@
  */
 
 export { AbrParser } from './abr-parser';
-export { AbrWriter, createBrush, createAbrFile, createBrushTip, WriteOptions } from './abr-writer';
+export { AbrWriter, createBrush, createAbrFile, createBrushTip } from './abr-writer';
+export type { WriteOptions } from './abr-writer';
 export { ImageExporter } from './image-exporter';
 export { BinaryReader } from './binary-reader';
 export { BinaryWriter } from './binary-writer';

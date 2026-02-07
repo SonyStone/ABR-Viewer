@@ -254,11 +254,11 @@ export type ExportResult = z.infer<typeof ZExportResult>;
 /**
  * Resource block in ABR file (8BIM format)
  */
-export interface ResourceBlock {
+export type ResourceBlock {
   signature: string;
   key: string;
   length: number;
-  data: Buffer;
+  data: Uint8Array;
 }
 
 /**
@@ -273,5 +273,5 @@ export type DescriptorValue =
   | { type: 'UntF'; unit: string; value: number }
   | { type: 'Objc'; classId: string; value: Record<string, DescriptorValue>; className?: string }
   | { type: 'VlLs'; value: DescriptorValue[] }
-  | { type: 'tdta'; value: Buffer | Uint8Array }
+  | { type: 'tdta'; value: Uint8Array }
   | { type: 'obj '; value: unknown };

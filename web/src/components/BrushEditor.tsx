@@ -1,10 +1,10 @@
 import { Show, createSignal, createEffect, onCleanup } from 'solid-js';
-import type { Brush, BrushTipImage } from '~/lib/abr';
+import type { BrushWithPreview, BrushTipImage } from '~/lib/abr';
 import { brushTipToPngBlob, createBrushTipFromCanvas } from '~/lib/abr';
 
-interface BrushEditorProps {
-  brush?: Brush;
-  onSave: (brush: Brush) => void;
+type BrushEditorProps {
+  brush?: BrushWithPreview;
+  onSave: (brush: BrushWithPreview) => void;
   onCancel: () => void;
   isNew?: boolean;
 }
@@ -154,7 +154,7 @@ export function BrushEditor(props: BrushEditorProps) {
   };
 
   const handleSave = () => {
-    const brush: Brush = {
+    const brush: BrushWithPreview = {
       id: props.brush?.id || `brush_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name: name(),
       type: type(),

@@ -1,8 +1,8 @@
 import { Show } from 'solid-js';
-import type { Brush } from '~/lib/abr';
+import type { BrushWithPreview } from '~/lib/abr';
 
-interface BrushCardProps {
-  brush: Brush;
+type BrushCardProps {
+  brush: BrushWithPreview;
   index: number;
   onClick?: () => void;
   onDownloadImage?: () => void;
@@ -10,8 +10,6 @@ interface BrushCardProps {
 }
 
 export function BrushCard(props: BrushCardProps) {
-  const hasTip = () => !!props.brush.brushTip || !!props.brush.imageDataUrl;
-
   const formatValue = (value: number | undefined, unit: string = '') => {
     if (value === undefined) return '—';
     return `${Math.round(value * 100) / 100}${unit}`;

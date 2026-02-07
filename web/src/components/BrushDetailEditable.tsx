@@ -1,11 +1,11 @@
 import { Show, For, createSignal, createMemo, createEffect, Switch, Match } from 'solid-js';
-import type { Brush, BrushTipImage } from '~/lib/abr';
+import type { BrushWithPreview, BrushTipImage } from '~/lib/abr';
 import { brushTipToPngBlob, createBrushTipFromCanvas } from '~/lib/abr';
 
-interface BrushDetailEditableProps {
-  brush: Brush;
+type BrushDetailEditableProps {
+  brush: BrushWithPreview;
   onClose: () => void;
-  onSave?: (brush: Brush) => void;
+  onSave?: (brush: BrushWithPreview) => void;
   onDelete?: () => void;
   onDuplicate?: () => void;
 }
@@ -208,18 +208,18 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
     // Shape dynamics - merge with existing or create new
     if (useShapeDynamics()) {
       updatedSettings.szVr = {
-        ...updatedSettings.szVr,
+        ...(updatedSettings.szVr as Record<string, unknown> || {}),
         jitter: { unit: '#Prc', value: sizeJitter() },
         bVTy: sizeControl(),
         'Mnm ': { unit: '#Prc', value: sizeMinimum() },
       };
       updatedSettings.angleDynamics = {
-        ...updatedSettings.angleDynamics,
+        ...(updatedSettings.angleDynamics as Record<string, unknown> || {}),
         jitter: { unit: '#Ang', value: angleJitter() },
         bVTy: angleControl(),
       };
       updatedSettings.roundnessDynamics = {
-        ...updatedSettings.roundnessDynamics,
+        ...(updatedSettings.roundnessDynamics as Record<string, unknown> || {}),
         jitter: { unit: '#Prc', value: roundnessJitter() },
         bVTy: roundnessControl(),
         'Mnm ': { unit: '#Prc', value: roundnessMinimum() },
@@ -231,14 +231,14 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
     // Scattering - merge with existing or create new
     if (useScattering()) {
       updatedSettings.scatter = {
-        ...updatedSettings.scatter,
+        ...(updatedSettings.scatter as Record<string, unknown> || {}),
         Sctr: { unit: '#Prc', value: scatter() },
         bothAxes: scatterBothAxes(),
         bVTy: scatterControl(),
         'Cnt ': scatterCount(),
       };
       updatedSettings.countDynamics = {
-        ...updatedSettings.countDynamics,
+        ...(updatedSettings.countDynamics as Record<string, unknown> || {}),
         jitter: { unit: '#Prc', value: countJitter() },
         bVTy: countControl(),
       };
@@ -247,20 +247,20 @@ export function BrushDetailEditable(props: BrushDetailEditableProps) {
     // Transfer - merge with existing or create new
     if (useTransfer()) {
       updatedSettings.opacityDynamics = {
-        ...updatedSettings.opacityDynamics,
+        ...(updatedSettings.opacityDynamics as Record<string, unknown> || {}),
         jitter: { unit: '#Prc', value: opacityJitter() },
         bVTy: opacityControl(),
         'Mnm ': { unit: '#Prc', value: opacityMinimum() },
       };
       updatedSettings.flowDynamics = {
-        ...updatedSettings.flowDynamics,
+        ...(updatedSettings.flowDynamics as Record<string, unknown> || {}),
         jitter: { unit: '#Prc', value: flowJitter() },
         bVTy: flowControl(),
         'Mnm ': { unit: '#Prc', value: flowMinimum() },
       };
     }
 
-    const updatedBrush: Brush = {
+    const updatedBrush: BrushWithPreview = {
       ...props.brush,
       name: name(),
       spacing: spacing(),
@@ -561,7 +561,7 @@ function CheckboxInput(props: {
 
 // Panel Components
 function BrushTipPanel(props: {
-  brush: Brush;
+  brush: BrushWithPreview;
   diameter: () => number;
   setDiameter: (v: number) => void;
   angle: () => number;

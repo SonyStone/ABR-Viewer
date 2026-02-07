@@ -1,9 +1,9 @@
 import { Show, For, createSignal, createMemo, Switch, Match } from 'solid-js';
-import type { Brush } from '~/lib/abr';
+import type { BrushWithPreview } from '~/lib/abr';
 import { brushTipToPngBlob } from '~/lib/abr';
 
-interface BrushDetailProps {
-  brush: Brush;
+type BrushDetailProps {
+  brush: BrushWithPreview;
   onClose: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -319,7 +319,7 @@ function DisabledOverlay() {
 }
 
 // Panel Components
-function BrushTipPanel(props: { brush: Brush; onDownload: () => void; downloading: boolean }) {
+function BrushTipPanel(props: { brush: BrushWithPreview; onDownload: () => void; downloading: boolean }) {
   const brushDef = () => (props.brush.settings?.Brsh as Record<string, unknown>) || {};
   const hasDualBrush = () => {
     const db = props.brush.settings?.dualBrush as Record<string, unknown>;
