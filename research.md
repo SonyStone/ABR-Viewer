@@ -1,178 +1,416 @@
-# ABR Format Research
+# Adobe Photoshop Brush File (.abr) Format Documentation
 
-This document describes how the ABR file format was reverse-engineered to create this parser.
+This document describes the binary format of Adobe Photoshop brush files (.abr) based on reverse engineering work done while building this parser. This covers ABR versions 6.1, 6.2, 9.x, and 10.x.
 
-## Research Methodology
+## Table of Contents
 
-### 1. Hex Dump Analysis
+1. [Overview](#overview)
+2. [File Structure](#file-structure)
+3. [Version Header](#version-header)
+4. [Resource Blocks (8BIM)](#resource-blocks-8bim)
+5. [Sample Block (samp)](#sample-block-samp)
+6. [Descriptor Block (desc)](#descriptor-block-desc)
+7. [Pattern Block (patt)](#pattern-block-patt)
+8. [Photoshop Descriptor Format](#photoshop-descriptor-format)
+9. [Brush Properties](#brush-properties)
+10. [Image Compression](#image-compression)
+11. [UUID Matching](#uuid-matching)
 
-The first step was examining the raw binary data of the sample ABR files using hex dumps:
+---
 
-```bash
-xxd files/MainBrushes.abr | head -100
+## Overview
+
+ABR files store Photoshop brush presets, including:
+- **Computed brushes**: Algorithmically generated (round, elliptical) defined by parameters
+- **Sampled brushes**: Bitmap-based brushes with grayscale tip images
+
+The format uses big-endian byte order throughout.
+
+### Supported Versions
+
+| Version | Description |
+|---------|-------------|
+| 6.1 | Older format with simpler sample block header |
+| 6.2 | Common modern format |
+| 9.x | Extended format (treated as 6.2) |
+| 10.x | Latest format (treated as 6.2) |
+
+---
+
+## File Structure
+
+```
+┌─────────────────────────────────────┐
+│ Version Header (4 bytes)            │
+├─────────────────────────────────────┤
+│ Resource Block: Sample Data (samp)  │  ← Brush tip images
+├─────────────────────────────────────┤
+│ Resource Block: Descriptors (desc)  │  ← Brush settings
+├─────────────────────────────────────┤
+│ Resource Block: Patterns (patt)     │  ← Optional patterns
+├─────────────────────────────────────┤
+│ ... additional resource blocks ...  │
+└─────────────────────────────────────┘
 ```
 
-This revealed:
-- Files start with version bytes (e.g., `00 06 00 02` for v6.2)
-- The signature `8BIM` appears repeatedly, indicating Photoshop resource blocks
-- ASCII strings like `samp`, `patt`, `desc` identify different block types
+---
 
-### 2. Version Identification
+## Version Header
 
-By examining the first 4 bytes of each file:
+| Offset | Size | Type | Description |
+|--------|------|------|-------------|
+| 0 | 2 | uint16 | Major version (6, 9, or 10) |
+| 2 | 2 | uint16 | Minor version (subversion: 1 or 2) |
 
-| File | Bytes | Version |
-|------|-------|---------|
-| MainBrushes.abr | `00 06 00 02` | v6.2 |
-| Basic_3.abr | `00 06 00 02` | v6.2 |
-| AI_Brush_collection.abr | `00 0a 00 01` | v10.1 |
-| 0 MH 8B Brushes.abr | `00 09 00 01` | v9.1 |
+The subversion affects the sample block header size:
+- **Subversion 1**: 48-byte header (38 UUID + 10 padding)
+- **Subversion 2**: 301-byte header (38 UUID + 263 padding)
 
-This showed the format: `[major version: 2 bytes] [minor version: 2 bytes]`
+---
 
-### 3. Resource Block Structure
+## Resource Blocks (8BIM)
 
-Pattern matching for `8BIM` signatures revealed the resource block format:
+Each resource block follows the standard Photoshop resource format:
+
+| Offset | Size | Type | Description |
+|--------|------|------|-------------|
+| 0 | 4 | char[4] | Signature: `8BIM` |
+| 4 | 4 | char[4] | Key: `samp`, `desc`, `patt`, etc. |
+| 8 | 4 | uint32 | Block data length |
+| 12 | variable | bytes | Block data (padded to even length) |
+
+### Known Resource Keys
+
+| Key | Description |
+|-----|-------------|
+| `samp` | Sampled brush tip images |
+| `desc` | Brush descriptors (settings) |
+| `patt` | Pattern data for texture brushes |
+| `phry` | Brush preset hierarchy |
+
+---
+
+## Sample Block (samp)
+
+Contains bitmap data for sampled brush tips. Structure:
 
 ```
-Offset  Size  Description
-0       4     Signature "8BIM"
-4       4     Block type key (e.g., "samp", "desc", "patt")
-8       4     Block data length (big-endian)
-12      N     Block data
+┌─────────────────────────────────────┐
+│ Brush 1                             │
+│ ├─ Length (4 bytes)                 │
+│ ├─ UUID (38 bytes)                  │
+│ ├─ Header padding (10 or 263 bytes) │
+│ ├─ Bounds (16 bytes)                │
+│ ├─ Depth (2 bytes)                  │
+│ ├─ Compression (1 byte)             │
+│ └─ Image data (variable)            │
+├─────────────────────────────────────┤
+│ Brush 2 ...                         │
+└─────────────────────────────────────┘
 ```
 
-Verification with hex dumps:
+### Sample Entry Format
+
+| Field | Size | Type | Description |
+|-------|------|------|-------------|
+| Length | 4 | uint32 | Total brush entry length |
+| UUID | 37 | char[37] | `$` + 36-char UUID (e.g., `$3479c62f-65c9-11de-bdeb-a55e96b1a876`) |
+| Null | 1 | byte | Null terminator |
+| Padding | 10/263 | bytes | Version-dependent header padding |
+| Top | 4 | int32 | Bounding box top |
+| Left | 4 | int32 | Bounding box left |
+| Bottom | 4 | int32 | Bounding box bottom |
+| Right | 4 | int32 | Bounding box right |
+| Depth | 2 | uint16 | Bit depth: 8 or 16 |
+| Compression | 1 | uint8 | 0 = raw, 1 = RLE |
+| Data | variable | bytes | Image data |
+
+### Image Dimensions
+
+Calculated from bounds:
+- `width = right - left`
+- `height = bottom - top`
+
+---
+
+## Descriptor Block (desc)
+
+Contains brush settings as Photoshop descriptors. Structure:
+
 ```
-38 42 49 4d = "8BIM"
-73 61 6d 70 = "samp" (sample/brush tip images)
-64 65 73 63 = "desc" (descriptor/brush settings)
-70 61 74 74 = "patt" (patterns)
+┌─────────────────────────────────────┐
+│ Descriptor Count (4 bytes)          │
+├─────────────────────────────────────┤
+│ Descriptor 1                        │
+│ ├─ Length (4 bytes)                 │
+│ └─ Descriptor data                  │
+├─────────────────────────────────────┤
+│ Descriptor 2 ...                    │
+└─────────────────────────────────────┘
 ```
 
-### 4. Descriptor Format Discovery
+Each descriptor represents one brush preset.
 
-The `desc` blocks contain brush settings in Photoshop's descriptor format. Key discoveries:
+---
 
-1. **Unicode String Prefix**: Each descriptor starts with a Unicode string (class name) before the class ID
-2. **Item Structure**: Class ID + item count + key/value pairs
-3. **Type Tags**: 4-character codes indicate value types:
-   - `TEXT` = Unicode string
-   - `long` = 32-bit integer
-   - `doub` = 64-bit double
-   - `bool` = Boolean
-   - `UntF` = Unit float (with unit type)
-   - `enum` = Enumeration
-   - `Objc` = Nested object
-   - `VlLs` = Value list (array)
-   - `tdta` = Raw data
+## Pattern Block (patt)
 
-### 5. Sample Block Structure (Critical Discovery)
+Optional block containing pattern data for texture brushes:
 
-The most challenging part was parsing the `samp` blocks containing brush tip images.
+| Field | Size | Type | Description |
+|-------|------|------|-------------|
+| Version | 4 | uint32 | Pattern version |
+| Mode | 4 | uint32 | Color mode |
+| Height | 2 | uint16 | Pattern height |
+| Width | 2 | uint16 | Pattern width |
+| Name | variable | unicode | Pattern name |
+| ID | variable | string | Pattern UUID |
+| Data | variable | bytes | Pattern pixel data |
 
-#### Initial Approach
-Expected simple structure: bounds → depth → compression → image data
+---
 
-#### Debug Process
-Created debug scripts to search for known values:
-- Image depth should be 8 (grayscale)
-- Compression should be 0 (raw) or 1 (RLE)
+## Photoshop Descriptor Format
+
+Descriptors are key-value structures used throughout Photoshop file formats.
+
+### Descriptor Header
+
+| Field | Size | Type | Description |
+|-------|------|------|-------------|
+| Name Length | 4 | uint32 | Unicode name length (often 0) |
+| Name | variable | unicode | Class name (if length > 0) |
+| Class ID Length | 4 | uint32 | 0 = 4-char ID, else string length |
+| Class ID | 4 or variable | string | Class identifier |
+| Item Count | 4 | uint32 | Number of key-value pairs |
+
+### Value Types
+
+| Type Code | Name | Structure |
+|-----------|------|-----------|
+| `long` | Integer | 4-byte signed int |
+| `doub` | Double | 8-byte IEEE 754 double |
+| `bool` | Boolean | 1 byte (0 = false) |
+| `TEXT` | Text | Unicode string with length prefix |
+| `enum` | Enumeration | Type ID + value ID |
+| `UntF` | Unit Float | 4-char unit + 8-byte double |
+| `Objc` | Object | Nested descriptor |
+| `VlLs` | List | Array of values |
+| `tdta` | Raw Data | Length + raw bytes |
+| `obj ` | Reference | Object reference |
+
+### String ID Format
+
+Keys and enum values use a compact ID format:
+- If length = 0: Read 4 ASCII characters
+- If length > 0: Read `length` ASCII characters
+
+### Unicode String Format
+
+```
+┌─────────────────────────────────────┐
+│ Length (4 bytes, uint32)            │  ← Number of UTF-16 code units
+├─────────────────────────────────────┤
+│ UTF-16BE characters                 │  ← 2 bytes per character
+├─────────────────────────────────────┤
+│ Null terminator (2 bytes)           │  ← Included in length
+└─────────────────────────────────────┘
+```
+
+### Unit Float Types
+
+| Unit Code | Description |
+|-----------|-------------|
+| `#Pxl` | Pixels |
+| `#Prc` | Percent |
+| `#Ang` | Angle (degrees) |
+| `#Rsl` | Resolution (DPI) |
+| `#Rlt` | Relative |
+| `#Nne` | None/unitless |
+
+---
+
+## Brush Properties
+
+### Brush Descriptor Structure
+
+Top-level descriptor class: `brushPreset` or `Brsh`
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `Nm  ` | TEXT | Brush name |
+| `Brsh` | Objc | Brush settings object |
+
+### Brush Settings Object
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `Dmtr` | UntF | Diameter (pixels) |
+| `Hrdn` | UntF | Hardness (percent) |
+| `Angl` | UntF | Angle (degrees) |
+| `Rndn` | UntF | Roundness (percent) |
+| `Spcn` | UntF | Spacing (percent) |
+| `Intr` | bool | Interpolation |
+| `flipX` | bool | Flip X |
+| `flipY` | bool | Flip Y |
+| `sampledData` | TEXT | UUID reference to sample block |
+| `useTipDynamics` | bool | Enable brush dynamics |
+
+### Brush Types
+
+Determined by presence of `sampledData`:
+- **Computed brush**: No `sampledData` field
+- **Sampled brush**: Has `sampledData` with UUID
+
+### Dynamics Settings
+
+Shape dynamics are stored under `shapeDynamics` or `prVr` key:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `szVr` | Objc | Size jitter |
+| `angleDynamics` | Objc | Angle jitter |
+| `roundnessDynamics` | Objc | Roundness jitter |
+| `minimumDiameter` | UntF | Minimum size |
+| `minimumRoundness` | UntF | Minimum roundness |
+
+### Dynamic Control Object
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `bVTy` | long | Control type (see below) |
+| `fStp` | long | Fade steps |
+| `jitter` | UntF | Jitter amount (percent) |
+
+### Control Type Values
+
+| Value | Control |
+|-------|---------|
+| 0 | Off |
+| 1 | Fade |
+| 2 | Pen Pressure |
+| 3 | Pen Tilt |
+| 4 | Stylus Wheel |
+| 7 | Rotation |
+
+### Dual Brush Settings
+
+Dual brush settings under `dualBrush` key with similar structure to main brush.
+
+### Texture/Pattern Settings
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `Txtr` | Objc | Texture settings |
+| `Ptrn` | Objc | Pattern reference |
+| `Scl ` | UntF | Scale |
+| `textureDepth` | UntF | Depth |
+| `InvT` | bool | Invert texture |
+
+---
+
+## Image Compression
+
+### Raw Format (compression = 0)
+
+Grayscale pixels stored left-to-right, top-to-bottom:
+- 8-bit: 1 byte per pixel (0-255)
+- 16-bit: 2 bytes per pixel, big-endian (0-65535, scaled to 0-255)
+
+### RLE Compression (compression = 1)
+
+PackBits-style run-length encoding:
+
+1. **Row byte counts**: First `height` × 2 bytes contain uint16 byte counts for each row
+2. **Compressed rows**: Each row is independently compressed
+
+#### RLE Decoding Algorithm
+
+```
+for each byte n:
+  if n >= 128:
+    # Run of identical bytes
+    count = 257 - n
+    read next byte, repeat it 'count' times
+  else:
+    # Literal bytes
+    count = n + 1
+    copy next 'count' bytes directly
+```
+
+---
+
+## UUID Matching
+
+Sampled brushes link descriptor settings to bitmap data via UUIDs.
+
+### Sample UUID Format
+- Stored with `$` prefix: `$3479c62f-65c9-11de-bdeb-a55e96b1a87`
+- 37 characters total ($ + 36-char UUID, sometimes truncated)
+
+### Descriptor UUID Format
+- Stored without prefix in `sampledData` field
+- Full 36-character UUID: `3479c62f-65c9-11de-bdeb-a55e96b1a876`
+
+### Matching Strategy
+
+1. Strip `$` prefix from sample UUID
+2. Normalize to lowercase
+3. Compare first 35 characters (handles truncation)
+4. Fall back to index-based matching if UUID mismatch
+
+---
+
+## Binary Format Quick Reference
+
+### Data Types
+
+| Type | Size | Description |
+|------|------|-------------|
+| uint8 | 1 | Unsigned 8-bit integer |
+| int8 | 1 | Signed 8-bit integer |
+| uint16 | 2 | Unsigned 16-bit integer (big-endian) |
+| int16 | 2 | Signed 16-bit integer (big-endian) |
+| uint32 | 4 | Unsigned 32-bit integer (big-endian) |
+| int32 | 4 | Signed 32-bit integer (big-endian) |
+| double | 8 | IEEE 754 double precision (big-endian) |
+| char[n] | n | ASCII string (not null-terminated unless specified) |
+| unicode | variable | UTF-16BE with length prefix |
+
+### Alignment
+
+- Resource blocks: Padded to even byte boundary
+- Sample entries: Padded to 4-byte boundary
+
+---
+
+## Example: Parsing a Simple ABR File
 
 ```typescript
-// Search for byte value 8 followed by 0 or 1
-for (let i = 0; i < data.length - 2; i++) {
-  if (data[i] === 0 && data[i+1] === 8 && (data[i+2] === 0 || data[i+2] === 1)) {
-    // Potential depth/compression location
+import { AbrParser } from 'abr-parser';
+
+const parser = new AbrParser();
+const file = parser.parse(arrayBuffer);
+
+console.log(`Version: ${file.version}.${file.subVersion}`);
+console.log(`Brushes: ${file.brushes.length}`);
+
+for (const brush of file.brushes) {
+  console.log(`- ${brush.name} (${brush.type})`);
+  if (brush.brushTip) {
+    console.log(`  Size: ${brush.brushTip.width}x${brush.brushTip.height}`);
   }
 }
 ```
 
-#### Key Discovery: 301-Byte Header
+---
 
-By searching for patterns, found that the image bounds start at offset **301** from the sample block start:
+## References
 
-```
-Offset  Size  Description
-0       4     Sample length
-4       38    UUID string (37 chars + null terminator)
-42      259   Unknown header data (possibly brush metadata)
-301     4     Top bound
-305     4     Left bound
-309     4     Bottom bound
-313     4     Right bound
-317     2     Depth (8 = grayscale)
-319     1     Compression (0=raw, 1=RLE)
-320     N     Image data
-```
+- [Photoshop File Formats Specification](https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/)
+- [GIMP ABR plugin source](https://gitlab.gnome.org/GNOME/gimp/-/tree/master/plug-ins/file-psd)
+- [psd.js descriptor parser](https://github.com/meltingice/psd.js)
 
-Validation: Reading bounds at offset 301 gave sensible image dimensions (e.g., 256x256, 512x512).
+---
 
-### 6. Image Data Decompression
-
-#### RLE (PackBits) Compression
-
-Photoshop uses PackBits RLE compression:
-- Each scanline has a 2-byte length prefix
-- Compressed data follows standard PackBits algorithm:
-  - `n >= 0`: Copy next `n+1` bytes literally
-  - `n < 0` (and n ≠ -128): Repeat next byte `-n+1` times
-  - `n = -128`: No operation
-
-### 7. Version Differences
-
-Testing across multiple files revealed version-specific behavior:
-
-| Version | Sample Header Size | Notes |
-|---------|-------------------|-------|
-| v6.2 | 301 bytes | Most common format |
-| v9.x | 301 bytes | Same as v6.2 |
-| v10.x | 301 bytes | Same as v6.2 |
-| v1/v2 | 48 bytes | Legacy format (estimated) |
-
-## Information Sources
-
-### Primary Sources (Direct Analysis)
-1. **Sample ABR files** - 9 files provided as test cases
-2. **Hex dump analysis** - Raw binary examination
-3. **Pattern matching** - Searching for signatures and known values
-4. **Trial and error** - Testing different offset values
-
-### Secondary Sources (Reference)
-1. **Adobe Photoshop file format specifications** - General structure patterns
-2. **Open-source implementations** - GIMP ABR import code provides hints about format
-3. **Photoshop SDK documentation** - Descriptor format is documented in Adobe's SDK
-
-## Key Insights
-
-### Big-Endian Byte Order
-All multi-byte values in ABR files use big-endian byte order (most significant byte first), consistent with Photoshop's Mac heritage.
-
-### Unicode Strings
-Photoshop uses UCS-2/UTF-16BE encoding for Unicode strings, with a 4-byte length prefix indicating character count (not byte count).
-
-### Grayscale Images
-Brush tips are stored as 8-bit grayscale images where:
-- 0 = Transparent (no paint)
-- 255 = Fully opaque (full paint)
-
-### Computed vs Sampled Brushes
-Not all brushes have bitmap images. "Computed" brushes (like hard/soft round) are defined by parameters and generated algorithmically.
-
-## Verification
-
-The parser was validated against all 9 sample files:
-
-| File | Brushes | Images | Status |
-|------|---------|--------|--------|
-| 0 MH 8B Brushes.abr | 23 | 23 | ✅ |
-| AI_Brush_collection.abr | 5 | 5 | ✅ |
-| Basic_3.abr | 6 | 0 | ✅ (computed) |
-| CGCookie_BasicBrushes.abr | 5 | 5 | ✅ |
-| Chunky_Chalk_Brush_by_MarkWinters.abr | 1 | 1 | ✅ |
-| CtrlPaint - Digital Sketching.abr | 1 | 1 | ✅ |
-| Driver_drow.abr | 2 | 2 | ✅ |
-| MainBrushes.abr | 14 | 11 | ✅ |
-| Paint_markers_brush_set_by_LDN755.abr | 38 | 20 | ✅ |
-
-Total: 95 brushes parsed, 68 images exported.
+*This documentation was created as part of the abr-parser project.*
+*Last updated: February 2026*
