@@ -3,6 +3,7 @@ import type { SetStoreFunction } from 'solid-js/store';
 import type { BrushWithPreview } from '~/lib/abr';
 import type { BrushFormValues } from '../../brush-form-schema';
 import { CheckboxInput } from '../editable-input-components/CheckboxInput';
+import { NonLinearSliderInput } from '../editable-input-components/NonLinearSliderInput';
 import { SliderInput } from '../editable-input-components/SliderInput';
 
 export function BrushTipPanel(props: {
@@ -103,11 +104,12 @@ export function BrushTipPanel(props: {
         </Show>
 
         <div class="border-ps-border mt-4 border-t pt-4">
-          <SliderInput
+          <NonLinearSliderInput
             label="Spacing"
             value={() => props.values.spacing}
             setValue={(v: number) => props.setValues('spacing', v)}
             min={1}
+            breakpoint={100}
             max={1000}
             unit="%"
           />
