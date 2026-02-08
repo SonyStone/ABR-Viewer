@@ -4,6 +4,7 @@ import type { BrushWithPreview } from '~/lib/abr';
 import { brushTipToPngBlob } from '~/lib/abr';
 import { brushFormSchema, brushToFormValues, formValuesToBrush, type BrushFormValues } from './brush-form-schema';
 import { CollapsibleSection } from './components/CollapsibleSection';
+import { BrushPreviewCanvas } from './components/panel-components/BrushPreviewCanvas';
 import { BrushTipPanel } from './components/panel-components/BrushTipPanel';
 import { RawSettingsPanel } from './components/panel-components/RawSettingsPanel';
 import { ScatteringPanel } from './components/panel-components/ScatteringPanel';
@@ -389,6 +390,11 @@ export function BrushDetailEditable(props: {
               <RawSettingsPanel settings={props.brush.settings || {}} />
             </CollapsibleSection>
           </div>
+        </div>
+
+        {/* Brush Preview */}
+        <div class="border-ps-border bg-ps-bg-dark shrink-0 border-t p-3">
+          <BrushPreviewCanvas brush={props.brush} values={formValues} height={200} />
         </div>
       </div>
     </brush-detail-editable>
