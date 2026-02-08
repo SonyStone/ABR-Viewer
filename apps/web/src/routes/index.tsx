@@ -1,9 +1,9 @@
 import { For, Show, createEffect, createMemo, createSignal } from 'solid-js';
 import { BrushCard } from '~/components/BrushCard';
-import { BrushDetailEditable } from '~/components/BrushDetailEditable';
 import { DropZone } from '~/components/DropZone';
 import { FileList } from '~/components/FileList';
 import { SearchBar } from '~/components/SearchBar';
+import { BrushDetailEditable } from '~/features/brush-detail/BrushDetailEditable';
 import {
   AbrParser,
   AbrWriter,
