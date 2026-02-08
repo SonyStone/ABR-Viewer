@@ -1,24 +1,14 @@
 import { Show } from 'solid-js';
-import { BrushWithPreview } from '~/lib/abr';
+import type { SetStoreFunction } from 'solid-js/store';
+import type { BrushWithPreview } from '~/lib/abr';
+import type { BrushFormValues } from '../../brush-form-schema';
 import { CheckboxInput } from '../editable-input-components/CheckboxInput';
 import { SliderInput } from '../editable-input-components/SliderInput';
 
 export function BrushTipPanel(props: {
   brush: BrushWithPreview;
-  diameter: () => number;
-  setDiameter: (v: number) => void;
-  angle: () => number;
-  setAngle: (v: number) => void;
-  roundness: () => number;
-  setRoundness: (v: number) => void;
-  hardness: () => number;
-  setHardness: (v: number) => void;
-  spacing: () => number;
-  setSpacing: (v: number) => void;
-  flipX: () => boolean;
-  setFlipX: (v: boolean) => void;
-  flipY: () => boolean;
-  setFlipY: (v: boolean) => void;
+  values: BrushFormValues;
+  setValues: SetStoreFunction<BrushFormValues>;
   onDownload: () => void;
   downloading: boolean;
 }) {
@@ -42,7 +32,7 @@ export function BrushTipPanel(props: {
               alt={props.brush.name}
               class="absolute inset-0 h-full w-full object-contain p-2"
               style={{
-                transform: `rotate(${props.angle()}deg) scaleX(${props.flipX() ? -1 : 1}) scaleY(${props.flipY() ? -1 : 1})`
+                transform: `rotate(${props.values.angle}deg) scaleX(${props.values.flipX ? -1 : 1}) scaleY(${props.values.flipY ? -1 : 1})`
               }}
             />
           </Show>
@@ -61,19 +51,41 @@ export function BrushTipPanel(props: {
 
       {/* Settings */}
       <div class="space-y-1">
-        <SliderInput label="Size" value={props.diameter} setValue={props.setDiameter} min={1} max={2500} unit=" px" />
+        <SliderInput
+          label="Size"
+          value={() => props.values.diameter}
+          setValue={(v: number) => props.setValues('diameter', v)}
+          min={1}
+          max={2500}
+          unit=" px"
+        />
 
         <div class="ml-8 flex items-center gap-4 py-2">
-          <CheckboxInput label="Flip X" checked={props.flipX} setChecked={props.setFlipX} />
-          <CheckboxInput label="Flip Y" checked={props.flipY} setChecked={props.setFlipY} />
+          <CheckboxInput
+            label="Flip X"
+            checked={() => props.values.flipX}
+            setChecked={(v: boolean) => props.setValues('flipX', v)}
+          />
+          <CheckboxInput
+            label="Flip Y"
+            checked={() => props.values.flipY}
+            setChecked={(v: boolean) => props.setValues('flipY', v)}
+          />
         </div>
 
-        <SliderInput label="Angle" value={props.angle} setValue={props.setAngle} min={-180} max={180} unit="°" />
+        <SliderInput
+          label="Angle"
+          value={() => props.values.angle}
+          setValue={(v: number) => props.setValues('angle', v)}
+          min={-180}
+          max={180}
+          unit="°"
+        />
 
         <SliderInput
           label="Roundness"
-          value={props.roundness}
-          setValue={props.setRoundness}
+          value={() => props.values.roundness}
+          setValue={(v: number) => props.setValues('roundness', v)}
           min={0}
           max={100}
           unit="%"
@@ -82,8 +94,8 @@ export function BrushTipPanel(props: {
         <Show when={props.brush.type === 'computed'}>
           <SliderInput
             label="Hardness"
-            value={props.hardness}
-            setValue={props.setHardness}
+            value={() => props.values.hardness}
+            setValue={(v: number) => props.setValues('hardness', v)}
             min={0}
             max={100}
             unit="%"
@@ -91,7 +103,14 @@ export function BrushTipPanel(props: {
         </Show>
 
         <div class="border-ps-border mt-4 border-t pt-4">
-          <SliderInput label="Spacing" value={props.spacing} setValue={props.setSpacing} min={1} max={1000} unit="%" />
+          <SliderInput
+            label="Spacing"
+            value={() => props.values.spacing}
+            setValue={(v: number) => props.setValues('spacing', v)}
+            min={1}
+            max={1000}
+            unit="%"
+          />
         </div>
       </div>
     </div>

@@ -1,13 +1,14 @@
-import { ComponentProps, createEffect, createMemo, createSignal, For, Show } from 'solid-js';
+import { ComponentProps, createMemo, createSignal, For, Show } from 'solid-js';
+import { createStore } from 'solid-js/store';
 import type { BrushWithPreview } from '~/lib/abr';
 import { brushTipToPngBlob } from '~/lib/abr';
+import { brushFormSchema, brushToFormValues, formValuesToBrush, type BrushFormValues } from './brush-form-schema';
 import { CollapsibleSection } from './components/CollapsibleSection';
 import { BrushTipPanel } from './components/panel-components/BrushTipPanel';
 import { RawSettingsPanel } from './components/panel-components/RawSettingsPanel';
 import { ScatteringPanel } from './components/panel-components/ScatteringPanel';
 import { ShapeDynamicsPanel } from './components/panel-components/ShapeDynamicsPanel';
 import { TransferPanel } from './components/panel-components/TransferPanel';
-import { extractPercent } from './helper-functions/extractPercent';
 import { sanitizeFilename } from './helper-functions/sanitizeFilename';
 
 declare module 'solid-js' {
@@ -25,11 +26,19 @@ export function BrushDetailEditable(props: {
   onDelete?: () => void;
   onDuplicate?: () => void;
 }) {
-  const [hasChanges, setHasChanges] = createSignal(false);
   const [downloading, setDownloading] = createSignal(false);
+  const [validationErrors, setValidationErrors] = createSignal<string[]>([]);
   let scrollContainerRef: HTMLDivElement | undefined;
 
-  // Function to scroll to a section
+  // Initialize store from brush
+  const initialValues = brushToFormValues(props.brush);
+  const [formValues, setFormValues] = createStore<BrushFormValues>(initialValues);
+
+  // Track if form has been modified
+  const [initialSnapshot] = createSignal(JSON.stringify(initialValues));
+  const hasChanges = createMemo(() => JSON.stringify(formValues) !== initialSnapshot());
+
+  // Scroll to a section
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(`section-${sectionId}`);
     if (element && scrollContainerRef) {
@@ -37,198 +46,21 @@ export function BrushDetailEditable(props: {
     }
   };
 
-  // Editable state - core properties
-  const [name, setName] = createSignal(props.brush.name);
-  const [spacing, setSpacing] = createSignal(props.brush.spacing ?? 25);
-  const [diameter, setDiameter] = createSignal(props.brush.diameter ?? 30);
-  const [angle, setAngle] = createSignal(props.brush.angle ?? 0);
-  const [roundness, setRoundness] = createSignal(props.brush.roundness ?? 100);
-  const [hardness, setHardness] = createSignal(props.brush.hardness ?? 100);
-  const [flipX, setFlipX] = createSignal(false);
-  const [flipY, setFlipY] = createSignal(false);
-
-  // Feature toggles
-  const [useShapeDynamics, setUseShapeDynamics] = createSignal(props.brush.settings?.useTipDynamics === true);
-  const [useScattering, setUseScattering] = createSignal(props.brush.settings?.useScatter === true);
-  const [useTexture, setUseTexture] = createSignal(props.brush.settings?.useTexture === true);
-  const [useDualBrush, setUseDualBrush] = createSignal(false);
-  const [useColorDynamics, setUseColorDynamics] = createSignal(props.brush.settings?.useColorDynamics === true);
-  const [useTransfer, setUseTransfer] = createSignal(props.brush.settings?.usePaintDynamics === true);
-  const [useBrushPose, setUseBrushPose] = createSignal(props.brush.settings?.useBrushPose === true);
-  const [useNoise, setUseNoise] = createSignal(props.brush.settings?.useNoise === true);
-  const [useWetEdges, setUseWetEdges] = createSignal(props.brush.settings?.Wtdg === true);
-  const [useBuildUp, setUseBuildUp] = createSignal(props.brush.settings?.useBuildUp === true);
-  const [useSmoothing, setUseSmoothing] = createSignal(props.brush.settings?.useSmoothing === true);
-  const [useProtectTexture, setUseProtectTexture] = createSignal(props.brush.settings?.useProtectTexture === true);
-
-  // Shape dynamics state
-  const [sizeJitter, setSizeJitter] = createSignal(0);
-  const [sizeControl, setSizeControl] = createSignal(0);
-  const [sizeMinimum, setSizeMinimum] = createSignal(0);
-  const [minimumDiameter, setMinimumDiameter] = createSignal(0);
-  const [tiltScale, setTiltScale] = createSignal(100);
-  const [angleJitter, setAngleJitter] = createSignal(0);
-  const [angleControl, setAngleControl] = createSignal(0);
-  const [roundnessJitter, setRoundnessJitter] = createSignal(0);
-  const [roundnessControl, setRoundnessControl] = createSignal(0);
-  const [roundnessMinimum, setRoundnessMinimum] = createSignal(25);
-  const [flipXJitter, setFlipXJitter] = createSignal(false);
-  const [flipYJitter, setFlipYJitter] = createSignal(false);
-  const [brushProjection, setBrushProjection] = createSignal(false);
-
-  // Scattering state
-  const [scatter, setScatter] = createSignal(0);
-  const [scatterBothAxes, setScatterBothAxes] = createSignal(false);
-  const [scatterControl, setScatterControl] = createSignal(0);
-  const [scatterCount, setScatterCount] = createSignal(1);
-  const [countJitter, setCountJitter] = createSignal(0);
-  const [countControl, setCountControl] = createSignal(0);
-
-  // Transfer state
-  const [opacityJitter, setOpacityJitter] = createSignal(0);
-  const [opacityControl, setOpacityControl] = createSignal(0);
-  const [opacityMinimum, setOpacityMinimum] = createSignal(0);
-  const [flowJitter, setFlowJitter] = createSignal(0);
-  const [flowControl, setFlowControl] = createSignal(0);
-  const [flowMinimum, setFlowMinimum] = createSignal(0);
-
-  // Initialize from brush settings
-  createEffect(() => {
-    const settings = props.brush.settings || {};
-    const brushDef = (settings.Brsh as Record<string, unknown>) || {};
-
-    // Extract flip values
-    setFlipX(brushDef.flipX === true);
-    setFlipY(brushDef.flipY === true);
-
-    // Extract shape dynamics
-    const szVr = settings.szVr as Record<string, unknown>;
-    if (szVr) {
-      setSizeJitter(extractPercent(szVr.jitter));
-      setSizeControl((szVr.bVTy as number) || 0);
-      setSizeMinimum(extractPercent(szVr['Mnm '] || szVr.Mnm));
-    }
-    setMinimumDiameter(extractPercent(settings.minimalDiameter));
-    setTiltScale(extractPercent(settings.tiltScale) || 100);
-
-    const angleDynamics = settings.angleDynamics as Record<string, unknown>;
-    if (angleDynamics) {
-      setAngleJitter(extractPercent(angleDynamics.jitter));
-      setAngleControl((angleDynamics.bVTy as number) || 0);
-    }
-
-    const roundnessDynamics = settings.roundnessDynamics as Record<string, unknown>;
-    if (roundnessDynamics) {
-      setRoundnessJitter(extractPercent(roundnessDynamics.jitter));
-      setRoundnessControl((roundnessDynamics.bVTy as number) || 0);
-      setRoundnessMinimum(extractPercent(roundnessDynamics['Mnm '] || roundnessDynamics.Mnm) || 25);
-    }
-
-    setFlipXJitter(settings.flipX === true);
-    setFlipYJitter(settings.flipY === true);
-    setBrushProjection(settings.brushProjection === true);
-
-    // Extract scattering
-    const scatterSettings = settings.scatter as Record<string, unknown>;
-    if (scatterSettings) {
-      setScatter(extractPercent(scatterSettings.Sctr));
-      setScatterBothAxes(scatterSettings.bothAxes === true);
-      setScatterControl((scatterSettings.bVTy as number) || 0);
-      setScatterCount((scatterSettings['Cnt '] as number) || 1);
-    }
-    const countDynamics = settings.countDynamics as Record<string, unknown>;
-    if (countDynamics) {
-      setCountJitter(extractPercent(countDynamics.jitter));
-      setCountControl((countDynamics.bVTy as number) || 0);
-    }
-
-    // Extract transfer
-    const opacityDynamics = settings.opacityDynamics as Record<string, unknown>;
-    if (opacityDynamics) {
-      setOpacityJitter(extractPercent(opacityDynamics.jitter));
-      setOpacityControl((opacityDynamics.bVTy as number) || 0);
-      setOpacityMinimum(extractPercent(opacityDynamics['Mnm '] || opacityDynamics.Mnm));
-    }
-    const flowDynamics = settings.flowDynamics as Record<string, unknown>;
-    if (flowDynamics) {
-      setFlowJitter(extractPercent(flowDynamics.jitter));
-      setFlowControl((flowDynamics.bVTy as number) || 0);
-      setFlowMinimum(extractPercent(flowDynamics['Mnm '] || flowDynamics.Mnm));
-    }
-  });
-
-  // Track changes
-  const markChanged = () => setHasChanges(true);
-
+  // Panel configuration
   const panels = createMemo(() => [
     { id: 'brush-tip', label: 'Brush Tip Shape', always: true },
-    {
-      id: 'shape-dynamics',
-      label: 'Shape Dynamics',
-      enabled: useShapeDynamics,
-      setEnabled: setUseShapeDynamics
-    },
-    {
-      id: 'scattering',
-      label: 'Scattering',
-      enabled: useScattering,
-      setEnabled: setUseScattering
-    },
-    {
-      id: 'texture',
-      label: 'Texture',
-      enabled: useTexture,
-      setEnabled: setUseTexture
-    },
-    {
-      id: 'dual-brush',
-      label: 'Dual Brush',
-      enabled: useDualBrush,
-      setEnabled: setUseDualBrush
-    },
-    {
-      id: 'color-dynamics',
-      label: 'Color Dynamics',
-      enabled: useColorDynamics,
-      setEnabled: setUseColorDynamics
-    },
-    {
-      id: 'transfer',
-      label: 'Transfer',
-      enabled: useTransfer,
-      setEnabled: setUseTransfer
-    },
-    {
-      id: 'brush-pose',
-      label: 'Brush Pose',
-      enabled: useBrushPose,
-      setEnabled: setUseBrushPose
-    },
-    { id: 'noise', label: 'Noise', enabled: useNoise, setEnabled: setUseNoise },
-    {
-      id: 'wet-edges',
-      label: 'Wet Edges',
-      enabled: useWetEdges,
-      setEnabled: setUseWetEdges
-    },
-    {
-      id: 'build-up',
-      label: 'Build-up',
-      enabled: useBuildUp,
-      setEnabled: setUseBuildUp
-    },
-    {
-      id: 'smoothing',
-      label: 'Smoothing',
-      enabled: useSmoothing,
-      setEnabled: setUseSmoothing
-    },
-    {
-      id: 'protect-texture',
-      label: 'Protect Texture',
-      enabled: useProtectTexture,
-      setEnabled: setUseProtectTexture
-    },
+    { id: 'shape-dynamics', label: 'Shape Dynamics', field: 'useShapeDynamics' as const },
+    { id: 'scattering', label: 'Scattering', field: 'useScattering' as const },
+    { id: 'texture', label: 'Texture', field: 'useTexture' as const },
+    { id: 'dual-brush', label: 'Dual Brush', field: 'useDualBrush' as const },
+    { id: 'color-dynamics', label: 'Color Dynamics', field: 'useColorDynamics' as const },
+    { id: 'transfer', label: 'Transfer', field: 'useTransfer' as const },
+    { id: 'brush-pose', label: 'Brush Pose', field: 'useBrushPose' as const },
+    { id: 'noise', label: 'Noise', field: 'useNoise' as const },
+    { id: 'wet-edges', label: 'Wet Edges', field: 'useWetEdges' as const },
+    { id: 'build-up', label: 'Build-up', field: 'useBuildUp' as const },
+    { id: 'smoothing', label: 'Smoothing', field: 'useSmoothing' as const },
+    { id: 'protect-texture', label: 'Protect Texture', field: 'useProtectTexture' as const },
     { id: 'raw', label: 'Raw Settings', always: true }
   ]);
 
@@ -240,7 +72,7 @@ export function BrushDetailEditable(props: {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${sanitizeFilename(name())}.png`;
+      a.download = `${sanitizeFilename(formValues.name)}.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -253,96 +85,25 @@ export function BrushDetailEditable(props: {
   const handleSave = () => {
     if (!props.onSave) return;
 
-    // Start with original settings to preserve all fields
-    const updatedSettings = { ...props.brush.settings };
-
-    // Update only the settings that were explicitly changed
-    updatedSettings.useTipDynamics = useShapeDynamics();
-    updatedSettings.useScatter = useScattering();
-    updatedSettings.useTexture = useTexture();
-    updatedSettings.useColorDynamics = useColorDynamics();
-    updatedSettings.usePaintDynamics = useTransfer();
-    updatedSettings.useBrushPose = useBrushPose();
-    updatedSettings.useNoise = useNoise();
-    updatedSettings.Wtdg = useWetEdges();
-    updatedSettings.useBuildUp = useBuildUp();
-    updatedSettings.useSmoothing = useSmoothing();
-    updatedSettings.useProtectTexture = useProtectTexture();
-    updatedSettings.flipX = flipXJitter();
-    updatedSettings.flipY = flipYJitter();
-    updatedSettings.brushProjection = brushProjection();
-
-    // Shape dynamics - merge with existing or create new
-    if (useShapeDynamics()) {
-      updatedSettings.szVr = {
-        ...((updatedSettings.szVr as Record<string, unknown>) || {}),
-        jitter: { unit: '#Prc', value: sizeJitter() },
-        bVTy: sizeControl(),
-        'Mnm ': { unit: '#Prc', value: sizeMinimum() }
-      };
-      updatedSettings.angleDynamics = {
-        ...((updatedSettings.angleDynamics as Record<string, unknown>) || {}),
-        jitter: { unit: '#Ang', value: angleJitter() },
-        bVTy: angleControl()
-      };
-      updatedSettings.roundnessDynamics = {
-        ...((updatedSettings.roundnessDynamics as Record<string, unknown>) || {}),
-        jitter: { unit: '#Prc', value: roundnessJitter() },
-        bVTy: roundnessControl(),
-        'Mnm ': { unit: '#Prc', value: roundnessMinimum() }
-      };
-    }
-    updatedSettings.minimumDiameter = {
-      unit: '#Prc',
-      value: minimumDiameter()
-    };
-    updatedSettings.tiltScale = { unit: '#Prc', value: tiltScale() };
-
-    // Scattering - merge with existing or create new
-    if (useScattering()) {
-      updatedSettings.scatter = {
-        ...((updatedSettings.scatter as Record<string, unknown>) || {}),
-        Sctr: { unit: '#Prc', value: scatter() },
-        bothAxes: scatterBothAxes(),
-        bVTy: scatterControl(),
-        'Cnt ': scatterCount()
-      };
-      updatedSettings.countDynamics = {
-        ...((updatedSettings.countDynamics as Record<string, unknown>) || {}),
-        jitter: { unit: '#Prc', value: countJitter() },
-        bVTy: countControl()
-      };
+    // Validate with Zod
+    const result = brushFormSchema.safeParse(formValues);
+    if (!result.success) {
+      setValidationErrors(
+        result.error.errors.map(
+          (e: { path: (string | number)[]; message: string }) => `${e.path.join('.')}: ${e.message}`
+        )
+      );
+      return;
     }
 
-    // Transfer - merge with existing or create new
-    if (useTransfer()) {
-      updatedSettings.opacityDynamics = {
-        ...((updatedSettings.opacityDynamics as Record<string, unknown>) || {}),
-        jitter: { unit: '#Prc', value: opacityJitter() },
-        bVTy: opacityControl(),
-        'Mnm ': { unit: '#Prc', value: opacityMinimum() }
-      };
-      updatedSettings.flowDynamics = {
-        ...((updatedSettings.flowDynamics as Record<string, unknown>) || {}),
-        jitter: { unit: '#Prc', value: flowJitter() },
-        bVTy: flowControl(),
-        'Mnm ': { unit: '#Prc', value: flowMinimum() }
-      };
-    }
-
-    const updatedBrush: BrushWithPreview = {
-      ...props.brush,
-      name: name(),
-      spacing: spacing(),
-      diameter: diameter(),
-      angle: angle(),
-      roundness: roundness(),
-      hardness: props.brush.type === 'computed' ? hardness() : props.brush.hardness,
-      settings: updatedSettings
-    };
-
+    setValidationErrors([]);
+    const updatedBrush = formValuesToBrush(props.brush, formValues);
     props.onSave(updatedBrush);
-    setHasChanges(false);
+  };
+
+  // Toggle helper for feature flags
+  const toggleFeature = (field: keyof BrushFormValues) => {
+    setFormValues(field as any, !formValues[field]);
   };
 
   return (
@@ -370,11 +131,8 @@ export function BrushDetailEditable(props: {
             <div>
               <input
                 type="text"
-                value={name()}
-                onInput={(e) => {
-                  setName(e.currentTarget.value);
-                  markChanged();
-                }}
+                value={formValues.name}
+                onInput={(e) => setFormValues('name', e.currentTarget.value)}
                 class="text-ps-text-bright hover:border-ps-border focus:border-ps-accent -ml-1 border-b border-transparent bg-transparent px-1 text-lg font-medium focus:outline-none"
               />
               <p class="text-ps-text-muted text-xs">
@@ -440,6 +198,13 @@ export function BrushDetailEditable(props: {
           </div>
         </div>
 
+        {/* Validation Errors */}
+        <Show when={validationErrors().length > 0}>
+          <div class="border-b border-red-500 bg-red-500/10 p-2">
+            <For each={validationErrors()}>{(error) => <p class="text-sm text-red-400">{error}</p>}</For>
+          </div>
+        </Show>
+
         {/* Content */}
         <div class="flex flex-1 overflow-hidden">
           {/* Left Panel - Feature Toggles */}
@@ -447,19 +212,14 @@ export function BrushDetailEditable(props: {
             <For each={panels()}>
               {(panel) => (
                 <button
-                  onClick={() => {
-                    scrollToSection(panel.id);
-                  }}
-                  class={`text-ps-text hover:bg-ps-bg-light/50 flex w-full items-center gap-2 px-3 py-2 text-left text-sm`}
+                  onClick={() => scrollToSection(panel.id)}
+                  class="text-ps-text hover:bg-ps-bg-light/50 flex w-full items-center gap-2 px-3 py-2 text-left text-sm"
                 >
-                  <Show when={!panel.always && panel.setEnabled}>
+                  <Show when={!panel.always && panel.field}>
                     <input
                       type="checkbox"
-                      checked={panel.enabled?.()}
-                      onChange={(e) => {
-                        panel.setEnabled?.(e.currentTarget.checked);
-                        markChanged();
-                      }}
+                      checked={formValues[panel.field!] as boolean}
+                      onChange={() => toggleFeature(panel.field!)}
                       onClick={(e) => e.stopPropagation()}
                       class="border-ps-border bg-ps-bg-dark checked:bg-ps-accent checked:border-ps-accent h-4 w-4 rounded"
                     />
@@ -467,53 +227,22 @@ export function BrushDetailEditable(props: {
                   <Show when={panel.always}>
                     <div class="w-4" />
                   </Show>
-                  <span class={!panel.always && !panel.enabled?.() ? 'opacity-50' : ''}>{panel.label}</span>
+                  <span class={!panel.always && panel.field && !formValues[panel.field] ? 'opacity-50' : ''}>
+                    {panel.label}
+                  </span>
                 </button>
               )}
             </For>
           </div>
 
-          {/* Right Panel - Settings Content (All sections as collapsibles) */}
+          {/* Right Panel - Settings Content */}
           <div ref={scrollContainerRef} class="flex-1 space-y-2 overflow-y-auto p-4">
             {/* Brush Tip Shape */}
             <CollapsibleSection id="brush-tip" title="Brush Tip Shape" defaultOpen={true}>
               <BrushTipPanel
                 brush={props.brush}
-                diameter={diameter}
-                setDiameter={(v) => {
-                  setDiameter(v);
-                  markChanged();
-                }}
-                angle={angle}
-                setAngle={(v) => {
-                  setAngle(v);
-                  markChanged();
-                }}
-                roundness={roundness}
-                setRoundness={(v) => {
-                  setRoundness(v);
-                  markChanged();
-                }}
-                hardness={hardness}
-                setHardness={(v) => {
-                  setHardness(v);
-                  markChanged();
-                }}
-                spacing={spacing}
-                setSpacing={(v) => {
-                  setSpacing(v);
-                  markChanged();
-                }}
-                flipX={flipX}
-                setFlipX={(v) => {
-                  setFlipX(v);
-                  markChanged();
-                }}
-                flipY={flipY}
-                setFlipY={(v) => {
-                  setFlipY(v);
-                  markChanged();
-                }}
+                values={formValues}
+                setValues={setFormValues}
                 onDownload={handleDownloadImage}
                 downloading={downloading()}
               />
@@ -523,139 +252,31 @@ export function BrushDetailEditable(props: {
             <CollapsibleSection
               id="shape-dynamics"
               title="Shape Dynamics"
-              enabled={useShapeDynamics()}
-              defaultOpen={useShapeDynamics()}
-              onToggleEnabled={(v) => {
-                setUseShapeDynamics(v);
-                markChanged();
-              }}
+              enabled={formValues.useShapeDynamics}
+              defaultOpen={formValues.useShapeDynamics}
+              onToggleEnabled={(v) => setFormValues('useShapeDynamics', v)}
             >
-              <ShapeDynamicsPanel
-                enabled={useShapeDynamics()}
-                sizeJitter={sizeJitter}
-                setSizeJitter={(v) => {
-                  setSizeJitter(v);
-                  markChanged();
-                }}
-                sizeControl={sizeControl}
-                setSizeControl={(v) => {
-                  setSizeControl(v);
-                  markChanged();
-                }}
-                sizeMinimum={sizeMinimum}
-                setSizeMinimum={(v) => {
-                  setSizeMinimum(v);
-                  markChanged();
-                }}
-                minimumDiameter={minimumDiameter}
-                setMinimumDiameter={(v) => {
-                  setMinimumDiameter(v);
-                  markChanged();
-                }}
-                tiltScale={tiltScale}
-                setTiltScale={(v) => {
-                  setTiltScale(v);
-                  markChanged();
-                }}
-                angleJitter={angleJitter}
-                setAngleJitter={(v) => {
-                  setAngleJitter(v);
-                  markChanged();
-                }}
-                angleControl={angleControl}
-                setAngleControl={(v) => {
-                  setAngleControl(v);
-                  markChanged();
-                }}
-                roundnessJitter={roundnessJitter}
-                setRoundnessJitter={(v) => {
-                  setRoundnessJitter(v);
-                  markChanged();
-                }}
-                roundnessControl={roundnessControl}
-                setRoundnessControl={(v) => {
-                  setRoundnessControl(v);
-                  markChanged();
-                }}
-                roundnessMinimum={roundnessMinimum}
-                setRoundnessMinimum={(v) => {
-                  setRoundnessMinimum(v);
-                  markChanged();
-                }}
-                flipXJitter={flipXJitter}
-                setFlipXJitter={(v) => {
-                  setFlipXJitter(v);
-                  markChanged();
-                }}
-                flipYJitter={flipYJitter}
-                setFlipYJitter={(v) => {
-                  setFlipYJitter(v);
-                  markChanged();
-                }}
-                brushProjection={brushProjection}
-                setBrushProjection={(v) => {
-                  setBrushProjection(v);
-                  markChanged();
-                }}
-              />
+              <ShapeDynamicsPanel values={formValues.shapeDynamics} setValues={setFormValues} />
             </CollapsibleSection>
 
             {/* Scattering */}
             <CollapsibleSection
               id="scattering"
               title="Scattering"
-              enabled={useScattering()}
-              defaultOpen={useScattering()}
-              onToggleEnabled={(v) => {
-                setUseScattering(v);
-                markChanged();
-              }}
+              enabled={formValues.useScattering}
+              defaultOpen={formValues.useScattering}
+              onToggleEnabled={(v) => setFormValues('useScattering', v)}
             >
-              <ScatteringPanel
-                enabled={useScattering()}
-                scatter={scatter}
-                setScatter={(v) => {
-                  setScatter(v);
-                  markChanged();
-                }}
-                bothAxes={scatterBothAxes}
-                setBothAxes={(v) => {
-                  setScatterBothAxes(v);
-                  markChanged();
-                }}
-                scatterControl={scatterControl}
-                setScatterControl={(v) => {
-                  setScatterControl(v);
-                  markChanged();
-                }}
-                count={scatterCount}
-                setCount={(v) => {
-                  setScatterCount(v);
-                  markChanged();
-                }}
-                countJitter={countJitter}
-                setCountJitter={(v) => {
-                  setCountJitter(v);
-                  markChanged();
-                }}
-                countControl={countControl}
-                setCountControl={(v) => {
-                  setCountControl(v);
-                  markChanged();
-                }}
-              />
+              <ScatteringPanel values={formValues.scattering} setValues={setFormValues} />
             </CollapsibleSection>
 
             {/* Texture */}
             <CollapsibleSection
               id="texture"
               title="Texture"
-              enabled={useTexture()}
-              defaultOpen={useTexture()}
-              onToggleEnabled={(v) => {
-                setUseTexture(v);
-                markChanged();
-              }}
+              enabled={formValues.useTexture}
+              defaultOpen={formValues.useTexture}
+              onToggleEnabled={(v) => setFormValues('useTexture', v)}
             >
               <div class="text-ps-text-muted py-4 text-center text-sm">Texture settings coming soon</div>
             </CollapsibleSection>
@@ -664,12 +285,9 @@ export function BrushDetailEditable(props: {
             <CollapsibleSection
               id="dual-brush"
               title="Dual Brush"
-              enabled={useDualBrush()}
-              defaultOpen={useDualBrush()}
-              onToggleEnabled={(v) => {
-                setUseDualBrush(v);
-                markChanged();
-              }}
+              enabled={formValues.useDualBrush}
+              defaultOpen={formValues.useDualBrush}
+              onToggleEnabled={(v) => setFormValues('useDualBrush', v)}
             >
               <div class="text-ps-text-muted py-4 text-center text-sm">Dual Brush settings coming soon</div>
             </CollapsibleSection>
@@ -678,12 +296,9 @@ export function BrushDetailEditable(props: {
             <CollapsibleSection
               id="color-dynamics"
               title="Color Dynamics"
-              enabled={useColorDynamics()}
-              defaultOpen={useColorDynamics()}
-              onToggleEnabled={(v) => {
-                setUseColorDynamics(v);
-                markChanged();
-              }}
+              enabled={formValues.useColorDynamics}
+              defaultOpen={formValues.useColorDynamics}
+              onToggleEnabled={(v) => setFormValues('useColorDynamics', v)}
             >
               <div class="text-ps-text-muted py-4 text-center text-sm">Color Dynamics settings coming soon</div>
             </CollapsibleSection>
@@ -692,58 +307,20 @@ export function BrushDetailEditable(props: {
             <CollapsibleSection
               id="transfer"
               title="Transfer"
-              enabled={useTransfer()}
-              defaultOpen={useTransfer()}
-              onToggleEnabled={(v) => {
-                setUseTransfer(v);
-                markChanged();
-              }}
+              enabled={formValues.useTransfer}
+              defaultOpen={formValues.useTransfer}
+              onToggleEnabled={(v) => setFormValues('useTransfer', v)}
             >
-              <TransferPanel
-                enabled={useTransfer()}
-                opacityJitter={opacityJitter}
-                setOpacityJitter={(v) => {
-                  setOpacityJitter(v);
-                  markChanged();
-                }}
-                opacityControl={opacityControl}
-                setOpacityControl={(v) => {
-                  setOpacityControl(v);
-                  markChanged();
-                }}
-                opacityMinimum={opacityMinimum}
-                setOpacityMinimum={(v) => {
-                  setOpacityMinimum(v);
-                  markChanged();
-                }}
-                flowJitter={flowJitter}
-                setFlowJitter={(v) => {
-                  setFlowJitter(v);
-                  markChanged();
-                }}
-                flowControl={flowControl}
-                setFlowControl={(v) => {
-                  setFlowControl(v);
-                  markChanged();
-                }}
-                flowMinimum={flowMinimum}
-                setFlowMinimum={(v) => {
-                  setFlowMinimum(v);
-                  markChanged();
-                }}
-              />
+              <TransferPanel values={formValues.transfer} setValues={setFormValues} />
             </CollapsibleSection>
 
             {/* Brush Pose */}
             <CollapsibleSection
               id="brush-pose"
               title="Brush Pose"
-              enabled={useBrushPose()}
-              defaultOpen={useBrushPose()}
-              onToggleEnabled={(v) => {
-                setUseBrushPose(v);
-                markChanged();
-              }}
+              enabled={formValues.useBrushPose}
+              defaultOpen={formValues.useBrushPose}
+              onToggleEnabled={(v) => setFormValues('useBrushPose', v)}
             >
               <div class="text-ps-text-muted py-4 text-center text-sm">Brush Pose settings coming soon</div>
             </CollapsibleSection>
@@ -752,12 +329,9 @@ export function BrushDetailEditable(props: {
             <CollapsibleSection
               id="noise"
               title="Noise"
-              enabled={useNoise()}
-              defaultOpen={useNoise()}
-              onToggleEnabled={(v) => {
-                setUseNoise(v);
-                markChanged();
-              }}
+              enabled={formValues.useNoise}
+              defaultOpen={formValues.useNoise}
+              onToggleEnabled={(v) => setFormValues('useNoise', v)}
             >
               <div class="text-ps-text-muted py-4 text-center text-sm">Noise adds randomness to brush strokes</div>
             </CollapsibleSection>
@@ -766,12 +340,9 @@ export function BrushDetailEditable(props: {
             <CollapsibleSection
               id="wet-edges"
               title="Wet Edges"
-              enabled={useWetEdges()}
-              defaultOpen={useWetEdges()}
-              onToggleEnabled={(v) => {
-                setUseWetEdges(v);
-                markChanged();
-              }}
+              enabled={formValues.useWetEdges}
+              defaultOpen={formValues.useWetEdges}
+              onToggleEnabled={(v) => setFormValues('useWetEdges', v)}
             >
               <div class="text-ps-text-muted py-4 text-center text-sm">Wet Edges creates a watercolor-like effect</div>
             </CollapsibleSection>
@@ -780,12 +351,9 @@ export function BrushDetailEditable(props: {
             <CollapsibleSection
               id="build-up"
               title="Build-up"
-              enabled={useBuildUp()}
-              defaultOpen={useBuildUp()}
-              onToggleEnabled={(v) => {
-                setUseBuildUp(v);
-                markChanged();
-              }}
+              enabled={formValues.useBuildUp}
+              defaultOpen={formValues.useBuildUp}
+              onToggleEnabled={(v) => setFormValues('useBuildUp', v)}
             >
               <div class="text-ps-text-muted py-4 text-center text-sm">
                 Build-up simulates traditional airbrush techniques
@@ -796,12 +364,9 @@ export function BrushDetailEditable(props: {
             <CollapsibleSection
               id="smoothing"
               title="Smoothing"
-              enabled={useSmoothing()}
-              defaultOpen={useSmoothing()}
-              onToggleEnabled={(v) => {
-                setUseSmoothing(v);
-                markChanged();
-              }}
+              enabled={formValues.useSmoothing}
+              defaultOpen={formValues.useSmoothing}
+              onToggleEnabled={(v) => setFormValues('useSmoothing', v)}
             >
               <div class="text-ps-text-muted py-4 text-center text-sm">Smoothing reduces jitter in brush strokes</div>
             </CollapsibleSection>
@@ -810,12 +375,9 @@ export function BrushDetailEditable(props: {
             <CollapsibleSection
               id="protect-texture"
               title="Protect Texture"
-              enabled={useProtectTexture()}
-              defaultOpen={useProtectTexture()}
-              onToggleEnabled={(v) => {
-                setUseProtectTexture(v);
-                markChanged();
-              }}
+              enabled={formValues.useProtectTexture}
+              defaultOpen={formValues.useProtectTexture}
+              onToggleEnabled={(v) => setFormValues('useProtectTexture', v)}
             >
               <div class="text-ps-text-muted py-4 text-center text-sm">
                 Protect Texture preserves texture when using preset brushes
@@ -832,5 +394,3 @@ export function BrushDetailEditable(props: {
     </brush-detail-editable>
   );
 }
-
-// Collapsible Section Component

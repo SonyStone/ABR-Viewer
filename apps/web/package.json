@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vinxi dev",
+    "dev": "vinxi dev --port 3020",
     "build": "vinxi build",
     "start": "vinxi start",
     "preview": "vinxi build && vinxi start"
@@ -14,7 +14,8 @@
     "@solidjs/start": "^1.1.0",
     "abr-parser": "workspace:*",
     "solid-js": "^1.9.4",
-    "vinxi": "^0.5.3"
+    "vinxi": "^0.5.3",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
