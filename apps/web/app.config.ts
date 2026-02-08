@@ -1,5 +1,6 @@
 import { defineConfig } from '@solidjs/start/config';
 import tailwindcss from '@tailwindcss/vite';
+import { resolve } from 'path';
 
 export default defineConfig({
   ssr: false, // Client-side only static site
@@ -9,6 +10,12 @@ export default defineConfig({
     }
   },
   vite: {
-    plugins: [tailwindcss()]
+    plugins: [tailwindcss()],
+    resolve: {
+      alias: {
+        'abr-parser/browser': resolve(__dirname, '../../packages/abr-parser/dist/browser.mjs'),
+        'abr-parser': resolve(__dirname, '../../packages/abr-parser/dist/index.mjs')
+      }
+    }
   }
 });
