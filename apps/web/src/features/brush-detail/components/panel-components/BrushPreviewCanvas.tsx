@@ -72,7 +72,13 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
     : { r: 255, g: 255, b: 255 };
 }
 
+// Smoothstep provides an ease-in-out curve: slow start, fast middle, slow end
+function smoothstep(t: number): number {
+  return t * t * (3 - 2 * t);
+}
+
 // Generate computed brush tip (circular with hardness)
+// Uses smoothstep falloff to match Photoshop's soft brush appearance
 function generateComputedBrushTip(size: number, hardness: number): BrushTipImage {
   const width = Math.ceil(size);
   const height = Math.ceil(size);
@@ -90,7 +96,10 @@ function generateComputedBrushTip(size: number, hardness: number): BrushTipImage
       if (dist <= hardnessRadius) {
         data[y * width + x] = 255;
       } else if (dist <= radius) {
-        const falloff = 1 - (dist - hardnessRadius) / (radius - hardnessRadius);
+        // Linear interpolation factor (0 at hardness edge, 1 at outer edge)
+        const t = (dist - hardnessRadius) / (radius - hardnessRadius);
+        // Apply smoothstep for non-linear falloff (ease-in-out)
+        const falloff = 1 - smoothstep(t);
         data[y * width + x] = Math.round(255 * falloff);
       }
     }
@@ -99,30 +108,67 @@ function generateComputedBrushTip(size: number, hardness: number): BrushTipImage
   return { width, height, depth: 8, data };
 }
 
-// Create a canvas from brush tip for stamping
-function createBrushTipCanvas(brushTip: BrushTipImage, color: { r: number; g: number; b: number }): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  canvas.width = brushTip.width;
-  canvas.height = brushTip.height;
-  const ctx = canvas.getContext('2d')!;
-  const imageData = ctx.createImageData(brushTip.width, brushTip.height);
-
-  for (let i = 0; i < brushTip.data.length; i++) {
-    const idx = i * 4;
-    imageData.data[idx] = color.r;
-    imageData.data[idx + 1] = color.g;
-    imageData.data[idx + 2] = color.b;
-    imageData.data[idx + 3] = brushTip.data[i];
-  }
-
-  ctx.putImageData(imageData, 0, 0);
-  return canvas;
+// Create an alpha mask buffer for max-blending brush stamps
+// This mimics Photoshop's stroke rendering where overlapping stamps don't accumulate
+function createAlphaMaskBuffer(
+  width: number,
+  height: number
+): {
+  data: Float32Array;
+  width: number;
+  height: number;
+} {
+  return {
+    data: new Float32Array(width * height),
+    width,
+    height
+  };
 }
 
-// Draw a transformed brush stamp
-function drawBrushStamp(
-  ctx: CanvasRenderingContext2D,
-  brushCanvas: HTMLCanvasElement,
+// Convert sRGB to linear color space (gamma 2.2)
+function srgbToLinear(value: number): number {
+  return value <= 0.04045 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
+}
+
+// Convert linear to sRGB color space
+function linearToSrgb(value: number): number {
+  return value <= 0.0031308 ? value * 12.92 : 1.055 * Math.pow(value, 1 / 2.4) - 0.055;
+}
+
+// Bilinear interpolation for smooth brush tip sampling
+function sampleBrushTipBilinear(brushTip: BrushTipImage, x: number, y: number): number {
+  // Clamp to brush bounds
+  if (x < 0 || x >= brushTip.width - 1 || y < 0 || y >= brushTip.height - 1) {
+    // Handle edge cases with nearest neighbor
+    const ix = Math.max(0, Math.min(brushTip.width - 1, Math.round(x)));
+    const iy = Math.max(0, Math.min(brushTip.height - 1, Math.round(y)));
+    if (ix < 0 || ix >= brushTip.width || iy < 0 || iy >= brushTip.height) return 0;
+    return brushTip.data[iy * brushTip.width + ix] / 255;
+  }
+
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const x1 = x0 + 1;
+  const y1 = y0 + 1;
+  const fx = x - x0;
+  const fy = y - y0;
+
+  // Get four neighboring pixels
+  const v00 = brushTip.data[y0 * brushTip.width + x0] / 255;
+  const v10 = brushTip.data[y0 * brushTip.width + x1] / 255;
+  const v01 = brushTip.data[y1 * brushTip.width + x0] / 255;
+  const v11 = brushTip.data[y1 * brushTip.width + x1] / 255;
+
+  // Bilinear interpolation
+  const v0 = v00 * (1 - fx) + v10 * fx;
+  const v1 = v01 * (1 - fx) + v11 * fx;
+  return v0 * (1 - fy) + v1 * fy;
+}
+
+// Stamp brush tip to alpha mask using standard alpha blending in LINEAR color space
+function stampToAlphaMask(
+  mask: { data: Float32Array; width: number; height: number },
+  brushTip: BrushTipImage,
   x: number,
   y: number,
   size: number,
@@ -132,17 +178,100 @@ function drawBrushStamp(
   flipY: boolean,
   opacity: number
 ) {
-  ctx.save();
-  ctx.globalAlpha = opacity;
-  ctx.translate(x, y);
-  ctx.rotate(((angle * Math.PI) / 180) * -1);
-  ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
-  ctx.scale(1, roundness / 100);
+  const scale = size / brushTip.width;
+  const cos = Math.cos((-angle * Math.PI) / 180);
+  const sin = Math.sin((-angle * Math.PI) / 180);
+  const scaleY = roundness / 100;
 
-  const drawSize = size;
-  ctx.drawImage(brushCanvas, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
+  // Calculate bounding box of rotated/scaled stamp
+  const halfSize = size / 2;
+  const boundingRadius = (halfSize * Math.sqrt(2)) / scaleY; // Account for roundness squash
+  const minX = Math.max(0, Math.floor(x - boundingRadius));
+  const maxX = Math.min(mask.width - 1, Math.ceil(x + boundingRadius));
+  const minY = Math.max(0, Math.floor(y - boundingRadius));
+  const maxY = Math.min(mask.height - 1, Math.ceil(y + boundingRadius));
 
-  ctx.restore();
+  for (let py = minY; py <= maxY; py++) {
+    for (let px = minX; px <= maxX; px++) {
+      // Transform pixel position back to brush tip coordinates
+      const dx = px - x;
+      const dy = py - y;
+
+      // Inverse rotation
+      const rx = dx * cos + dy * sin;
+      const ry = (-dx * sin + dy * cos) / scaleY;
+
+      // Apply flip
+      const fx = flipX ? -rx : rx;
+      const fy = flipY ? -ry : ry;
+
+      // Convert to brush tip pixel coordinates (centered)
+      const bx = fx / scale + brushTip.width / 2;
+      const by = fy / scale + brushTip.height / 2;
+
+      if (bx >= 0 && bx < brushTip.width && by >= 0 && by < brushTip.height) {
+        // Sample with bilinear interpolation for smooth results
+        const srgbAlpha = sampleBrushTipBilinear(brushTip, bx, by) * opacity;
+
+        // Convert to linear space for proper blending
+        const srcAlpha = srgbToLinear(srgbAlpha);
+
+        const maskIndex = py * mask.width + px;
+        const dstAlpha = mask.data[maskIndex];
+
+        // Standard "over" alpha blending: result = src + dst * (1 - src)
+        mask.data[maskIndex] = srcAlpha + dstAlpha * (1 - srcAlpha);
+      }
+    }
+  }
+}
+
+// Render alpha mask to canvas with color, blending with background in LINEAR space
+function renderAlphaMaskToCanvas(
+  ctx: CanvasRenderingContext2D,
+  mask: { data: Float32Array; width: number; height: number },
+  color: { r: number; g: number; b: number },
+  bgColor: { r: number; g: number; b: number },
+  dpr: number
+) {
+  // Convert colors to linear space
+  const linearFg = {
+    r: srgbToLinear(color.r / 255),
+    g: srgbToLinear(color.g / 255),
+    b: srgbToLinear(color.b / 255)
+  };
+  const linearBg = {
+    r: srgbToLinear(bgColor.r / 255),
+    g: srgbToLinear(bgColor.g / 255),
+    b: srgbToLinear(bgColor.b / 255)
+  };
+
+  const imageData = ctx.createImageData(mask.width, mask.height);
+  for (let i = 0; i < mask.data.length; i++) {
+    const linearAlpha = mask.data[i];
+
+    // Blend foreground and background in linear space
+    const linearR = linearFg.r * linearAlpha + linearBg.r * (1 - linearAlpha);
+    const linearG = linearFg.g * linearAlpha + linearBg.g * (1 - linearAlpha);
+    const linearB = linearFg.b * linearAlpha + linearBg.b * (1 - linearAlpha);
+
+    // Convert back to sRGB for display
+    const idx = i * 4;
+    imageData.data[idx] = Math.round(linearToSrgb(linearR) * 255);
+    imageData.data[idx + 1] = Math.round(linearToSrgb(linearG) * 255);
+    imageData.data[idx + 2] = Math.round(linearToSrgb(linearB) * 255);
+    imageData.data[idx + 3] = 255; // Fully opaque - we've already blended with background
+  }
+
+  // Create temp canvas at mask size and draw
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = mask.width;
+  tempCanvas.height = mask.height;
+  const tempCtx = tempCanvas.getContext('2d')!;
+  tempCtx.putImageData(imageData, 0, 0);
+
+  // Draw scaled to account for DPR
+  ctx.drawImage(tempCanvas, 0, 0, mask.width / dpr, mask.height / dpr);
 }
 
 export function BrushPreviewCanvas(props: BrushPreviewCanvasProps) {
@@ -162,9 +291,10 @@ export function BrushPreviewCanvas(props: BrushPreviewCanvasProps) {
     const { width, height } = canvasSize();
     if (width <= 0 || height <= 0) return;
 
-    const bgColor = props.backgroundColor ?? '#1a1a1a';
+    const bgColor = props.backgroundColor ?? '#646462';
     const brushColor = props.brushColor ?? '#ffffff';
     const rgb = hexToRgb(brushColor);
+    const bgRgb = hexToRgb(bgColor);
 
     // Set canvas size (with device pixel ratio for sharpness)
     const dpr = window.devicePixelRatio || 1;
@@ -190,15 +320,6 @@ export function BrushPreviewCanvas(props: BrushPreviewCanvasProps) {
       brushTip = generateComputedBrushTip(100, values.hardness);
     }
 
-    // Create cached brush tip canvas
-    const brushTipCanvas = createBrushTipCanvas(brushTip, rgb);
-
-    // Get dual brush tip if available (for dual brush feature)
-    let dualBrushCanvas: HTMLCanvasElement | undefined;
-    if (values.useDualBrush && brush.dualBrushTip) {
-      dualBrushCanvas = createBrushTipCanvas(brush.dualBrushTip, rgb);
-    }
-
     // Calculate actual brush size for preview (scale to fit)
     const maxBrushSize = Math.min(height * 0.8, values.diameter);
     const brushSize = Math.max(4, Math.min(maxBrushSize, values.diameter * 0.5));
@@ -219,7 +340,11 @@ export function BrushPreviewCanvas(props: BrushPreviewCanvasProps) {
     const scattering = values.useScattering ? values.scattering : null;
     const transfer = values.useTransfer ? values.transfer : null;
 
-    // Stamp along path
+    // Create alpha mask for smooth max-blending (like Photoshop)
+    // This prevents the "pearl necklace" effect from overlapping stamps
+    const alphaMask = createAlphaMaskBuffer(Math.ceil(width * dpr), Math.ceil(height * dpr));
+
+    // Stamp along path into the alpha mask
     let currentDist = 0;
     let pathIndex = 0;
 
@@ -305,7 +430,7 @@ export function BrushPreviewCanvas(props: BrushPreviewCanvasProps) {
           if (shapeDynamics.flipYJitter && random() > 0.5) stampFlipY = !stampFlipY;
         }
 
-        // Apply transfer (opacity)
+        // Apply transfer (opacity) - for per-stamp opacity variation
         if (transfer) {
           if (transfer.opacityJitter > 0) {
             const minOpacity = transfer.opacityMinimum / 100;
@@ -314,42 +439,72 @@ export function BrushPreviewCanvas(props: BrushPreviewCanvasProps) {
           }
         }
 
-        // Draw main brush stamp
-        drawBrushStamp(
-          ctx,
-          brushTipCanvas,
-          stampX,
-          stampY,
-          stampSize,
+        // Stamp to alpha mask with MAX blending (coordinates in DPR space)
+        stampToAlphaMask(
+          alphaMask,
+          brushTip,
+          stampX * dpr,
+          stampY * dpr,
+          stampSize * dpr,
           stampAngle,
           stampRoundness,
           stampFlipX,
           stampFlipY,
           stampOpacity
         );
-
-        // Draw dual brush stamp (if enabled and available)
-        if (dualBrushCanvas) {
-          // Dual brush typically uses multiply blend mode and different scatter
-          ctx.globalCompositeOperation = 'multiply';
-          const dualOffset = (random() - 0.5) * stampSize * 0.3;
-          drawBrushStamp(
-            ctx,
-            dualBrushCanvas,
-            stampX + dualOffset,
-            stampY + dualOffset * 0.5,
-            stampSize * 0.8,
-            stampAngle + (random() - 0.5) * 30,
-            stampRoundness,
-            random() > 0.5,
-            random() > 0.5,
-            stampOpacity * 0.7
-          );
-          ctx.globalCompositeOperation = 'source-over';
-        }
       }
 
       currentDist += spacingPx;
+    }
+
+    // Render the alpha mask to the canvas (blended with background in linear space)
+    renderAlphaMaskToCanvas(ctx, alphaMask, rgb, bgRgb, dpr);
+
+    // Draw dual brush on top (if enabled and available)
+    if (values.useDualBrush && brush.dualBrushTip) {
+      const dualMask = createAlphaMaskBuffer(Math.ceil(width * dpr), Math.ceil(height * dpr));
+
+      // Reset for dual brush pass
+      currentDist = 0;
+      pathIndex = 0;
+      const dualRandom = seededRandom(123); // Different seed for variation
+
+      while (currentDist < totalLength) {
+        while (pathIndex < distances.length - 1 && distances[pathIndex + 1] < currentDist) {
+          pathIndex++;
+        }
+
+        const t =
+          pathIndex < distances.length - 1 && distances[pathIndex + 1] !== distances[pathIndex]
+            ? (currentDist - distances[pathIndex]) / (distances[pathIndex + 1] - distances[pathIndex])
+            : 0;
+
+        const p1 = path[pathIndex];
+        const p2 = path[Math.min(pathIndex + 1, path.length - 1)];
+        const x = p1.x + (p2.x - p1.x) * t;
+        const y = p1.y + (p2.y - p1.y) * t;
+
+        const dualOffset = (dualRandom() - 0.5) * brushSize * 0.3;
+        stampToAlphaMask(
+          dualMask,
+          brush.dualBrushTip,
+          (x + dualOffset) * dpr,
+          (y + dualOffset * 0.5) * dpr,
+          brushSize * 0.8 * dpr,
+          values.angle + (dualRandom() - 0.5) * 30,
+          values.roundness,
+          dualRandom() > 0.5,
+          dualRandom() > 0.5,
+          0.7
+        );
+
+        currentDist += spacingPx;
+      }
+
+      // Dual brush typically uses multiply blend mode
+      ctx.globalCompositeOperation = 'multiply';
+      renderAlphaMaskToCanvas(ctx, dualMask, rgb, bgRgb, dpr);
+      ctx.globalCompositeOperation = 'source-over';
     }
   };
 
