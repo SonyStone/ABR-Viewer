@@ -135,7 +135,7 @@ function drawBrushStamp(
   ctx.save();
   ctx.globalAlpha = opacity;
   ctx.translate(x, y);
-  ctx.rotate((angle * Math.PI) / 180);
+  ctx.rotate(((angle * Math.PI) / 180) * -1);
   ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
   ctx.scale(1, roundness / 100);
 

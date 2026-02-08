@@ -56,13 +56,6 @@
   background-color: rgba(45, 156, 219, 0.4);
 }
 
-/* Smooth transitions */
-* {
-  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
-}
-
 /* Checkered background pattern for transparent images */
 .checkered-bg {
   background-color: #3c3c3c;

@@ -2,6 +2,7 @@ import { Show } from 'solid-js';
 import type { SetStoreFunction } from 'solid-js/store';
 import type { BrushWithPreview } from '~/lib/abr';
 import type { BrushFormValues } from '../../brush-form-schema';
+import { AngleRoundnessControl } from '../editable-input-components/AngleRoundnessControl';
 import { CheckboxInput } from '../editable-input-components/CheckboxInput';
 import { NonLinearSliderInput } from '../editable-input-components/NonLinearSliderInput';
 import { SliderInput } from '../editable-input-components/SliderInput';
@@ -74,23 +75,38 @@ export function BrushTipPanel(props: {
           />
         </div>
 
-        <SliderInput
-          label="Angle"
-          value={() => props.values.angle}
-          setValue={(v: number) => props.setValues('angle', v)}
-          min={-180}
-          max={180}
-          unit="°"
-        />
+        <div class="flex items-start gap-4">
+          <div class="flex-1">
+            <SliderInput
+              label="Angle"
+              value={() => props.values.angle}
+              setValue={(v: number) => props.setValues('angle', v)}
+              min={-180}
+              max={180}
+              unit="°"
+            />
 
-        <SliderInput
-          label="Roundness"
-          value={() => props.values.roundness}
-          setValue={(v: number) => props.setValues('roundness', v)}
-          min={0}
-          max={100}
-          unit="%"
-        />
+            <SliderInput
+              label="Roundness"
+              value={() => props.values.roundness}
+              setValue={(v: number) => props.setValues('roundness', v)}
+              min={1}
+              max={100}
+              unit="%"
+            />
+          </div>
+
+          {/* Interactive angle/roundness control */}
+          <div class="flex-shrink-0 pt-1">
+            <AngleRoundnessControl
+              angle={() => props.values.angle}
+              setAngle={(v) => props.setValues('angle', v)}
+              roundness={() => props.values.roundness}
+              setRoundness={(v) => props.setValues('roundness', v)}
+              size={144}
+            />
+          </div>
+        </div>
 
         <Show when={props.brush.type === 'computed'}>
           <SliderInput
