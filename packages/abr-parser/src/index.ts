@@ -10,6 +10,7 @@ export { AbrWriter, createAbrFile, createBrush, createBrushTip } from './abr-wri
 export type { WriteOptions } from './abr-writer';
 export { BinaryReader } from './binary-reader';
 export { BinaryWriter } from './binary-writer';
+export * from './descriptor-keys';
 export { DescriptorParser } from './descriptor-parser';
 export { DescriptorSerializer, makeDescriptor } from './descriptor-serializer';
 export { ImageExporter } from './image-exporter';

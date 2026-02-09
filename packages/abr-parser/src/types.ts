@@ -31,8 +31,14 @@ export type F64 = number & { readonly __brand: 'f64' };
 /** Percentage value (0 to 100) */
 export type Percent = number & { readonly __brand: 'percent' };
 
-/** Angle in degrees (0 to 360) */
+/** @deprecated Use BrushAngle or Rotation for specific ranges */
 export type Degrees = number & { readonly __brand: 'degrees' };
+
+/** Brush angle in degrees (-179 to 180, used in Brush Tip Shape) */
+export type BrushAngle = number & { readonly __brand: 'brushAngle' };
+
+/** Rotation in degrees (0 to 360, used in Brush Pose) */
+export type Rotation = number & { readonly __brand: 'rotation' };
 
 /** Pixel dimension (positive integer) */
 export type Pixels = number & { readonly __brand: 'pixels' };
@@ -83,11 +89,28 @@ export function percent(n: number): Percent {
   return n as Percent;
 }
 
+/** @deprecated Use brushAngle() or rotation() for specific ranges */
 export function degrees(n: number): Degrees {
-  if (typeof n !== 'number' || n < -360 || n > 360) {
-    throw new RangeError(`degrees must be -360 to 360, got ${n}`);
+  if (typeof n !== 'number' || n < -179 || n > 180) {
+    throw new RangeError(`degrees must be -179 to 180, got ${n}`);
   }
   return n as Degrees;
+}
+
+/** Brush angle (-179 to 180 degrees, used in Brush Tip Shape) */
+export function brushAngle(n: number): BrushAngle {
+  if (typeof n !== 'number' || n < -179 || n > 180) {
+    throw new RangeError(`brushAngle must be -179 to 180, got ${n}`);
+  }
+  return n as BrushAngle;
+}
+
+/** Rotation (0 to 360 degrees, used in Brush Pose) */
+export function rotation(n: number): Rotation {
+  if (typeof n !== 'number' || n < 0 || n > 360) {
+    throw new RangeError(`rotation must be 0 to 360, got ${n}`);
+  }
+  return n as Rotation;
 }
 
 export function pixels(n: number): Pixels {
@@ -116,15 +139,79 @@ export const ZI32 = z.number().int().min(-2147483648).max(2147483647);
 /** Zod schema for percentage (0-100) */
 export const ZPercent = z.number().min(0).max(100);
 
-/** Zod schema for angle in degrees */
-export const ZDegrees = z.number().min(-360).max(360);
+/** @deprecated Use ZBrushAngle or ZRotation for specific ranges */
+export const ZDegrees = z.number().min(-179).max(180);
+
+/** Zod schema for brush angle (-179 to 180, used in Brush Tip Shape) */
+export const ZBrushAngle = z.number().min(-179).max(180);
+
+/** Zod schema for rotation (0 to 360, used in Brush Pose) */
+export const ZRotation = z.number().min(0).max(360);
 
 /** Zod schema for pixel dimensions */
 export const ZPixels = z.number().int().min(0);
 
-/** Dynamic control types for brush properties */
-export const DynamicControlType = z.enum(['off', 'fade', 'penPressure', 'penTilt', 'stylusWheel', 'rotation']);
-export type DynamicControlType = z.infer<typeof DynamicControlType>;
+// ============================================================================
+// MARK: Dynamic Control Types
+// ============================================================================
+
+/**
+ * Base control options available for most dynamics (Size Jitter, Opacity, Flow, etc.)
+ * - Off: No dynamic control, uses static jitter value only
+ * - Fade: Gradually reduces effect over specified number of steps
+ * - Dial: Modulates based on dial/rotary input device (e.g., Microsoft Surface Dial)
+ * - Pen Pressure: Modulates based on stylus pressure (PointerEvent.pressure)
+ * - Pen Tilt: Modulates based on stylus tilt angle (PointerEvent.tiltX/tiltY)
+ * - Stylus Wheel: Modulates based on airbrush stylus wheel (specialized hardware)
+ */
+export const BaseControlType = z.enum(['off', 'fade', 'dial', 'penPressure', 'penTilt', 'stylusWheel']);
+export type BaseControlType = z.infer<typeof BaseControlType>;
+
+/**
+ * Control options for Size Jitter, Opacity Jitter, Flow Jitter, Depth Jitter, etc.
+ * Uses base controls only.
+ */
+export const SizeControlType = BaseControlType;
+export type SizeControlType = BaseControlType;
+
+/**
+ * Control options for Roundness Jitter, Scatter, Count Jitter
+ * Includes base controls + Rotation (stylus barrel rotation via PointerEvent.twist)
+ */
+export const RoundnessControlType = z.enum([
+  'off',
+  'fade',
+  'dial',
+  'penPressure',
+  'penTilt',
+  'stylusWheel',
+  'rotation'
+]);
+export type RoundnessControlType = z.infer<typeof RoundnessControlType>;
+
+/**
+ * Control options for Angle Jitter
+ * Includes all controls + direction-based options:
+ * - Rotation: Uses stylus barrel rotation (PointerEvent.twist)
+ * - Initial Direction: Sets angle based on initial stroke direction
+ * - Direction: Continuously updates angle based on stroke direction
+ */
+export const AngleControlType = z.enum([
+  'off',
+  'fade',
+  'dial',
+  'penPressure',
+  'penTilt',
+  'stylusWheel',
+  'rotation',
+  'initialDirection',
+  'direction'
+]);
+export type AngleControlType = z.infer<typeof AngleControlType>;
+
+/** @deprecated Use specific control types (SizeControlType, AngleControlType, RoundnessControlType) */
+export const DynamicControlType = RoundnessControlType;
+export type DynamicControlType = RoundnessControlType;
 
 /** Zod schema for dynamic brush control */
 export const ZDynamicControl = z.object({
