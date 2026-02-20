@@ -90,11 +90,11 @@ export function percent(n: number): Percent {
 }
 
 /** @deprecated Use brushAngle() or rotation() for specific ranges */
-export function degrees(n: number): Degrees {
+export function degrees(n: number): BrushAngle {
   if (typeof n !== 'number' || n < -179 || n > 180) {
     throw new RangeError(`degrees must be -179 to 180, got ${n}`);
   }
-  return n as Degrees;
+  return n as BrushAngle;
 }
 
 /** Brush angle (-179 to 180 degrees, used in Brush Tip Shape) */
@@ -270,6 +270,29 @@ export const ZPattern = z.object({
   data: z.instanceof(Uint8Array).optional()
 });
 
+// ============================================================================
+// MARK: Hierarchy Types (Brush Groups/Folders)
+// ============================================================================
+
+/**
+ * Hierarchy item types in the phry block.
+ * - 'group': Start of a folder/group (has name and uuid)
+ * - 'groupEnd': End of a folder/group
+ * - 'preset': Reference to a brush preset (corresponds to a brush in the Brsh list)
+ */
+export const HierarchyItemType = z.enum(['group', 'groupEnd', 'preset']);
+export type HierarchyItemType = z.infer<typeof HierarchyItemType>;
+
+/** Zod schema for a hierarchy item */
+export const ZHierarchyItem = z.object({
+  type: HierarchyItemType,
+  name: z.string().optional(),
+  uuid: z.string().optional()
+});
+
+/** A single item in the brush hierarchy (folder structure) */
+export type HierarchyItem = z.infer<typeof ZHierarchyItem>;
+
 /** ABR file version */
 export const ZAbrVersion = z.object({
   major: ZU16,
@@ -282,9 +305,13 @@ export const ZAbrFile = z.object({
   subVersion: ZU16,
   brushes: z.array(ZBrush),
   patterns: z.array(ZPattern).optional(),
+  /** Parsed hierarchy (folder/group structure) from the phry block */
+  hierarchy: z.array(ZHierarchyItem).optional(),
   rawPatternData: z.instanceof(Uint8Array).optional(),
   rawSampleData: z.instanceof(Uint8Array).optional(),
   rawDescriptorData: z.instanceof(Uint8Array).optional(),
+  /** Raw hierarchy block data for round-trip preservation */
+  rawHierarchyData: z.instanceof(Uint8Array).optional(),
   errors: z.array(z.string())
 });
 

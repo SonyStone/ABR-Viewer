@@ -7,11 +7,12 @@ import * as fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { BinaryWriter } from './binary-writer';
 import { DescriptorSerializer, makeDescriptor } from './descriptor-serializer';
-import { AbrFile, Brush, BrushTipImage, DescriptorValue } from './types';
+import { AbrFile, Brush, BrushTipImage, DescriptorValue, HierarchyItem } from './types';
 
 const PHOTOSHOP_SIGNATURE = '8BIM';
 const SAMPLE_KEY = 'samp';
 const DESCRIPTOR_KEY = 'desc';
+const HIERARCHY_KEY = 'phry';
 
 export type WriteOptions = {
   /** ABR major version (default: 6) */
@@ -93,6 +94,16 @@ export class AbrWriter {
     } else {
       const descriptorData = this.writeDescriptorBlock(abrFile.brushes, brushUuids);
       this.writeResourceBlock(writer, DESCRIPTOR_KEY, descriptorData);
+    }
+
+    // Write hierarchy block (phry) - preserves folder/group structure
+    if (abrFile.rawHierarchyData && abrFile.rawHierarchyData.length > 0) {
+      // Preserve raw hierarchy data for perfect round-trip
+      this.writeResourceBlock(writer, HIERARCHY_KEY, abrFile.rawHierarchyData);
+    } else if (abrFile.hierarchy && abrFile.hierarchy.length > 0) {
+      // Reconstruct hierarchy block from parsed data
+      const hierarchyData = this.writeHierarchyBlock(abrFile.hierarchy);
+      this.writeResourceBlock(writer, HIERARCHY_KEY, hierarchyData);
     }
 
     return writer.toBuffer();
@@ -267,6 +278,59 @@ export class AbrWriter {
     };
 
     // Serialize the descriptor
+    const serializer = new DescriptorSerializer(writer);
+    serializer.serializeDescriptor(rootDesc, '', 'null');
+
+    return writer.toBuffer();
+  }
+
+  /**
+   * Write hierarchy block (phry) containing folder/group structure.
+   * The hierarchy is a flat list describing group nesting:
+   *   - Grup objects: Group start (with name and UUID)
+   *   - groupEnd objects: Group end marker
+   *   - preset objects: Brush preset placeholder
+   */
+  private writeHierarchyBlock(hierarchy: HierarchyItem[]): Uint8Array {
+    const writer = new BinaryWriter();
+
+    // Write descriptor version
+    writer.writeUInt32BE(16);
+
+    // Build the hierarchy list
+    const hierarchyList: DescriptorValue[] = [];
+
+    for (const item of hierarchy) {
+      switch (item.type) {
+        case 'group':
+          // Group start: Objc with classId='Grup', has 'Nm  ' and 'zuid' keys
+          {
+            const groupDesc: Record<string, DescriptorValue> = {};
+            if (item.name !== undefined) {
+              groupDesc['Nm  '] = makeDescriptor.text(item.name);
+            }
+            if (item.uuid !== undefined) {
+              groupDesc['zuid'] = makeDescriptor.text(item.uuid);
+            }
+            hierarchyList.push(makeDescriptor.obj('Grup', groupDesc, ''));
+          }
+          break;
+        case 'groupEnd':
+          // Group end: empty Objc with classId='groupEnd'
+          hierarchyList.push(makeDescriptor.obj('groupEnd', {}, ''));
+          break;
+        case 'preset':
+          // Preset: empty Objc with classId='preset'
+          hierarchyList.push(makeDescriptor.obj('preset', {}, ''));
+          break;
+      }
+    }
+
+    // Create root descriptor with 'hierarchy' key
+    const rootDesc: Record<string, DescriptorValue> = {
+      hierarchy: makeDescriptor.list(hierarchyList)
+    };
+
     const serializer = new DescriptorSerializer(writer);
     serializer.serializeDescriptor(rootDesc, '', 'null');
 

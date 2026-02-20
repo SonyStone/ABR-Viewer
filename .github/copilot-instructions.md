@@ -1,5 +1,9 @@
 # Project Coding Guidelines
 
+## Dev Server
+
+Assume that the dev server is always on and ask the user to check that the dev server is working properly.
+
 ### Common Patterns
 
 ```tsx

@@ -7,12 +7,13 @@
 
 import { BinaryReader } from './binary-reader';
 import { DescriptorParser, getNumber, getObject, getString } from './descriptor-parser';
-import { AbrFile, Brush, BrushTipImage, DescriptorValue, ParseOptions, ResourceBlock } from './types';
+import { AbrFile, Brush, BrushTipImage, DescriptorValue, HierarchyItem, ParseOptions, ResourceBlock } from './types';
 
 const PHOTOSHOP_SIGNATURE = '8BIM';
 const SAMPLE_KEY = 'samp';
 const PATTERN_KEY = 'patt';
 const DESCRIPTOR_KEY = 'desc';
+const HIERARCHY_KEY = 'phry';
 
 export class AbrParser {
   private options: Required<ParseOptions>;
@@ -65,6 +66,7 @@ export class AbrParser {
       const sampleBlocks: ResourceBlock[] = [];
       const descriptorBlocks: ResourceBlock[] = [];
       const patternBlocks: ResourceBlock[] = [];
+      const hierarchyBlocks: ResourceBlock[] = [];
 
       while (!reader.isEof() && reader.remaining >= 12) {
         try {
@@ -80,6 +82,9 @@ export class AbrParser {
               break;
             case PATTERN_KEY:
               patternBlocks.push(block);
+              break;
+            case HIERARCHY_KEY:
+              hierarchyBlocks.push(block);
               break;
           }
         } catch (err) {
@@ -145,6 +150,34 @@ export class AbrParser {
             offset += block.data.length;
           }
           result.rawDescriptorData = descData;
+        }
+      }
+
+      // Store raw hierarchy data for round-trip preservation
+      if (hierarchyBlocks.length > 0) {
+        const totalSize = hierarchyBlocks.reduce((sum, b) => sum + b.data.length, 0);
+        if (totalSize > 0) {
+          const hierarchyData = new Uint8Array(totalSize);
+          let offset = 0;
+          for (const block of hierarchyBlocks) {
+            hierarchyData.set(block.data, offset);
+            offset += block.data.length;
+          }
+          result.rawHierarchyData = hierarchyData;
+        }
+
+        // Parse hierarchy into structured data
+        for (const block of hierarchyBlocks) {
+          try {
+            const items = this.parseHierarchyBlock(block.data);
+            if (items.length > 0) {
+              result.hierarchy = items;
+            }
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            result.errors.push(`Error parsing hierarchy block: ${message}`);
+            if (!this.options.continueOnError) throw err;
+          }
         }
       }
 
@@ -367,6 +400,58 @@ export class AbrParser {
     }
 
     return images;
+  }
+
+  /**
+   * Parse a hierarchy block (phry) containing folder/group structure.
+   * The hierarchy is a flat list of Objc items with classIds:
+   *   - 'Grup': Group start (has 'Nm  ' name and 'zuid' UUID)
+   *   - 'groupEnd': Group end marker
+   *   - 'preset': Brush preset reference (corresponds to brushes in order)
+   */
+  private parseHierarchyBlock(data: Uint8Array): HierarchyItem[] {
+    const reader = new BinaryReader(data);
+    const items: HierarchyItem[] = [];
+
+    // Hierarchy block starts with version (4 bytes)
+    const version = reader.readUInt32BE();
+
+    // Parse the hierarchy descriptor
+    const parser = new DescriptorParser(reader);
+
+    try {
+      const desc = parser.parseDescriptor();
+      const hierarchy = desc['hierarchy'];
+
+      if (hierarchy && hierarchy.type === 'VlLs') {
+        for (const item of hierarchy.value) {
+          if (item.type === 'Objc') {
+            const classId = item.classId;
+
+            if (classId === 'Grup') {
+              // Group start - extract name and UUID
+              const nm = item.value['Nm  '];
+              const zuid = item.value['zuid'];
+              items.push({
+                type: 'group',
+                name: nm && nm.type === 'TEXT' ? nm.value : undefined,
+                uuid: zuid && zuid.type === 'TEXT' ? zuid.value : undefined
+              });
+            } else if (classId === 'groupEnd') {
+              // Group end marker
+              items.push({ type: 'groupEnd' });
+            } else if (classId === 'preset') {
+              // Brush preset reference
+              items.push({ type: 'preset' });
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error parsing hierarchy block:', err);
+    }
+
+    return items;
   }
 
   /**
