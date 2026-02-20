@@ -6,13 +6,16 @@
   "scripts": {
     "dev": "vite --port 3030",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "solid-js": "^1.9.4",
     "solid-nest": "workspace:*"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/vite": "^4.1.18",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.7.2",
