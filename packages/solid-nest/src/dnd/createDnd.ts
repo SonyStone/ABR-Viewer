@@ -127,28 +127,66 @@ export function createDnd<K, T>(
     const root = itemElements.get(input.root.id)!.getBoundingClientRect();
     const points = insertionPoints();
 
-    // Check horizontal bounds
+    // Mouse position relative to root container
     const mouseX = pointerPos().x + state.offset.x - root.left;
+    const mouseY = pointerPos().y + state.offset.y - root.top;
     const radiusX = options().dragRadius.x * state.size.x;
-    if (mouseX < -radiusX || mouseX > radiusX) {
+    const radiusY = options().dragRadius.y * state.size.y;
+
+    // Check horizontal bounds against full container width
+    if (mouseX < -radiusX || mouseX > root.width + radiusX) {
       return undefined;
     }
 
-    // Check vertical bounds
-    const mouseY = pointerPos().y + state.offset.y - root.top;
-    const radiusY = options().dragRadius.y * state.size.y;
-    for (let i = 0; i < points.length; i++) {
-      const point = points[i]!;
-      const nextY = points[i + 1]?.y ?? Infinity;
+    // Separate wrap and list points
+    const wrapPoints = points.filter((p) => p.inWrap);
+    const listPoints = points.filter((p) => !p.inWrap);
+
+    // Try 2D matching for wrap points (find closest point)
+    let bestWrap: (typeof points)[0] | undefined;
+    let bestWrapDist = Infinity;
+    for (const point of wrapPoints) {
+      const px = point.x ?? 0;
+      const py = point.y;
+      const pw = point.width ?? state.size.x;
+      const ph = point.height ?? state.size.y;
+
+      // Check if mouse is within a reasonable radius of this point
+      const cx = px + pw / 2;
+      const cy = py + ph / 2;
+      const dx = mouseX - cx;
+      const dy = mouseY - cy;
+      const dist = dx * dx + dy * dy;
+
+      // Accept if within generous bounds
+      if (Math.abs(mouseY - py) < ph + radiusY && dist < bestWrapDist) {
+        bestWrapDist = dist;
+        bestWrap = point;
+      }
+    }
+
+    // Try Y-band matching for list points (original algorithm)
+    let bestList: (typeof points)[0] | undefined;
+    for (let i = 0; i < listPoints.length; i++) {
+      const point = listPoints[i]!;
+      const nextY = listPoints[i + 1]?.y ?? Infinity;
       const minY = point.y - radiusY;
       const maxY = Math.min(point.y + radiusY, 0.5 * (point.y + nextY));
 
       if (mouseY > minY && mouseY < maxY) {
-        return point;
+        bestList = point;
+        break;
       }
     }
 
-    return undefined;
+    // Prefer wrap match if mouse is closer to wrap points
+    if (bestWrap && bestList) {
+      const listDist = Math.abs(mouseY - bestList.y);
+      const wrapDist = Math.sqrt(bestWrapDist);
+      return wrapDist < listDist ? bestWrap : bestList;
+    }
+
+    return bestWrap ?? bestList;
   });
 
   // Insert the dropzone

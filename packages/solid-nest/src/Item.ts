@@ -6,7 +6,14 @@ export type Item<K, T = unknown> = ContainerItem<K> | BlockItem<K, T> | Placehol
 
 export type ItemKind = Item<any, any>['kind'];
 
-export type ContainerItem<K> = Readonly<{ id: ItemId; kind: 'container'; key: K; spacing: number; accepts: string[] }>;
+export type ContainerItem<K> = Readonly<{
+  id: ItemId;
+  kind: 'container';
+  key: K;
+  spacing: number;
+  accepts: string[];
+  layout: 'list' | 'wrap';
+}>;
 export type BlockItem<K, T> = Readonly<{ id: ItemId; kind: 'block'; key: K; block: T; containers: Container<K, T>[] }>;
 export type PlaceholderItem<K> = Readonly<{ id: ItemId; kind: 'placeholder'; parent: K }>;
 export type GapItem = Readonly<{ id: ItemId; kind: 'gap'; before: ItemId; height: number }>;
@@ -23,6 +30,9 @@ export function createContainerItem<K>(container: Container<K, unknown>): Contai
     },
     get accepts() {
       return container.accepts ?? [];
+    },
+    get layout(): 'list' | 'wrap' {
+      return container.layout ?? 'list';
     }
   };
 }

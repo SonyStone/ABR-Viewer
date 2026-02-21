@@ -12,6 +12,7 @@ export interface AnimationState {
   deltaSize: Vec2;
   transition: boolean;
   level: number;
+  inWrap?: boolean;
 }
 
 export function calculateTransitionStyles<K>(
@@ -38,6 +39,25 @@ export function calculateTransitionStyles<K>(
     };
     prevRects.set(DropzoneItemId, new DOMRect(nextGap.x, nextGap.y, nextGap.width, calcHeight()));
   }
+
+  // Collect IDs of items that are direct children of wrap containers
+  const wrapChildIds = new Set<string>();
+  const collectWrapChildren = (tree: VirtualTree<K, any>) => {
+    const walk = (id: ItemId) => {
+      const item = tree.findItemById(id);
+      if (!item) return;
+      if (item.kind === 'container' && item.layout === 'wrap') {
+        for (const child of tree.children(item.id)) {
+          wrapChildIds.add(child.id);
+        }
+      }
+      for (const child of tree.children(id)) {
+        walk(child.id);
+      }
+    };
+    walk(tree.root.id);
+  };
+  collectWrapChildren(nextTree);
 
   const invert = new Map<ItemId, AnimationState>();
   const play = new Map<ItemId, AnimationState>();
@@ -81,15 +101,23 @@ export function calculateTransitionStyles<K>(
 
     const maxLevel = Math.max(prevLevels.get(id) ?? level, level);
 
-    invert.set(id, { size, deltaPos, deltaSize, transition: false, level: maxLevel });
-    play.set(id, { size, deltaPos: Vec2.Zero, deltaSize: Vec2.Zero, transition: true, level: maxLevel });
+    const isInWrap = wrapChildIds.has(id);
+    invert.set(id, { size, deltaPos, deltaSize, transition: false, level: maxLevel, inWrap: isInWrap });
+    play.set(id, {
+      size,
+      deltaPos: Vec2.Zero,
+      deltaSize: Vec2.Zero,
+      transition: true,
+      level: maxLevel,
+      inWrap: isInWrap
+    });
   }
 
   return { invert, play };
 }
 
 export function outerStyle(state?: AnimationState): JSX.CSSProperties {
-  if (!state) return {};
+  if (!state || state.inWrap) return {};
   return {
     position: 'relative',
     width: `${state.size.x}px`,
@@ -99,7 +127,7 @@ export function outerStyle(state?: AnimationState): JSX.CSSProperties {
 }
 
 export function innerStyle(state?: AnimationState): JSX.CSSProperties {
-  if (!state) return {};
+  if (!state || state.inWrap) return {};
   return {
     position: 'absolute',
     left: '0',

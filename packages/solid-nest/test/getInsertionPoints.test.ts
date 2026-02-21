@@ -172,4 +172,61 @@ describe('getInsertionPoints', () => {
       expect(points[i]!.y).toBeGreaterThanOrEqual(points[i - 1]!.y);
     }
   });
+
+  it('returns an "insert at end" point for wrap-layout containers', () => {
+    // Build a tree with a wrap-layout root
+    let tree!: VirtualTree<string, TestBlock>;
+    createRoot((dispose) => {
+      const root: Container<string, TestBlock> = {
+        key: 'root',
+        spacing: 4,
+        accepts: ['brush'],
+        layout: 'wrap',
+        getBlocks: () => [block('a', 'brush'), block('b', 'brush'), block('c', 'brush')]
+      };
+      const accessor = VirtualTree.create<string, TestBlock>(
+        () => root,
+        (b) => b.key,
+        (b) => ({ tag: b.tag }),
+        (b) => b.containers ?? []
+      );
+      tree = accessor();
+      dispose();
+    });
+
+    const childW = 80;
+    const childH = 60;
+    const spacing = 4;
+    const containerW = 300;
+    const measures = new Map<ItemId, BlockMeasurements>();
+
+    // Simulate 3 children laid out horizontally
+    const children = tree.children(tree.root.id).filter((c) => c.kind === 'block');
+    let cx = 0;
+    for (const child of children) {
+      measures.set(child.id, {
+        container: new DOMRect(cx, 0, childW, childH),
+        children: [],
+        bottom: childH
+      });
+      cx += childW + spacing;
+    }
+    measures.set(tree.root.id, {
+      container: new DOMRect(0, 0, containerW, childH),
+      children: [],
+      bottom: 0
+    });
+
+    const points = getInsertionPoints(tree, ['brush'], measures);
+
+    // Should have 4 points: before a, before b, before c, and at end (before: null)
+    expect(points.length).toBe(4);
+
+    const endPoint = points.find((p) => p.place.before === null);
+    expect(endPoint).toBeDefined();
+    expect(endPoint!.place.parent).toBe('root');
+    expect(endPoint!.inWrap).toBe(true);
+    // The end point should be positioned after child c
+    expect(endPoint!.x).toBeGreaterThan(0);
+  });
 });

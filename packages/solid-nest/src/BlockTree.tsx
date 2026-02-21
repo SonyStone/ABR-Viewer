@@ -96,6 +96,8 @@ export type Container<K, T> = {
   spacing?: number;
   /** The set of tags that this block accepts as children. */
   accepts?: string[];
+  /** Layout mode: 'list' (vertical, default) or 'wrap' (flex-wrap grid). */
+  layout?: 'list' | 'wrap';
   /** Gets the blocks in this container. */
   getBlocks: () => T[];
 };
@@ -301,27 +303,58 @@ export function BlockTree<K, T>(props: BlockTreeProps<K, T>) {
   const renderItem = (
     item: Item<K, T>,
     tree: Accessor<VirtualTree<K, T>>,
-    itemProps: { dragging?: boolean } = {},
+    itemProps: { dragging?: boolean; parentLayout?: 'list' | 'wrap' } = {},
     styles?: Accessor<Map<string, AnimationState>>
   ) => {
+    const inWrapParent = itemProps.parentLayout === 'wrap';
+
     if (item.kind === 'container') {
+      const isWrap = item.layout === 'wrap';
       return (
         <div
           ref={(el) => itemElements.set(item.id, el)}
           class={blockClass}
           data-kind={item.kind}
           data-id={item.id}
-          style={{ [spacingVar]: `${item.spacing}px` }}
+          data-layout={item.layout}
+          style={{
+            [spacingVar]: `${item.spacing}px`,
+            ...(isWrap
+              ? {
+                  display: 'flex',
+                  'flex-wrap': 'wrap',
+                  gap: `${item.spacing}px`,
+                  'align-content': 'flex-start',
+                  'align-items': 'flex-start'
+                }
+              : {}),
+            ...(inWrapParent ? { width: '100%' } : {})
+          }}
         >
-          <For each={tree().children(item.id)}>{(child) => renderItem(child, tree, {}, styles)}</For>
-          <div class={spacerClass} style={spacerStyle(styles?.().get(item.id))} />
-          {/* This element forces the container to adapt its height based on the spacer inside `renderItems` */}
-          <div style={{ 'margin-top': '-1px', 'padding-bottom': '1px' }} />
+          <For each={tree().children(item.id)}>
+            {(child) => renderItem(child, tree, { parentLayout: item.layout }, styles)}
+          </For>
+          <Show when={!isWrap}>
+            <div class={spacerClass} style={spacerStyle(styles?.().get(item.id))} />
+            <div style={{ 'margin-top': '-1px', 'padding-bottom': '1px' }} />
+          </Show>
         </div>
       );
     }
 
     if (item.kind === 'block') {
+      // In Legacy API every block gets an empty container child.
+      // Only treat it as a "group" if those containers actually hold real blocks.
+      const hasRealChildren = tree()
+        .children(item.id)
+        .some((c) => {
+          if (c.kind !== 'container') return false;
+          return tree()
+            .children(c.id)
+            .some((gc) => gc.kind !== 'placeholder');
+        });
+      const isWrapLeaf = inWrapParent && !hasRealChildren;
+      const isWrapGroup = inWrapParent && hasRealChildren;
       return (
         <div
           class={blockClass}
@@ -329,7 +362,20 @@ export function BlockTree<K, T>(props: BlockTreeProps<K, T>) {
           style={outerStyle(styles?.().get(item.id))}
           onPointerDown={handlePointerDown(item)}
         >
-          <div ref={(el) => itemElements.set(item.id, el)} style={innerStyle(styles?.().get(item.id))}>
+          <div
+            ref={(el) => {
+              itemElements.set(item.id, el);
+              // Apply wrap sizing via direct DOM manipulation (SolidJS style
+              // diffing doesn't reliably merge spread objects with reactive styles).
+              if (isWrapLeaf) {
+                const outer = el.parentElement!;
+                outer.style.flex = '0 0 auto';
+              } else if (isWrapGroup) {
+                el.parentElement!.style.width = '100%';
+              }
+            }}
+            style={innerStyle(styles?.().get(item.id))}
+          >
             <Dynamic
               component={props.children}
               key={item.key}
@@ -345,6 +391,7 @@ export function BlockTree<K, T>(props: BlockTreeProps<K, T>) {
     }
 
     if (item.kind === 'placeholder') {
+      if (inWrapParent) return null;
       return (
         <div class={blockClass} data-kind={item.kind} style={outerStyle(styles?.().get(item.id))}>
           <div ref={(el) => itemElements.set(item.id, el)} style={placeholderStyle(styles?.().get(item.id))}>

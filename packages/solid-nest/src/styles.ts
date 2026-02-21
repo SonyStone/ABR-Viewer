@@ -8,8 +8,16 @@ export const spacingVar = `--${PREFIX}-spacing`;
 
 const stylesheet = new CSSStyleSheet();
 stylesheet.replaceSync(`
+  .${blockClass} {
+    transition: none;
+  }
+
   .${blockClass}[data-kind="container"] > .${blockClass} + .${blockClass} {
     margin-top: var(${spacingVar});
+  }
+
+  .${blockClass}[data-kind="container"][data-layout="wrap"] > .${blockClass} + .${blockClass} {
+    margin-top: 0;
   }
 
   .${blockClass}[data-kind="container"] > .${blockClass} + .${blockClass}[data-kind='placeholder'] {

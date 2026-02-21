@@ -1,7 +1,7 @@
 import { createRoot } from 'solid-js';
 import { Container } from 'src/BlockTree';
 import { calculateLayout } from 'src/calculateLayout';
-import { createBlockItemId, ItemId } from 'src/Item';
+import { createBlockItemId, createPlaceholderItemId, ItemId } from 'src/Item';
 import { BlockMeasurements } from 'src/measure';
 import { VirtualTree } from 'src/virtual-tree';
 import { describe, expect, it } from 'vitest';
@@ -144,5 +144,99 @@ describe('calculateLayout', () => {
 
     // Should still have the root and placeholder
     expect(layout.size).toBeGreaterThan(0);
+  });
+
+  it('computes a placeholder rect for wrap-layout containers', () => {
+    // Build a tree with a wrap-layout root
+    let tree!: VirtualTree<string, TestBlock>;
+    createRoot((dispose) => {
+      const root: Container<string, TestBlock> = {
+        key: 'root',
+        spacing: 4,
+        accepts: ['brush'],
+        layout: 'wrap',
+        getBlocks: () => [block('a', 'brush'), block('b', 'brush'), block('c', 'brush')]
+      };
+      const accessor = VirtualTree.create<string, TestBlock>(
+        () => root,
+        (b) => b.key,
+        (b) => ({ tag: b.tag }),
+        (b) => b.containers ?? []
+      );
+      tree = accessor();
+      dispose();
+    });
+
+    const childW = 80;
+    const childH = 60;
+    const spacing = 4;
+    const containerW = 300;
+    const measures = new Map<ItemId, BlockMeasurements>();
+
+    // Simulate 3 children laid out horizontally: [a @ 0] [b @ 84] [c @ 168]
+    const children = tree.children(tree.root.id).filter((c) => c.kind === 'block');
+    let cx = 0;
+    for (const child of children) {
+      measures.set(child.id, {
+        container: new DOMRect(cx, 0, childW, childH),
+        children: [],
+        bottom: childH
+      });
+      cx += childW + spacing;
+    }
+    measures.set(tree.root.id, {
+      container: new DOMRect(0, 0, containerW, childH),
+      children: [],
+      bottom: 0
+    });
+
+    const layout = calculateLayout(tree, (id) => measures.get(id));
+
+    const placeholderId = createPlaceholderItemId('root');
+    const placeholderRect = layout.get(placeholderId);
+
+    expect(placeholderRect).toBeDefined();
+    // c is at x=168, width=80 → right edge at 248. Placeholder at 248 + spacing = 252
+    expect(placeholderRect!.x).toBe(248 + spacing);
+    expect(placeholderRect!.y).toBe(0);
+    expect(placeholderRect!.width).toBe(childW);
+    expect(placeholderRect!.height).toBe(childH);
+  });
+
+  it('computes a placeholder rect at origin for an empty wrap container', () => {
+    let tree!: VirtualTree<string, TestBlock>;
+    createRoot((dispose) => {
+      const root: Container<string, TestBlock> = {
+        key: 'root',
+        spacing: 4,
+        accepts: ['brush'],
+        layout: 'wrap',
+        getBlocks: () => []
+      };
+      const accessor = VirtualTree.create<string, TestBlock>(
+        () => root,
+        (b) => b.key,
+        (b) => ({ tag: b.tag }),
+        (b) => b.containers ?? []
+      );
+      tree = accessor();
+      dispose();
+    });
+
+    const measures = new Map<ItemId, BlockMeasurements>();
+    measures.set(tree.root.id, {
+      container: new DOMRect(0, 0, 300, 0),
+      children: [],
+      bottom: 0
+    });
+
+    const layout = calculateLayout(tree, (id) => measures.get(id));
+
+    const placeholderId = createPlaceholderItemId('root');
+    const placeholderRect = layout.get(placeholderId);
+
+    expect(placeholderRect).toBeDefined();
+    expect(placeholderRect!.x).toBe(0);
+    expect(placeholderRect!.y).toBe(0);
   });
 });

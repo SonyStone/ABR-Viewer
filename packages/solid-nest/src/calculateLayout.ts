@@ -18,19 +18,49 @@ export function calculateLayout<K>(
 
     if (item.kind === 'container') {
       const children = tree.children(item.id);
-      let first = true;
 
-      for (const child of children) {
-        if (!first) {
+      if (item.layout === 'wrap' && measure.container) {
+        // Wrap layout: use measured DOM positions instead of vertical cursor
+        const containerRect = measure.container;
+        let lastRight = 0;
+        let lastY = 0;
+        let lastW = 0;
+        let lastH = 0;
+
+        for (const child of children) {
           if (child.kind === 'placeholder') {
-            output.set(child.id, new DOMRect(x, nextY + item.spacing, width, 0));
-            break;
-          } else {
-            nextY += item.spacing;
+            // Synthetic rect for the "insert at end" position, placed after the last child
+            output.set(child.id, new DOMRect(x + lastRight + (lastW > 0 ? item.spacing : 0), y + lastY, lastW, lastH));
+            continue;
           }
+          const childMeasure = measureItem(child.id);
+          if (!childMeasure?.container) continue;
+          const cr = childMeasure.container;
+          const rx = cr.x - containerRect.x;
+          const ry = cr.y - containerRect.y;
+          lastRight = rx + cr.width;
+          lastY = ry;
+          lastW = cr.width;
+          lastH = cr.height;
+          nextY = y + ry;
+          inner(child, x + rx, cr.width);
         }
-        inner(child, x, width);
-        first = false;
+        nextY = y + containerRect.height;
+      } else {
+        // List layout: original vertical stacking
+        let first = true;
+        for (const child of children) {
+          if (!first) {
+            if (child.kind === 'placeholder') {
+              output.set(child.id, new DOMRect(x, nextY + item.spacing, width, 0));
+              break;
+            } else {
+              nextY += item.spacing;
+            }
+          }
+          inner(child, x, width);
+          first = false;
+        }
       }
     }
 

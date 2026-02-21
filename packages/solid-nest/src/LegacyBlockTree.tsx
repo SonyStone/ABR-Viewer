@@ -74,6 +74,8 @@ export type BlockOptions = {
   tag?: string;
   /** The set of tags that this block accepts as children. */
   accepts?: string[];
+  /** Layout mode: 'list' (vertical, default) or 'wrap' (flex-wrap grid). */
+  layout?: 'list' | 'wrap';
 };
 
 export type Selection<K> = { blocks?: K[]; place?: Place<K> };
@@ -97,6 +99,9 @@ export function BlockTree<K, T>(props: BlockTreeProps<K, T>) {
       },
       get accepts() {
         return props.getOptions?.(block)?.accepts;
+      },
+      get layout() {
+        return props.getOptions?.(block)?.layout;
       },
       getBlocks() {
         return ownProps.getChildren?.(block) ?? [];

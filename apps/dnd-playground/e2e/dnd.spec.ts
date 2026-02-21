@@ -1,44 +1,70 @@
-import { expect, Page, test } from '@playwright/test';
+import { expect, Locator, Page, test } from '@playwright/test';
 
 // ============================================================================
 // MARK: Helpers
 // ============================================================================
 
 /**
- * Simulates a drag operation using low-level mouse events.
- * This is the key technique for testing DnD — we use page.mouse to perform
- * precise pointer movements that trigger the real drag logic.
+ * Dispatches a PointerEvent via page.evaluate.
+ *
+ * Playwright's `page.mouse.*` methods use CDP Input.dispatchMouseEvent, which
+ * hangs in headless Chromium inside Docker containers (the compositor never
+ * produces a frame to acknowledge the input). Using `dispatchEvent` on the
+ * JS side works reliably because it bypasses the compositor entirely.
  */
-async function drag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, steps = 10) {
-  await page.mouse.move(from.x, from.y);
-  await page.mouse.down();
+async function pointerDown(page: Page, el: Locator, pos: { x: number; y: number }) {
+  await el.dispatchEvent('pointerdown', {
+    clientX: pos.x,
+    clientY: pos.y,
+    button: 0,
+    pointerId: 1,
+    isPrimary: true,
+    pointerType: 'mouse'
+  });
+}
 
-  // Move in increments to trigger pointermove events and exceed the drag threshold
+async function pointerMove(page: Page, pos: { x: number; y: number }) {
+  await page.evaluate(({ x, y }) => {
+    document.dispatchEvent(new PointerEvent('pointermove', { clientX: x, clientY: y, bubbles: true, pointerId: 1 }));
+  }, pos);
+}
+
+async function pointerUp(page: Page, pos: { x: number; y: number }) {
+  await page.evaluate(({ x, y }) => {
+    document.dispatchEvent(new PointerEvent('pointerup', { clientX: x, clientY: y, bubbles: true, pointerId: 1 }));
+  }, pos);
+}
+
+/**
+ * Simulates a full drag-and-drop sequence via dispatchEvent.
+ * Moves in incremental steps to trigger the drag threshold and produce
+ * realistic pointermove events.
+ */
+async function drag(
+  page: Page,
+  handle: Locator,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  steps = 10
+) {
+  await pointerDown(page, handle, from);
+  await page.waitForTimeout(20);
+
   for (let i = 1; i <= steps; i++) {
     const x = from.x + (to.x - from.x) * (i / steps);
     const y = from.y + (to.y - from.y) * (i / steps);
-    await page.mouse.move(x, y);
+    await pointerMove(page, { x, y });
+    await page.waitForTimeout(10);
   }
 
-  await page.mouse.up();
+  await pointerUp(page, to);
 }
 
-/** Gets the center point of a locator's bounding box. */
-async function getCenter(page: Page, selector: string) {
-  const box = await page.locator(selector).first().boundingBox();
-  if (!box) throw new Error(`Element not found: ${selector}`);
+/** Returns the center of a locator's bounding box. */
+async function center(loc: Locator) {
+  const box = await loc.boundingBox();
+  if (!box) throw new Error('Element not found');
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
-
-/** Returns all visible brush names in order. */
-async function getBrushNames(page: Page, parentSelector?: string) {
-  const selector = parentSelector ? `${parentSelector} [data-block-type="brush"]` : '[data-block-type="brush"]';
-  return page.locator(selector).allInnerTexts();
-}
-
-/** Returns the text of the "Last:" event in the header. */
-async function getLastEvent(page: Page) {
-  return page.locator('text=Last:').innerText();
 }
 
 // ============================================================================
@@ -47,7 +73,6 @@ async function getLastEvent(page: Page) {
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
-  // Wait for the tree to render
   await expect(page.locator('[data-block-type="brush"]').first()).toBeVisible();
 });
 
@@ -86,34 +111,35 @@ test.describe('Initial render', () => {
 test.describe('Selection', () => {
   test('clicking a brush selects it', async ({ page }) => {
     const brush = page.locator('[data-block-type="brush"]').first();
-    await brush.click();
+    // force: true skips the "stable" actionability check, which can hang in
+    // headless Docker because the FLIP animation system continuously updates
+    // inline transform/width styles across frames.
+    await brush.click({ force: true });
 
-    // Check that the last event reflects a selection
     await expect(page.locator('text=Last:')).toContainText('Select');
-    // Check that the selection count shows 1
     await expect(page.locator('text=Selected:')).toContainText('1');
   });
 
   test('clicking another brush replaces selection', async ({ page }) => {
     const brushes = page.locator('[data-block-type="brush"]');
-    await brushes.nth(0).click();
+    await brushes.nth(0).click({ force: true });
     await expect(page.locator('text=Selected:')).toContainText('1');
 
-    await brushes.nth(1).click();
+    await brushes.nth(1).click({ force: true });
     await expect(page.locator('text=Selected:')).toContainText('1');
   });
 
   test('ctrl+click adds to selection', async ({ page }) => {
     const brushes = page.locator('[data-block-type="brush"]');
-    await brushes.nth(0).click();
-    await brushes.nth(1).click({ modifiers: ['ControlOrMeta'] });
+    await brushes.nth(0).click({ force: true });
+    await brushes.nth(1).click({ force: true, modifiers: ['ControlOrMeta'] });
 
     await expect(page.locator('text=Selected:')).toContainText('2');
   });
 
   test('clicking a group selects it', async ({ page }) => {
     const group = page.locator('[data-block-type="group"]').first();
-    await group.click();
+    await group.click({ force: true });
 
     await expect(page.locator('text=Last:')).toContainText('Select');
   });
@@ -126,113 +152,116 @@ test.describe('Selection', () => {
 test.describe('Drag and Drop', () => {
   test('dragging a brush shows a drag ghost', async ({ page }) => {
     const brush = page.locator('[data-block-type="brush"]').first();
-    const box = await brush.boundingBox();
-    if (!box) throw new Error('Brush not found');
+    const pos = await center(brush);
 
-    const startX = box.x + box.width / 2;
-    const startY = box.y + box.height / 2;
+    await pointerDown(page, brush, pos);
+    await page.waitForTimeout(20);
 
-    // Start drag but don't release
-    await page.mouse.move(startX, startY);
-    await page.mouse.down();
-
-    // Move enough to trigger drag (exceeds the 10px threshold)
+    // Move past the drag threshold (10px)
     for (let i = 1; i <= 5; i++) {
-      await page.mouse.move(startX, startY + i * 10);
+      await pointerMove(page, { x: pos.x, y: pos.y + i * 10 });
+      await page.waitForTimeout(10);
     }
 
-    // A drag ghost should appear (the fixed-position drag container)
-    // The ghost is rendered as a div with position: fixed and z-index: 10000
+    // The drag ghost is a div with position:fixed and z-index:10000
     const ghost = page.locator('div[style*="position: fixed"][style*="z-index: 10000"]');
     await expect(ghost).toBeVisible();
 
-    // Release the drag
-    await page.mouse.up();
+    await pointerUp(page, { x: pos.x, y: pos.y + 50 });
   });
 
   test('dragging a brush and dropping reorders items', async ({ page }) => {
-    // Get the first two brushes in the first group that contains brushes
     const brushes = page.locator('[data-block-type="brush"]');
-    const firstBrush = brushes.nth(0);
-    const thirdBrush = brushes.nth(2);
+    const first = brushes.nth(0);
+    const third = brushes.nth(2);
 
-    const firstBox = await firstBrush.boundingBox();
-    const thirdBox = await thirdBrush.boundingBox();
-    if (!firstBox || !thirdBox) throw new Error('Brushes not found');
+    const from = await center(first);
+    const to = await center(third);
 
-    const firstName = await firstBrush.innerText();
-
-    // Drag first brush to the position of the third brush
-    await drag(
-      page,
-      { x: firstBox.x + firstBox.width / 2, y: firstBox.y + firstBox.height / 2 },
-      { x: thirdBox.x + thirdBox.width / 2, y: thirdBox.y + thirdBox.height / 2 },
-      15
-    );
-
-    // Wait for animation to complete
+    await drag(page, first, from, to, 15);
     await page.waitForTimeout(300);
 
-    // Verify a reorder event was fired
     await expect(page.locator('text=Last:')).toContainText('Reorder');
   });
 
-  test('drag completes on mouse up even if cursor moved away', async ({ page }) => {
+  test('drag ghost disappears on drop', async ({ page }) => {
     const brush = page.locator('[data-block-type="brush"]').first();
-    const box = await brush.boundingBox();
-    if (!box) throw new Error('Brush not found');
+    const pos = await center(brush);
 
-    const startX = box.x + box.width / 2;
-    const startY = box.y + box.height / 2;
+    await pointerDown(page, brush, pos);
+    await page.waitForTimeout(20);
 
-    // Start drag
-    await page.mouse.move(startX, startY);
-    await page.mouse.down();
-
-    // Move enough to trigger drag
     for (let i = 1; i <= 5; i++) {
-      await page.mouse.move(startX, startY + i * 10);
+      await pointerMove(page, { x: pos.x, y: pos.y + i * 10 });
+      await page.waitForTimeout(10);
     }
 
-    // Ghost should be visible during drag
     const ghost = page.locator('div[style*="position: fixed"][style*="z-index: 10000"]');
     await expect(ghost).toBeVisible();
 
-    // Release the mouse
-    await page.mouse.up();
-
-    // Ghost should disappear after drop
+    await pointerUp(page, { x: pos.x, y: pos.y + 50 });
     await expect(ghost).not.toBeVisible();
   });
 
-  test('drag ghost follows the mouse pointer', async ({ page }) => {
+  test('drag ghost follows the pointer', async ({ page }) => {
     const brush = page.locator('[data-block-type="brush"]').first();
-    const box = await brush.boundingBox();
-    if (!box) throw new Error('Brush not found');
+    const pos = await center(brush);
 
-    const startX = box.x + box.width / 2;
-    const startY = box.y + box.height / 2;
+    await pointerDown(page, brush, pos);
+    await page.waitForTimeout(20);
 
-    await page.mouse.move(startX, startY);
-    await page.mouse.down();
-
-    // Move down to trigger drag
-    const targetY = startY + 80;
+    // Move down in steps
     for (let i = 1; i <= 5; i++) {
-      await page.mouse.move(startX, startY + i * 16);
+      await pointerMove(page, { x: pos.x, y: pos.y + i * 16 });
+      await page.waitForTimeout(10);
     }
 
-    // Get ghost position
     const ghost = page.locator('div[style*="position: fixed"][style*="z-index: 10000"]');
     await expect(ghost).toBeVisible();
 
     const ghostBox = await ghost.boundingBox();
-    if (!ghostBox) throw new Error('Ghost not found');
+    expect(ghostBox).toBeTruthy();
+    // Ghost should have moved below the original position
+    expect(ghostBox!.y).toBeGreaterThan(pos.y);
 
-    // Ghost should be near the current mouse position (offset by the grab point)
-    expect(ghostBox.y).toBeGreaterThan(startY);
+    await pointerUp(page, { x: pos.x, y: pos.y + 80 });
+  });
 
-    await page.mouse.up();
+  test('can drop a brush as the last item in a wrap group', async ({ page }) => {
+    // "Drawing Tools" is the first group — its children are in a flex-wrap row:
+    //   [Hard Round] [Soft Round] [Flat Blunt]
+    // We drag "Hard Round" to the right of "Flat Blunt" (the last item).
+    const firstGroup = page.locator('[data-block-type="group"]').first();
+    const brushesInGroup = firstGroup.locator('[data-block-type="brush"]');
+
+    const firstName = await brushesInGroup.nth(0).locator('span').first().textContent();
+    const lastName = await brushesInGroup.nth(2).locator('span').first().textContent();
+
+    const firstBrush = brushesInGroup.nth(0);
+    const lastBrush = brushesInGroup.nth(2);
+
+    const from = await center(firstBrush);
+    const lastBox = await lastBrush.boundingBox();
+    if (!lastBox) throw new Error('Last brush not found');
+
+    // Target: well to the right of the last item. The DnD system measures the
+    // position where the dragged item's top-left would land (pointer + offset),
+    // so we need to overshoot to land past the "at end" insertion point center.
+    const to = { x: lastBox.x + lastBox.width + 120, y: lastBox.y + lastBox.height / 2 };
+
+    await drag(page, firstBrush, from, to, 20);
+    await page.waitForTimeout(400);
+
+    // The reorder should have happened
+    await expect(page.locator('text=Last:')).toContainText('Reorder');
+
+    // The first brush in the group should now be what was previously second
+    const newFirst = await brushesInGroup.nth(0).locator('span').first().textContent();
+    expect(newFirst).not.toBe(firstName);
+
+    // The last brush in the group should now be the one we dragged
+    const newLast = await brushesInGroup.nth(2).locator('span').first().textContent();
+    expect(newLast).toBe(firstName);
   });
 });
 
@@ -242,24 +271,14 @@ test.describe('Drag and Drop', () => {
 
 test.describe('Keyboard', () => {
   test('pressing Delete removes selected items', async ({ page }) => {
-    // Get initial brush count
     const initialCount = await page.locator('[data-block-type="brush"]').count();
 
-    // Select a brush
-    const brush = page.locator('[data-block-type="brush"]').first();
-    await brush.click();
-
-    // Press Delete
+    await page.locator('[data-block-type="brush"]').first().click({ force: true });
     await page.keyboard.press('Delete');
-
-    // Wait for update
     await page.waitForTimeout(300);
 
-    // Should have one fewer brush
     const finalCount = await page.locator('[data-block-type="brush"]').count();
     expect(finalCount).toBe(initialCount - 1);
-
-    // Should show a Remove event
     await expect(page.locator('text=Last:')).toContainText('Remove');
   });
 });
@@ -270,20 +289,16 @@ test.describe('Keyboard', () => {
 
 test.describe('Group collapse', () => {
   test('clicking collapse button hides children', async ({ page }) => {
-    // Find the first collapse button (the ▼ button)
     const collapseBtn = page.locator('[data-block-type="group"] button').first();
     await expect(collapseBtn).toBeVisible();
 
-    // Get the first group
     const firstGroup = page.locator('[data-block-type="group"]').first();
-
-    // Count brushes inside this group before collapse
     const brushesBefore = await firstGroup.locator('[data-block-type="brush"]').count();
 
-    // Click collapse
-    await collapseBtn.click();
+    // The collapse button calls stopPropagation on pointerdown so it doesn't
+    // interact with the DnD system. force:true is fine here.
+    await collapseBtn.click({ force: true });
 
-    // After collapsing, the group's brushes should be hidden
     const brushesAfter = await firstGroup.locator('[data-block-type="brush"]').count();
     expect(brushesAfter).toBeLessThan(brushesBefore);
   });

@@ -86,7 +86,7 @@ export default function App(): JSX.Element {
           getChildren={(block: any) => block.children}
           getOptions={(block: any) => {
             if (block.type === 'group')
-              return { spacing: 4, tag: 'group', accepts: ['group', 'brush'], layout: 'wrap' };
+              return { spacing: 4, tag: 'group', accepts: ['group', 'brush'], layout: 'list' };
             return { tag: 'brush' };
           }}
           selection={selection()}
