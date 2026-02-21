@@ -722,8 +722,8 @@ Then M3 (`createFlip`) because:
 - [x] Project scaffolding (package.json, tsconfig, vitest)
 - [x] Core types (Vec2, Rect, Place, ItemId)
 - [x] Playground app with static demos
-- [ ] **M1 — createDragSensor** ← START HERE
-- [ ] M2 — createSortable
+- [x] **M1 — createDragSensor** ✅ 27 tests passing
+- [ ] M2 — createSortable ← NEXT
 - [ ] M3 — createFlip
 - [ ] M4 — createSelection
 - [ ] M5 — createNestable

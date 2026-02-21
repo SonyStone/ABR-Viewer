@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@corvu/drawer": "^0.2.4",
     "@solidjs/router": "^0.15.3",
     "solid-dnd": "workspace:*",
     "solid-js": "^1.9.4"
