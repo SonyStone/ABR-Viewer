@@ -57,6 +57,9 @@ importers:
 
   apps/solid-dnd-playground:
     dependencies:
+      '@solidjs/router':
+        specifier: ^0.15.3
+        version: 0.15.4(solid-js@1.9.11)
       solid-dnd:
         specifier: workspace:*
         version: link:../../packages/solid-dnd

@@ -1,4 +1,5 @@
-import { createSignal, For, type JSX } from 'solid-js';
+import { useLocation } from '@solidjs/router';
+import { For, type JSX } from 'solid-js';
 
 // ============================================================================
 // MARK: Demo Data
@@ -24,13 +25,10 @@ function createDemoItems(): DemoItem[] {
 }
 
 // ============================================================================
-// MARK: App
+// MARK: App (root layout)
 // ============================================================================
 
-export default function App(): JSX.Element {
-  const [items] = createSignal(createDemoItems());
-  const [currentDemo, setCurrentDemo] = createSignal('list');
-
+export default function App(props: { children?: JSX.Element }): JSX.Element {
   return (
     <div class="flex h-screen flex-col">
       {/* Header */}
@@ -40,19 +38,15 @@ export default function App(): JSX.Element {
 
         {/* Demo selector */}
         <nav class="ml-auto flex gap-2">
-          <DemoTab label="List" id="list" current={currentDemo()} onClick={setCurrentDemo} />
-          <DemoTab label="Grid" id="grid" current={currentDemo()} onClick={setCurrentDemo} />
-          <DemoTab label="Nested" id="nested" current={currentDemo()} onClick={setCurrentDemo} />
+          <DemoTab label="List" href="/" matchAlso="/list" />
+          <DemoTab label="Grid" href="/grid" />
+          <DemoTab label="Nested" href="/nested" />
         </nav>
       </header>
 
       {/* Content */}
       <main class="flex-1 overflow-y-auto p-6">
-        <div class="mx-auto max-w-2xl">
-          {currentDemo() === 'list' && <ListDemo items={items()} />}
-          {currentDemo() === 'grid' && <GridDemo items={items()} />}
-          {currentDemo() === 'nested' && <NestedDemo />}
-        </div>
+        <div class="mx-auto max-w-2xl">{props.children}</div>
       </main>
 
       {/* Footer */}
@@ -67,16 +61,19 @@ export default function App(): JSX.Element {
 // MARK: Demo Tab
 // ============================================================================
 
-function DemoTab(props: { label: string; id: string; current: string; onClick: (id: string) => void }): JSX.Element {
+function DemoTab(props: { label: string; href: string; matchAlso?: string }): JSX.Element {
+  const location = useLocation();
+  const isActive = () => location.pathname === props.href || location.pathname === props.matchAlso;
+
   return (
-    <button
+    <a
+      href={props.href}
       class={`rounded px-3 py-1 text-xs transition-colors ${
-        props.current === props.id ? 'bg-blue-600 text-white' : 'text-neutral-400 hover:bg-white/10 hover:text-white'
+        isActive() ? 'bg-blue-600 text-white' : 'text-neutral-400 hover:bg-white/10 hover:text-white'
       }`}
-      onClick={() => props.onClick(props.id)}
     >
       {props.label}
-    </button>
+    </a>
   );
 }
 
@@ -84,7 +81,9 @@ function DemoTab(props: { label: string; id: string; current: string; onClick: (
 // MARK: List Demo — Milestone 1 target
 // ============================================================================
 
-function ListDemo(props: { items: DemoItem[] }): JSX.Element {
+export function ListDemo(): JSX.Element {
+  const items = createDemoItems();
+
   return (
     <div>
       <h2 class="mb-4 text-sm font-semibold text-neutral-300">Sortable List</h2>
@@ -92,7 +91,7 @@ function ListDemo(props: { items: DemoItem[] }): JSX.Element {
         🚧 Drag-and-drop not wired yet — this is the static layout that will become interactive.
       </p>
       <div class="flex flex-col gap-2">
-        <For each={props.items}>
+        <For each={items}>
           {(item) => (
             <div class="flex cursor-grab items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-4 py-3 active:cursor-grabbing">
               <div class="h-3 w-3 rounded-full" style={{ background: item.color }} />
@@ -110,13 +109,15 @@ function ListDemo(props: { items: DemoItem[] }): JSX.Element {
 // MARK: Grid Demo — Milestone 6 target
 // ============================================================================
 
-function GridDemo(props: { items: DemoItem[] }): JSX.Element {
+export function GridDemo(): JSX.Element {
+  const items = createDemoItems();
+
   return (
     <div>
       <h2 class="mb-4 text-sm font-semibold text-neutral-300">Sortable Grid</h2>
       <p class="mb-4 text-xs text-neutral-500">🚧 Future milestone — grid layout with drag-and-drop.</p>
       <div class="grid grid-cols-4 gap-2">
-        <For each={props.items}>
+        <For each={items}>
           {(item) => (
             <div class="flex cursor-grab flex-col items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-4 active:cursor-grabbing">
               <div class="h-8 w-8 rounded" style={{ background: item.color }} />
@@ -133,7 +134,7 @@ function GridDemo(props: { items: DemoItem[] }): JSX.Element {
 // MARK: Nested Demo — Milestone 5 target
 // ============================================================================
 
-function NestedDemo(): JSX.Element {
+export function NestedDemo(): JSX.Element {
   return (
     <div>
       <h2 class="mb-4 text-sm font-semibold text-neutral-300">Nested Containers</h2>
