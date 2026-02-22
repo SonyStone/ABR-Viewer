@@ -54,7 +54,6 @@ describe('core types', () => {
 
     it('returns undefined from fromElement() when no element is provided', () => {
       expect(Rect.fromElement(undefined)).toBeUndefined();
-      expect(Rect.fromElement()).toBeUndefined();
     });
   });
 

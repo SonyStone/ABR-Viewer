@@ -99,7 +99,7 @@ describe('reorderItems', () => {
 
     it('works with numeric keys', () => {
       const numItems = [{ n: 1 }, { n: 2 }, { n: 3 }];
-      const result = reorderItems(numItems, [3], { parent: 'list', before: 1 }, (i) => i.n);
+      const result = reorderItems(numItems, [3], { parent: 0, before: 1 }, (i) => i.n);
       expect(result.map((i) => i.n)).toEqual([3, 1, 2]);
     });
   });

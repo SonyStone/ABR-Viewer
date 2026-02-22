@@ -43,6 +43,7 @@ export default function ListDemo(): JSX.Element {
   const sortable = createSortable<string>({
     containerKey: 'list',
     items: itemKeys,
+    draggedKeys: () => draggedIds(),
     getRect: (key) => Rect.fromElement(itemRefs.get(key)),
     getContainerRect: () => Rect.fromElement(containerRef)
   });

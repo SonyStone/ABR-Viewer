@@ -19,6 +19,7 @@ export { applyRange, applySet, applyToggle, getSelectionMode } from './core/sele
 export type { SelectionMode } from './core/selectionModes';
 
 // Primitives
+export { accepts, wouldCycle } from './core/tagConstraints';
 export { createDragSensor } from './primitives/createDragSensor';
 export type {
   DragEndEvent,
@@ -29,6 +30,8 @@ export type {
 } from './primitives/createDragSensor';
 export { createFlip } from './primitives/createFlip';
 export type { Flip, FlipOptions } from './primitives/createFlip';
+export { createNestable } from './primitives/createNestable';
+export type { Nestable, NestableContainer, NestableOptions } from './primitives/createNestable';
 export { createSelection } from './primitives/createSelection';
 export type { Selection, SelectionOptions } from './primitives/createSelection';
 export { createSortable } from './primitives/createSortable';

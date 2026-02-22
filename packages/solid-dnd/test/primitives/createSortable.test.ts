@@ -39,7 +39,7 @@ function withSortable<K>(options: SortableOptions<K>, fn: (sortable: Sortable<K>
  * ```
  */
 function standardSetup() {
-  const rects = new Map<string, Rect>([
+  const rects = new Map<string, Rect.Rect>([
     ['a', Rect.of(10, 10, 200, 40)],
     ['b', Rect.of(10, 60, 200, 40)],
     ['c', Rect.of(10, 110, 200, 40)]
@@ -267,7 +267,7 @@ describe('createSortable', () => {
   // ────────────────────────────────────────────────────────────────────────
   describe('single item', () => {
     const singleSetup = () => {
-      const rects = new Map<string, Rect>([['only', Rect.of(0, 0, 200, 60)]]);
+      const rects = new Map<string, Rect.Rect>([['only', Rect.of(0, 0, 200, 60)]]);
       const containerRect = Rect.of(0, 0, 200, 80);
       const options: SortableOptions<string> = {
         containerKey: 'single',
@@ -315,7 +315,7 @@ describe('createSortable', () => {
     });
 
     it('item rect missing → skips that item gracefully', () => {
-      const rects = new Map<string, Rect>([
+      const rects = new Map<string, Rect.Rect>([
         // 'a' is missing
         ['b', Rect.of(0, 60, 200, 40)],
         ['c', Rect.of(0, 110, 200, 40)]
@@ -425,7 +425,7 @@ describe('createSortable', () => {
   // ────────────────────────────────────────────────────────────────────────
   describe('variable-height items', () => {
     it('correctly uses each item center regardless of height', () => {
-      const rects = new Map<string, Rect>([
+      const rects = new Map<string, Rect.Rect>([
         ['small', Rect.of(0, 0, 200, 20)], // center = 10
         ['tall', Rect.of(0, 30, 200, 100)], // center = 80
         ['medium', Rect.of(0, 140, 200, 40)] // center = 160
@@ -471,7 +471,7 @@ describe('createSortable', () => {
   // ────────────────────────────────────────────────────────────────────────
   describe('non-string keys (number)', () => {
     it('works with numeric keys', () => {
-      const rects = new Map<number, Rect>([
+      const rects = new Map<number, Rect.Rect>([
         [1, Rect.of(0, 0, 200, 40)],
         [2, Rect.of(0, 50, 200, 40)]
       ]);
@@ -559,6 +559,98 @@ describe('createSortable', () => {
           expect(offset).toBe(0);
         }
       );
+    });
+  });
+
+  // ==========================================================================
+  // MARK: draggedKeys — skip dragged items in insertion calculations
+  // ==========================================================================
+
+  describe('draggedKeys — skips dragged items', () => {
+    it('excludes dragged item from insertion point', () => {
+      const { options } = standardSetup();
+      // Items: A (center=30), B (center=80), C (center=130).
+      // Drag C. Pointer at y=100 is between B center (80) and C center (130).
+      // Without filtering → before C. With filtering (C excluded) → append.
+      const opts = { ...options, draggedKeys: () => ['c'] };
+      withSortable(opts, (s) => {
+        const place = s.getInsertionPoint(Vec2.of(100, 100));
+        expect(place).toEqual({ parent: 'container', before: null });
+      });
+    });
+
+    it('prevents "before self" when dragging last item', () => {
+      const { options } = standardSetup();
+      // Drag C (last item). Pointer at y=125 is just below B center (80),
+      // above where C center (130) was. With C excluded → append.
+      const opts = { ...options, draggedKeys: () => ['c'] };
+      withSortable(opts, (s) => {
+        const place = s.getInsertionPoint(Vec2.of(100, 125));
+        expect(place).toEqual({ parent: 'container', before: null });
+      });
+    });
+
+    it('dragging first item still allows insertion before second', () => {
+      const { options } = standardSetup();
+      // Drag A. Items become [B, C]. Pointer at y=60 is below A center (30)
+      // but above B center (80) → before B.
+      const opts = { ...options, draggedKeys: () => ['a'] };
+      withSortable(opts, (s) => {
+        const place = s.getInsertionPoint(Vec2.of(100, 60));
+        expect(place).toEqual({ parent: 'container', before: 'b' });
+      });
+    });
+
+    it('indicator offset uses last non-dragged item for append', () => {
+      const { options } = standardSetup();
+      // Drag C (last). Append indicator should use B bottom (60+40=100).
+      // Container top = 10, so offset = 100 - 10 = 90.
+      const opts = { ...options, draggedKeys: () => ['c'] };
+      withSortable(opts, (s) => {
+        const offset = s.getIndicatorOffset({ parent: 'container', before: null });
+        expect(offset).toBe(90);
+      });
+    });
+
+    it('empty list after filtering all items → offset 0', () => {
+      const containerRect = Rect.of(10, 10, 200, 50);
+      const rects = new Map([['only', Rect.of(10, 10, 200, 40)]]);
+      withSortable(
+        {
+          containerKey: 'container',
+          items: () => ['only'],
+          getRect: (key) => rects.get(key),
+          getContainerRect: () => containerRect,
+          draggedKeys: () => ['only']
+        },
+        (s) => {
+          const offset = s.getIndicatorOffset({ parent: 'container', before: null });
+          expect(offset).toBe(0);
+        }
+      );
+    });
+
+    it('multiple dragged keys are all excluded', () => {
+      const { options } = standardSetup();
+      // Drag A and B. Only C remains (center=130).
+      const opts = { ...options, draggedKeys: () => ['a', 'b'] };
+      withSortable(opts, (s) => {
+        // Pointer above C center → before C
+        const place = s.getInsertionPoint(Vec2.of(100, 120));
+        expect(place).toEqual({ parent: 'container', before: 'c' });
+        // Pointer below C center → append
+        const place2 = s.getInsertionPoint(Vec2.of(100, 140));
+        expect(place2).toEqual({ parent: 'container', before: null });
+      });
+    });
+
+    it('no draggedKeys → normal behavior', () => {
+      const { options } = standardSetup();
+      // No draggedKeys option at all — same as before
+      withSortable(options, (s) => {
+        const place = s.getInsertionPoint(Vec2.of(100, 100));
+        expect(place).toEqual({ parent: 'container', before: 'c' });
+      });
     });
   });
 });

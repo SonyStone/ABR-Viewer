@@ -28,6 +28,11 @@ export type SortableOptions<K> = {
    * @default 0
    */
   spacing?: number;
+  /**
+   * Keys currently being dragged. These are excluded from insertion point
+   * calculations so the dragged item's own rect doesn't interfere.
+   */
+  draggedKeys?: Accessor<K[]>;
 };
 
 export type Sortable<K> = {
@@ -138,10 +143,12 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
       return undefined;
     }
 
-    const keys = options.items();
+    const dKeys = options.draggedKeys?.();
+    const allKeys = options.items();
+    const keys = dKeys && dKeys.length > 0 ? allKeys.filter((k) => !dKeys.includes(k)) : allKeys;
     const containerKey = options.containerKey;
 
-    // Empty list → only valid position is append
+    // Empty list (or all items are being dragged) → only valid position is append
     if (keys.length === 0) {
       return { parent: containerKey, before: null };
     }
@@ -175,8 +182,10 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
       return rect.y - containerRect.y;
     }
 
-    // Append: bottom edge of last item
-    const keys = options.items();
+    // Append: bottom edge of last non-dragged item
+    const dKeys = options.draggedKeys?.();
+    const allKeys = options.items();
+    const keys = dKeys && dKeys.length > 0 ? allKeys.filter((k) => !dKeys.includes(k)) : allKeys;
     if (keys.length === 0) return 0;
 
     const lastRect = options.getRect(keys[keys.length - 1]);

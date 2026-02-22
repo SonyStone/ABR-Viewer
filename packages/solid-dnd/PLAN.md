@@ -728,8 +728,8 @@ Then M3 (`createFlip`) because:
 - [x] **M2 — createSortable** ✅ 32 tests passing
 - [x] **M3 — createFlip** ✅ 29 tests passing (13 flipUtils + 16 createFlip)
 - [x] **M4 — createSelection** ✅ 61 tests passing (26 selectionModes + 35 createSelection)
-- [ ] M5 — createNestable ← NEXT
-- [ ] M6 — Grid layout
+- [x] **M5 — createNestable** ✅ 33 tests passing (11 tagConstraints + 22 createNestable)
+- [ ] M6 — Grid layout ← NEXT
 - [ ] M7 — createAutoScroll
 - [ ] M8 — SortableList component
 - [ ] M9 — Virtualization
