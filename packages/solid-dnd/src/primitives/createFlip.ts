@@ -43,6 +43,20 @@ export type Flip = {
    */
   playFromFirst: () => void;
   /**
+   * Convenience wrapper: captures first, runs `fn` (which should mutate the DOM),
+   * then plays the animation.
+   *
+   * Equivalent to:
+   * ```ts
+   * flip.captureFirst();
+   * fn();
+   * flip.playFromFirst();
+   * ```
+   *
+   * Accepts an optional per-call duration override.
+   */
+  animate: (fn: () => void, overrides?: { duration?: number }) => void;
+  /**
    * Whether a FLIP animation is currently in progress.
    * Useful for disabling pointer events or other interactions during animation.
    */
@@ -162,5 +176,18 @@ export function createFlip(options: FlipOptions): Flip {
     }
   }
 
-  return { captureFirst, playFromFirst, isAnimating };
+  // ── Convenience: capture + mutate + play in one call ───────────────────
+  function animate(fn: () => void, overrides?: { duration?: number }): void {
+    const prevDuration = options.duration;
+    if (overrides?.duration !== undefined) {
+      options.duration = overrides.duration;
+    }
+    captureFirst();
+    fn();
+    playFromFirst();
+    // Restore original duration so the options object isn't permanently mutated
+    options.duration = prevDuration;
+  }
+
+  return { captureFirst, playFromFirst, animate, isAnimating };
 }

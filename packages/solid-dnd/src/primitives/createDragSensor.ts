@@ -44,6 +44,12 @@ export type DragSensorOptions = {
   onDragEnd?: (event: DragEndEvent) => void;
   /** Called when the drag is cancelled (pointer cancel or Escape key). */
   onDragCancel?: () => void;
+  /**
+   * Called when the pointer is released **without** exceeding the drag threshold.
+   * This is a "click" — the user pressed and released without dragging.
+   * Receives the original PointerEvent so modifiers (Ctrl, Shift) are available.
+   */
+  onClick?: (ev: PointerEvent) => void;
 };
 
 export type DragSensor = {
@@ -217,6 +223,9 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
         position: pos,
         delta: d
       });
+    } else if (tracking) {
+      // Threshold was never exceeded — this was a click, not a drag.
+      options.onClick?.(ev);
     }
 
     // Whether we were tracking (click) or dragging (drag), clean up

@@ -517,4 +517,71 @@ describe('createDragSensor', () => {
       expect(sensor.isDragging()).toBe(true);
     });
   });
+
+  // ── onClick (click-vs-drag disambiguation) ────────────────────────────
+
+  describe('onClick', () => {
+    it('fires onClick when pointerUp without exceeding threshold', () => {
+      const onClick = vi.fn();
+      const { el } = setup({ onClick, threshold: 10 });
+
+      firePointerDown(el, 100, 100);
+      firePointerUp(el, 102, 100);
+
+      expect(onClick).toHaveBeenCalledOnce();
+    });
+
+    it('receives the original PointerEvent with modifiers', () => {
+      const onClick = vi.fn();
+      const { el } = setup({ onClick, threshold: 10 });
+
+      firePointerDown(el, 100, 100);
+      firePointerUp(el, 100, 100, { ctrlKey: true } as any);
+
+      expect(onClick).toHaveBeenCalledOnce();
+      const ev = onClick.mock.calls[0][0] as PointerEvent;
+      expect(ev.ctrlKey).toBe(true);
+    });
+
+    it('does NOT fire onClick when drag threshold is exceeded', () => {
+      const onClick = vi.fn();
+      const { el } = setup({ onClick, threshold: 5 });
+
+      firePointerDown(el, 100, 100);
+      firePointerMove(el, 120, 100); // well past threshold
+      firePointerUp(el, 120, 100);
+
+      expect(onClick).not.toHaveBeenCalled();
+    });
+
+    it('fires onClick on zero-movement click', () => {
+      const onClick = vi.fn();
+      const { el } = setup({ onClick, threshold: 5 });
+
+      firePointerDown(el, 100, 100);
+      firePointerUp(el, 100, 100);
+
+      expect(onClick).toHaveBeenCalledOnce();
+    });
+
+    it('does not fire onClick on cancel', () => {
+      const onClick = vi.fn();
+      const { el } = setup({ onClick, threshold: 100 });
+
+      firePointerDown(el, 100, 100);
+      firePointerCancel(el);
+
+      expect(onClick).not.toHaveBeenCalled();
+    });
+
+    it('does not fire onClick on Escape during tracking', () => {
+      const onClick = vi.fn();
+      const { el } = setup({ onClick, threshold: 100 });
+
+      firePointerDown(el, 100, 100);
+      fireEscapeKey();
+
+      expect(onClick).not.toHaveBeenCalled();
+    });
+  });
 });

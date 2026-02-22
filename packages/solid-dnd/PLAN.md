@@ -6,8 +6,10 @@
 
 1. **Primitives first** — Every feature is a SolidJS primitive (`createXxx`) that works independently
 2. **Compose, don't configure** — Complex behavior emerges from combining simple primitives, not from giant config objects
-3. **Test before integrate** — Each primitive gets thorough unit tests before being composed into components
-4. **Incremental playground** — Every milestone adds a working demo to the playground
+3. **Flat composition** — Primitives are freely combinable at the same level, not nested inside wrapper primitives. Consumers compose them directly in their component.
+4. **Utilities for glue** — Common patterns (reorder logic, click-vs-drag) live as small utilities or callbacks inside existing primitives, not as separate orchestration layers
+5. **Test before integrate** — Each primitive gets thorough unit tests before being composed into components
+6. **Incremental playground** — Every milestone adds a working demo to the playground
 
 ---
 

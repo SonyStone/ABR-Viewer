@@ -59,5 +59,29 @@ export type Rect = Readonly<{ x: number; y: number; width: number; height: numbe
 
 export const Rect = {
   Zero: { x: 0, y: 0, width: 0, height: 0 } as Rect,
-  of: (x: number, y: number, width: number, height: number): Rect => ({ x, y, width, height })
+  of: (x: number, y: number, width: number, height: number): Rect => ({ x, y, width, height }),
+  /** Create a Rect from an element's bounding client rect. */
+  fromElement: (el: Element): Rect => {
+    const r = el.getBoundingClientRect();
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  }
+} as const;
+
+// ============================================================================
+// MARK: Place Utilities
+// ============================================================================
+
+export const Place = {
+  /**
+   * Human-readable label for a Place, useful for debugging and display.
+   *
+   * @example
+   *   Place.label({ parent: 'list', before: 'b' }) // 'before "b"'
+   *   Place.label({ parent: 'list', before: null }) // 'append'
+   *   Place.label(undefined)                        // 'none'
+   */
+  label: <K>(place: Place<K> | undefined): string => {
+    if (!place) return 'none';
+    return place.before !== null ? `before "${place.before}"` : 'append';
+  }
 } as const;

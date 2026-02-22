@@ -1,5 +1,14 @@
-import type { Place, Rect } from 'solid-dnd';
-import { createDragSensor, createFlip, createSelection, createSortable, RectUtils } from 'solid-dnd';
+import { createBodyCursor } from '@solid-primitives/cursor';
+import { throttle } from '@solid-primitives/scheduled';
+import {
+  createDragSensor,
+  createFlip,
+  createSelection,
+  createSortable,
+  Place,
+  RectUtils,
+  reorderItems
+} from 'solid-dnd';
 import { createSignal, For, Show, type JSX } from 'solid-js';
 import EventLog, { createEventLogger } from '../components/EventLog';
 import { createDemoItems, type DemoItem } from '../data';
@@ -15,10 +24,9 @@ export default function ListDemo(): JSX.Element {
   const [items, setItems] = createSignal(createDemoItems());
 
   // ── Drag state ──────────────────────────────────────────────────────────
-  const [draggedId, setDraggedId] = createSignal<string | null>(null);
   const [draggedIds, setDraggedIds] = createSignal<string[]>([]);
   const [dropPlace, setDropPlace] = createSignal<Place<string> | undefined>();
-  let didDrag = false;
+  let pendingDragId: string | null = null;
 
   // ── Element refs ────────────────────────────────────────────────────────
   const itemRefs = new Map<string, HTMLDivElement>();
@@ -38,38 +46,37 @@ export default function ListDemo(): JSX.Element {
     }
   });
 
-  // ── Helpers ─────────────────────────────────────────────────────────────
-  function domRect(el: HTMLElement): Rect {
-    const r = el.getBoundingClientRect();
-    return RectUtils.of(r.x, r.y, r.width, r.height);
-  }
-
-  function placeLabel(place: Place<string> | undefined): string {
-    if (!place) return 'none';
-    return place.before !== null ? `before "${place.before}"` : 'append';
-  }
-
   // ── Sortable primitive ──────────────────────────────────────────────────
   const sortable = createSortable<string>({
     containerKey: 'list',
     items: () => items().map((i) => i.id),
     getRect: (key) => {
       const el = itemRefs.get(key);
-      return el ? domRect(el) : undefined;
+      return el ? RectUtils.fromElement(el) : undefined;
     },
-    getContainerRect: () => (containerRef ? domRect(containerRef) : undefined)
+    getContainerRect: () => (containerRef ? RectUtils.fromElement(containerRef) : undefined)
   });
 
   // ── FLIP animation primitive ────────────────────────────────────────────
-  const flipOpts = { elements: itemRefs as Map<string, HTMLElement>, duration: animDuration() };
-  const flip = createFlip(flipOpts);
+  const flip = createFlip({ elements: itemRefs as Map<string, HTMLElement> });
+
+  // ── Throttled drop-place update (~60fps) ─────────────────────────────────
+  const throttledSetDropPlace = throttle((pos: { x: number; y: number }) => {
+    setDropPlace(sortable.getInsertionPoint(pos));
+  }, 16);
 
   // ── Drag sensor ─────────────────────────────────────────────────────────
   const sensor = createDragSensor({
     threshold: 5,
+    onClick: (ev) => {
+      // Threshold not exceeded — this was a click, delegate to selection
+      if (pendingDragId) {
+        selection.handleClick(pendingDragId, ev);
+        pendingDragId = null;
+      }
+    },
     onDragStart: (e) => {
-      didDrag = true;
-      const id = draggedId();
+      const id = pendingDragId;
       // If dragging a selected item, drag the whole selection; otherwise just the one
       const ids = id && selection.isSelected(id) ? selection.selected() : id ? [id] : [];
       setDraggedIds(ids);
@@ -78,91 +85,48 @@ export default function ListDemo(): JSX.Element {
       setDropPlace(sortable.getInsertionPoint(e.position));
     },
     onDragMove: (e) => {
-      const place = sortable.getInsertionPoint(e.position);
-      setDropPlace(place);
+      throttledSetDropPlace(e.position);
     },
     onDragEnd: () => {
+      throttledSetDropPlace.clear();
       const place = dropPlace();
       const ids = draggedIds();
       if (place && ids.length > 0) {
-        // FLIP: capture positions before DOM change
+        const doReorder = () => setItems((prev) => reorderItems(prev, ids, place, (i) => i.id));
         if (animEnabled()) {
-          flipOpts.duration = animDuration();
-          flip.captureFirst();
+          flip.animate(doReorder, { duration: animDuration() });
+        } else {
+          doReorder();
         }
-        reorderItems(ids, place);
-        // FLIP: animate from old positions to new positions
-        if (animEnabled()) flip.playFromFirst();
         const label = ids.length > 1 ? `[${ids.join(', ')}]` : `id="${ids[0]}"`;
-        logger.addLog(`■ DROP  ${label} → ${placeLabel(place)}`);
+        logger.addLog(`■ DROP  ${label} → ${Place.label(place)}`);
       }
-      setDraggedId(null);
+      pendingDragId = null;
       setDraggedIds([]);
       setDropPlace(undefined);
     },
     onDragCancel: () => {
-      logger.addLog(`✕ CANCEL  id="${draggedId()}"`);
-      setDraggedId(null);
+      logger.addLog(`✕ CANCEL`);
+      throttledSetDropPlace.clear();
+      pendingDragId = null;
       setDraggedIds([]);
       setDropPlace(undefined);
     }
   });
 
+  // ── Reactive cursor: grabbing while dragging ────────────────────────────
+  createBodyCursor(() => (sensor.isDragging() ? 'grabbing' : null));
+
   // ── Per-item pointer down ───────────────────────────────────────────────
   function handleItemPointerDown(id: string, ev: PointerEvent) {
-    didDrag = false;
-    setDraggedId(id);
+    pendingDragId = id;
     sensor.onPointerDown(ev);
-  }
-
-  // ── Per-item click (fires after pointerUp if not dragged) ──────────────
-  function handleItemClick(id: string, ev: PointerEvent) {
-    // If sensor is still dragging or a drag just completed, skip selection
-    if (sensor.isDragging() || didDrag) return;
-    selection.handleClick(id, ev);
-  }
-
-  // ── Reorder logic (supports moving multiple items as a group) ──────────
-  function reorderItems(movedIds: string[], place: Place<string>) {
-    setItems((prev) => {
-      const movedSet = new Set(movedIds);
-      // Preserve the original order of moved items
-      const moved = prev.filter((i) => movedSet.has(i.id));
-      if (moved.length === 0) return prev;
-
-      const without = prev.filter((i) => !movedSet.has(i.id));
-
-      if (place.before === null) {
-        return [...without, ...moved];
-      }
-
-      const idx = without.findIndex((i) => i.id === place.before);
-      if (idx === -1) return [...without, ...moved];
-
-      return [...without.slice(0, idx), ...moved, ...without.slice(idx)];
-    });
   }
 
   // ── Drop indicator Y position (relative to container) ─────────────────
   function indicatorY(): number | undefined {
-    const place = dropPlace();
-    if (!place || !containerRef || !sensor.isDragging()) return undefined;
-
-    const containerTop = containerRef.getBoundingClientRect().y;
-
-    if (place.before !== null) {
-      const el = itemRefs.get(place.before);
-      if (!el) return undefined;
-      return el.getBoundingClientRect().y - containerTop;
-    }
-
-    // Append: bottom of last item
-    const all = items();
-    if (all.length === 0) return 0;
-    const lastEl = itemRefs.get(all[all.length - 1].id);
-    if (!lastEl) return undefined;
-    const r = lastEl.getBoundingClientRect();
-    return r.y + r.height - containerTop;
+    if (!sensor.isDragging()) return undefined;
+    return sortable.getIndicatorOffset(dropPlace());
   }
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -202,7 +166,6 @@ export default function ListDemo(): JSX.Element {
               isDragging={sensor.isDragging()}
               isSelected={selection.isSelected(item.id)}
               onPointerDown={(ev) => handleItemPointerDown(item.id, ev)}
-              onPointerUp={(ev) => handleItemClick(item.id, ev)}
               ref={(el) => itemRefs.set(item.id, el)}
             />
           )}
@@ -220,8 +183,12 @@ export default function ListDemo(): JSX.Element {
       {/* ── State readout ─────────────────────────────────────────── */}
       <div class="grid grid-cols-4 gap-3">
         <StateCard label="isDragging" value={sensor.isDragging() ? 'true' : 'false'} active={sensor.isDragging()} />
-        <StateCard label="draggedId" value={draggedId() ?? 'none'} active={!!draggedId()} />
-        <StateCard label="dropPlace" value={placeLabel(dropPlace())} active={dropPlace() !== undefined} />
+        <StateCard
+          label="dragging"
+          value={draggedIds().length > 0 ? draggedIds().join(', ') : 'none'}
+          active={draggedIds().length > 0}
+        />
+        <StateCard label="dropPlace" value={Place.label(dropPlace())} active={dropPlace() !== undefined} />
         <StateCard
           label="selected"
           value={selection.selected().length > 0 ? `${selection.selected().length} items` : 'none'}
@@ -245,11 +212,10 @@ function ListItem(props: {
   isDragging: boolean;
   isSelected: boolean;
   onPointerDown: (ev: PointerEvent) => void;
-  onPointerUp: (ev: PointerEvent) => void;
   ref: (el: HTMLDivElement) => void;
 }): JSX.Element {
   const baseClass =
-    'flex cursor-grab touch-none items-center gap-3 rounded-lg border px-4 py-3 transition-all select-none active:cursor-grabbing';
+    'flex cursor-grab touch-none items-center gap-3 rounded-lg border px-4 py-3 transition-all select-none';
 
   const stateClass = () => {
     if (props.isDragged && props.isDragging) {
@@ -262,12 +228,7 @@ function ListItem(props: {
   };
 
   return (
-    <div
-      ref={props.ref}
-      onPointerDown={props.onPointerDown}
-      onPointerUp={props.onPointerUp}
-      class={`${baseClass} ${stateClass()}`}
-    >
+    <div ref={props.ref} onPointerDown={props.onPointerDown} class={`${baseClass} ${stateClass()}`}>
       {/* Selection check / Drag handle */}
       <Show
         when={props.isSelected}

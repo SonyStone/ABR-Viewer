@@ -3,12 +3,15 @@
 // ============================================================================
 
 // Core types
-export { Rect as RectUtils, Vec2 as Vec2Utils, createItemId } from './core/types';
-export type { GridConfig, ItemId, LayoutMode, Place, Rect, Vec2 } from './core/types';
+export { Place, Rect as RectUtils, Vec2 as Vec2Utils, createItemId } from './core/types';
+export type { GridConfig, ItemId, LayoutMode, Rect, Vec2 } from './core/types';
 
-// Primitives
+// Core utilities
+export { reorderItems } from './core/reorder';
 export { applyRange, applySet, applyToggle, getSelectionMode } from './core/selectionModes';
 export type { SelectionMode } from './core/selectionModes';
+
+// Primitives
 export { createDragSensor } from './primitives/createDragSensor';
 export type {
   DragEndEvent,

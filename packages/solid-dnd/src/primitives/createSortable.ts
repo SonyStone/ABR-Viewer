@@ -39,6 +39,16 @@ export type Sortable<K> = {
    */
   getInsertionPoint: (position: Vec2) => Place<K> | undefined;
   /**
+   * Returns the Y offset (relative to the container's top) where a drop
+   * indicator should be drawn for the given insertion `place`.
+   *
+   * - `before: key` → top edge of that item's rect, relative to container.
+   * - `before: null` (append) → bottom edge of the last item, relative to container.
+   * - Returns `undefined` if the place is undefined, the container has no rect,
+   *   or the referenced item has no rect.
+   */
+  getIndicatorOffset: (place: Place<K> | undefined) => number | undefined;
+  /**
    * All valid insertion points for the current item list.
    * For N items, returns N+1 places: before each item + append at end.
    * Useful for rendering drop indicators at every possible position.
@@ -150,8 +160,31 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
     return { parent: containerKey, before: null };
   }
 
+  // ── Indicator offset for a given place ─────────────────────────────────
+  function getIndicatorOffset(place: Place<K> | undefined): number | undefined {
+    if (!place) return undefined;
+
+    const containerRect = options.getContainerRect();
+    if (!containerRect) return undefined;
+
+    if (place.before !== null) {
+      const rect = options.getRect(place.before);
+      if (!rect) return undefined;
+      return rect.y - containerRect.y;
+    }
+
+    // Append: bottom edge of last item
+    const keys = options.items();
+    if (keys.length === 0) return 0;
+
+    const lastRect = options.getRect(keys[keys.length - 1]);
+    if (!lastRect) return undefined;
+    return lastRect.y + lastRect.height - containerRect.y;
+  }
+
   return {
     getInsertionPoint,
+    getIndicatorOffset,
     insertionPoints
   };
 }

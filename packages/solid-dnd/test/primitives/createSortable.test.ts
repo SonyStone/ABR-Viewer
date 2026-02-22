@@ -2,6 +2,7 @@ import { createRoot } from 'solid-js';
 import { Rect, Vec2 } from 'src/core/types';
 import { createSortable, type Sortable, type SortableOptions } from 'src/primitives/createSortable';
 import { describe, expect, it } from 'vitest';
+import type { Place } from 'src/core/types';
 
 // ============================================================================
 // MARK: Test Helpers
@@ -486,6 +487,76 @@ describe('createSortable', () => {
         (s) => {
           const place = s.getInsertionPoint(Vec2.of(100, 10));
           expect(place).toEqual({ parent: 0, before: 1 });
+        }
+      );
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────────
+  describe('getIndicatorOffset', () => {
+    it('returns top of target item for "before" place', () => {
+      const { options } = standardSetup();
+      // Item B is at y=60, container at y=10 → offset = 50
+      withSortable(options, (s) => {
+        const offset = s.getIndicatorOffset({ parent: 'container', before: 'b' });
+        expect(offset).toBe(50);
+      });
+    });
+
+    it('returns top of first item for "before A"', () => {
+      const { options } = standardSetup();
+      // Item A is at y=10, container at y=10 → offset = 0
+      withSortable(options, (s) => {
+        const offset = s.getIndicatorOffset({ parent: 'container', before: 'a' });
+        expect(offset).toBe(0);
+      });
+    });
+
+    it('returns bottom of last item for "append"', () => {
+      const { options } = standardSetup();
+      // Item C: y=110 + height=40 = 150, container at y=10 → offset = 140
+      withSortable(options, (s) => {
+        const offset = s.getIndicatorOffset({ parent: 'container', before: null });
+        expect(offset).toBe(140);
+      });
+    });
+
+    it('returns undefined for undefined place', () => {
+      const { options } = standardSetup();
+      withSortable(options, (s) => {
+        expect(s.getIndicatorOffset(undefined)).toBeUndefined();
+      });
+    });
+
+    it('returns undefined when container rect is unavailable', () => {
+      const { options } = standardSetup();
+      const opts = { ...options, getContainerRect: () => undefined };
+      withSortable(opts, (s) => {
+        const offset = s.getIndicatorOffset({ parent: 'container', before: 'a' });
+        expect(offset).toBeUndefined();
+      });
+    });
+
+    it('returns undefined when target item rect is unavailable', () => {
+      const { options } = standardSetup();
+      withSortable(options, (s) => {
+        const offset = s.getIndicatorOffset({ parent: 'container', before: 'nonexistent' as string });
+        expect(offset).toBeUndefined();
+      });
+    });
+
+    it('returns 0 for append on empty list', () => {
+      const containerRect = Rect.of(10, 10, 200, 150);
+      withSortable(
+        {
+          containerKey: 'container',
+          items: () => [] as string[],
+          getRect: () => undefined,
+          getContainerRect: () => containerRect
+        },
+        (s) => {
+          const offset = s.getIndicatorOffset({ parent: 'container', before: null });
+          expect(offset).toBe(0);
         }
       );
     });

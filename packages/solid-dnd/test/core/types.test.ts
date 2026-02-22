@@ -1,5 +1,5 @@
-import { createItemId, Rect, Vec2 } from 'src/core/types';
-import { describe, expect, it } from 'vitest';
+import { createItemId, Place, Rect, Vec2 } from 'src/core/types';
+import { describe, expect, it, vi } from 'vitest';
 
 describe('core types', () => {
   describe('ItemId', () => {
@@ -30,6 +30,37 @@ describe('core types', () => {
     it('creates a rect with of()', () => {
       const r = Rect.of(5, 10, 100, 50);
       expect(r).toEqual({ x: 5, y: 10, width: 100, height: 50 });
+    });
+
+    it('creates a rect from an element with fromElement()', () => {
+      const el = document.createElement('div');
+      vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
+        x: 20,
+        y: 30,
+        width: 150,
+        height: 80,
+        top: 30,
+        left: 20,
+        right: 170,
+        bottom: 110,
+        toJSON: () => {}
+      });
+      const r = Rect.fromElement(el);
+      expect(r).toEqual({ x: 20, y: 30, width: 150, height: 80 });
+    });
+  });
+
+  describe('Place', () => {
+    it('labels a "before" place', () => {
+      expect(Place.label({ parent: 'list', before: 'b' })).toBe('before "b"');
+    });
+
+    it('labels an "append" place', () => {
+      expect(Place.label({ parent: 'list', before: null })).toBe('append');
+    });
+
+    it('labels undefined as "none"', () => {
+      expect(Place.label(undefined)).toBe('none');
     });
   });
 });

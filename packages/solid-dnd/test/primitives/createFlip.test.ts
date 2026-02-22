@@ -425,4 +425,92 @@ describe('createFlip', () => {
       });
     });
   });
+
+  // ────────────────────────────────────────────────────────────────────────
+  describe('animate() convenience method', () => {
+    it('captures, runs fn, and plays animation', () => {
+      withRoot(() => {
+        const elA = createMockElement({ x: 0, y: 0, width: 200, height: 40 });
+        const elB = createMockElement({ x: 0, y: 50, width: 200, height: 40 });
+        const elements = new Map<string, HTMLElement>([
+          ['a', elA],
+          ['b', elB]
+        ]);
+        const flip = createFlip({ elements });
+
+        let fnCalled = false;
+        flip.animate(() => {
+          fnCalled = true;
+          // Simulate DOM reorder: swap A and B
+          elA._setRect({ x: 0, y: 50, width: 200, height: 40 });
+          elB._setRect({ x: 0, y: 0, width: 200, height: 40 });
+        });
+
+        expect(fnCalled).toBe(true);
+        expect(elA.animate).toHaveBeenCalledOnce();
+        expect(elB.animate).toHaveBeenCalledOnce();
+      });
+    });
+
+    it('applies per-call duration override', () => {
+      withRoot(() => {
+        const elA = createMockElement({ x: 0, y: 0, width: 200, height: 40 });
+        const elements = new Map<string, HTMLElement>([['a', elA]]);
+        const flip = createFlip({ elements, duration: 200 });
+
+        flip.animate(
+          () => {
+            elA._setRect({ x: 0, y: 50, width: 200, height: 40 });
+          },
+          { duration: 500 }
+        );
+
+        const [, options] = (elA.animate as ReturnType<typeof vi.fn>).mock.calls[0];
+        expect(options.duration).toBe(500);
+      });
+    });
+
+    it('restores original duration after per-call override', () => {
+      withRoot(() => {
+        const elA = createMockElement({ x: 0, y: 0, width: 200, height: 40 });
+        const elements = new Map<string, HTMLElement>([['a', elA]]);
+        const flip = createFlip({ elements, duration: 200 });
+
+        // First call with override
+        flip.animate(
+          () => {
+            elA._setRect({ x: 0, y: 50, width: 200, height: 40 });
+          },
+          { duration: 500 }
+        );
+
+        // Reset for second call
+        (elA.animate as ReturnType<typeof vi.fn>).mockClear();
+        elA._setRect({ x: 0, y: 0, width: 200, height: 40 });
+
+        // Second call without override — should use original 200
+        flip.animate(() => {
+          elA._setRect({ x: 0, y: 50, width: 200, height: 40 });
+        });
+
+        const [, options] = (elA.animate as ReturnType<typeof vi.fn>).mock.calls[0];
+        expect(options.duration).toBe(200);
+      });
+    });
+
+    it('is a no-op when fn causes no movement', () => {
+      withRoot(() => {
+        const elA = createMockElement({ x: 0, y: 0, width: 200, height: 40 });
+        const elements = new Map<string, HTMLElement>([['a', elA]]);
+        const flip = createFlip({ elements });
+
+        flip.animate(() => {
+          // No rect change
+        });
+
+        expect(elA.animate).not.toHaveBeenCalled();
+        expect(flip.isAnimating()).toBe(false);
+      });
+    });
+  });
 });
