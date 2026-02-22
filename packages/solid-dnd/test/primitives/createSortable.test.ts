@@ -1,8 +1,8 @@
 import { createRoot } from 'solid-js';
-import { Rect, Vec2 } from 'src/core/types';
+import * as Rect from 'src/core/rect';
+import * as Vec2 from 'src/core/vec2';
 import { createSortable, type Sortable, type SortableOptions } from 'src/primitives/createSortable';
 import { describe, expect, it } from 'vitest';
-import type { Place } from 'src/core/types';
 
 // ============================================================================
 // MARK: Test Helpers

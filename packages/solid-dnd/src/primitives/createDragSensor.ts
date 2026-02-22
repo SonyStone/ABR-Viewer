@@ -1,6 +1,6 @@
 import { makeEventListener } from '@solid-primitives/event-listener';
 import { type Accessor, createSignal, onCleanup } from 'solid-js';
-import { Vec2 } from '../core/types';
+import { type Vec2, of as vec2, Zero as Vec2Zero } from '../core/vec2';
 
 // ============================================================================
 // MARK: Types
@@ -114,7 +114,7 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
   // ── Internal mutable state (not reactive — perf-critical) ─────────────
   let tracking = false; // pointerdown received, waiting for threshold
   let dragging = false; // threshold exceeded, actively dragging
-  let origin: Vec2 = Vec2.Zero; // position at pointerdown
+  let origin: Vec2 = Vec2Zero; // position at pointerdown
   let capturedElement: HTMLElement | null = null;
   let capturedPointerId: number | null = null;
   let startPointerEvent: PointerEvent | null = null;
@@ -157,7 +157,7 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
     capturedPointerId = ev.pointerId;
 
     // Record the starting position
-    origin = Vec2.of(ev.clientX, ev.clientY);
+    origin = vec2(ev.clientX, ev.clientY);
     tracking = true;
     startPointerEvent = ev;
     setPointerType(ev.pointerType);
@@ -172,7 +172,7 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
   function onPointerMove(ev: PointerEvent): void {
     if (!ev.isPrimary) return;
 
-    const pos = Vec2.of(ev.clientX, ev.clientY);
+    const pos = vec2(ev.clientX, ev.clientY);
 
     if (tracking && !dragging) {
       // Still in threshold detection phase
@@ -187,7 +187,7 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
       tracking = false;
       dragging = true;
 
-      const d = Vec2.of(pos.x - origin.x, pos.y - origin.y);
+      const d = vec2(pos.x - origin.x, pos.y - origin.y);
       setIsDragging(true);
       setPosition(pos);
       setDelta(d);
@@ -201,7 +201,7 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
     }
 
     if (dragging) {
-      const d = Vec2.of(pos.x - origin.x, pos.y - origin.y);
+      const d = vec2(pos.x - origin.x, pos.y - origin.y);
       setPosition(pos);
       setDelta(d);
 
@@ -216,8 +216,8 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
     if (!ev.isPrimary) return;
 
     if (dragging) {
-      const pos = Vec2.of(ev.clientX, ev.clientY);
-      const d = Vec2.of(pos.x - origin.x, pos.y - origin.y);
+      const pos = vec2(ev.clientX, ev.clientY);
+      const d = vec2(pos.x - origin.x, pos.y - origin.y);
 
       options.onDragEnd?.({
         position: pos,
@@ -287,7 +287,7 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
   function resetState(): void {
     tracking = false;
     dragging = false;
-    origin = Vec2.Zero;
+    origin = Vec2Zero;
     capturedElement = null;
     capturedPointerId = null;
     startPointerEvent = null;

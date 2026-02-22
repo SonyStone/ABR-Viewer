@@ -1,4 +1,7 @@
-import { createItemId, Place, Rect, Vec2 } from 'src/core/types';
+import * as Place from 'src/core/place';
+import * as Rect from 'src/core/rect';
+import { createItemId } from 'src/core/types';
+import * as Vec2 from 'src/core/vec2';
 import { describe, expect, it, vi } from 'vitest';
 
 describe('core types', () => {
@@ -47,6 +50,11 @@ describe('core types', () => {
       });
       const r = Rect.fromElement(el);
       expect(r).toEqual({ x: 20, y: 30, width: 150, height: 80 });
+    });
+
+    it('returns undefined from fromElement() when no element is provided', () => {
+      expect(Rect.fromElement(undefined)).toBeUndefined();
+      expect(Rect.fromElement()).toBeUndefined();
     });
   });
 

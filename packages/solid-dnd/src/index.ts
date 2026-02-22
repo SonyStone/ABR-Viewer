@@ -3,8 +3,15 @@
 // ============================================================================
 
 // Core types
-export { Place, Rect as RectUtils, Vec2 as Vec2Utils, createItemId } from './core/types';
-export type { GridConfig, ItemId, LayoutMode, Rect, Vec2 } from './core/types';
+export { createItemId } from './core/types';
+export type { GridConfig, ItemId, LayoutMode } from './core/types';
+
+// Core geometry & place modules
+// Use as namespace: Rect.of(), Place.label()
+// Use as type:      Rect.Rect, Place.Place<K>, Vec2.Vec2
+export * as Place from './core/place';
+export * as Rect from './core/rect';
+export * as Vec2 from './core/vec2';
 
 // Core utilities
 export { reorderItems } from './core/reorder';

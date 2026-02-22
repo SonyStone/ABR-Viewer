@@ -157,6 +157,12 @@ type UserData = {
 };
 ```
 
+### Type + Utility Module Pattern
+
+**When a type has associated utility functions, create a dedicated module file — not a const object.**
+
+Benefits: function overloads, tree-shaking, clean `import * as X` usage.
+
 ## Component Patterns
 
 ### Props Types

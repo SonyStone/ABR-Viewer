@@ -1,5 +1,7 @@
 import { type Accessor, createMemo } from 'solid-js';
-import type { Place, Rect, Vec2 } from '../core/types';
+import type { Place } from '../core/place';
+import type { Rect } from '../core/rect';
+import type { Vec2 } from '../core/vec2';
 
 // ============================================================================
 // MARK: Types

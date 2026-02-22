@@ -1,5 +1,4 @@
-import type { Vec2 } from 'solid-dnd';
-import { createDragSensor } from 'solid-dnd';
+import { createDragSensor, Vec2 } from 'solid-dnd';
 import { Show, type JSX } from 'solid-js';
 import EventLog, { createEventLogger } from '../components/EventLog';
 
@@ -97,7 +96,7 @@ function StateCard(props: { label: string; value: string; active?: boolean }): J
   );
 }
 
-function DebugOverlay(props: { position: Vec2 | null; isDragging: boolean }): JSX.Element {
+function DebugOverlay(props: { position: Vec2.Vec2 | null; isDragging: boolean }): JSX.Element {
   return (
     <Show when={props.isDragging && props.position}>
       {(pos) => (

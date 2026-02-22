@@ -1,15 +1,7 @@
 import { createBodyCursor } from '@solid-primitives/cursor';
 import { throttle } from '@solid-primitives/scheduled';
-import {
-  createDragSensor,
-  createFlip,
-  createSelection,
-  createSortable,
-  Place,
-  RectUtils,
-  reorderItems
-} from 'solid-dnd';
-import { createSignal, For, Show, type JSX } from 'solid-js';
+import { createDragSensor, createFlip, createSelection, createSortable, Place, Rect, reorderItems } from 'solid-dnd';
+import { createMemo, createSignal, For, Show, type JSX } from 'solid-js';
 import EventLog, { createEventLogger } from '../components/EventLog';
 import { createDemoItems, type DemoItem } from '../data';
 
@@ -22,10 +14,11 @@ export default function ListDemo(): JSX.Element {
 
   // ── Item state ──────────────────────────────────────────────────────────
   const [items, setItems] = createSignal(createDemoItems());
+  const itemKeys = createMemo(() => items().map((i) => i.id));
 
   // ── Drag state ──────────────────────────────────────────────────────────
   const [draggedIds, setDraggedIds] = createSignal<string[]>([]);
-  const [dropPlace, setDropPlace] = createSignal<Place<string> | undefined>();
+  const [dropPlace, setDropPlace] = createSignal<Place.Place<string> | undefined>();
   let pendingDragId: string | null = null;
 
   // ── Element refs ────────────────────────────────────────────────────────
@@ -38,10 +31,10 @@ export default function ListDemo(): JSX.Element {
 
   // ── Selection ───────────────────────────────────────────────────────────
   const selection = createSelection<string>({
-    items: () => items().map((i) => i.id),
+    items: itemKeys,
     onSelectionChange: (keys) => {
       if (keys.length > 0) {
-        logger.addLog(`☑ SELECT  [${keys.join(', ')}]`);
+        logger.addLog(LOGS.SELECT(keys));
       }
     }
   });
@@ -49,12 +42,9 @@ export default function ListDemo(): JSX.Element {
   // ── Sortable primitive ──────────────────────────────────────────────────
   const sortable = createSortable<string>({
     containerKey: 'list',
-    items: () => items().map((i) => i.id),
-    getRect: (key) => {
-      const el = itemRefs.get(key);
-      return el ? RectUtils.fromElement(el) : undefined;
-    },
-    getContainerRect: () => (containerRef ? RectUtils.fromElement(containerRef) : undefined)
+    items: itemKeys,
+    getRect: (key) => Rect.fromElement(itemRefs.get(key)),
+    getContainerRect: () => Rect.fromElement(containerRef)
   });
 
   // ── FLIP animation primitive ────────────────────────────────────────────
@@ -64,6 +54,14 @@ export default function ListDemo(): JSX.Element {
   const throttledSetDropPlace = throttle((pos: { x: number; y: number }) => {
     setDropPlace(sortable.getInsertionPoint(pos));
   }, 16);
+
+  // ── Shared cleanup ──────────────────────────────────────────────────────
+  function resetDragState() {
+    throttledSetDropPlace.clear();
+    pendingDragId = null;
+    setDraggedIds([]);
+    setDropPlace(undefined);
+  }
 
   // ── Drag sensor ─────────────────────────────────────────────────────────
   const sensor = createDragSensor({
@@ -80,15 +78,14 @@ export default function ListDemo(): JSX.Element {
       // If dragging a selected item, drag the whole selection; otherwise just the one
       const ids = id && selection.isSelected(id) ? selection.selected() : id ? [id] : [];
       setDraggedIds(ids);
-      const label = ids.length > 1 ? `[${ids.join(', ')}]` : `id="${id}"`;
-      logger.addLog(`▶ DRAG  ${label} at (${e.position.x.toFixed(0)}, ${e.position.y.toFixed(0)})`);
+
+      logger.addLog(LOGS.DRAG(ids, id, e));
       setDropPlace(sortable.getInsertionPoint(e.position));
     },
     onDragMove: (e) => {
       throttledSetDropPlace(e.position);
     },
     onDragEnd: () => {
-      throttledSetDropPlace.clear();
       const place = dropPlace();
       const ids = draggedIds();
       if (place && ids.length > 0) {
@@ -98,19 +95,13 @@ export default function ListDemo(): JSX.Element {
         } else {
           doReorder();
         }
-        const label = ids.length > 1 ? `[${ids.join(', ')}]` : `id="${ids[0]}"`;
-        logger.addLog(`■ DROP  ${label} → ${Place.label(place)}`);
+        logger.addLog(LOGS.DROP(ids, place));
       }
-      pendingDragId = null;
-      setDraggedIds([]);
-      setDropPlace(undefined);
+      resetDragState();
     },
     onDragCancel: () => {
-      logger.addLog(`✕ CANCEL`);
-      throttledSetDropPlace.clear();
-      pendingDragId = null;
-      setDraggedIds([]);
-      setDropPlace(undefined);
+      logger.addLog(LOGS.CANCEL());
+      resetDragState();
     }
   });
 
@@ -392,3 +383,18 @@ function AnimationControls(props: {
     </div>
   );
 }
+
+// MARK: Utils
+
+const LOGS = {
+  SELECT: (ids: string[]) => `☑ SELECT  [${ids.join(', ')}]`,
+  DRAG: (ids: string[], id: string | null = '', e: { position: { x: number; y: number } }) => {
+    const label = ids.length > 1 ? `[${ids.join(', ')}]` : `id="${id}"`;
+    return `▶ DRAG  ${label} at (${e.position.x.toFixed(0)}, ${e.position.y.toFixed(0)})`;
+  },
+  DROP: (ids: string[], place: Place.Place<string> | undefined) => {
+    const label = ids.length > 1 ? `[${ids.join(', ')}]` : `id="${ids[0]}"`;
+    return `■ DROP  ${label} → ${Place.label(place)}`;
+  },
+  CANCEL: () => `✕ CANCEL`
+};
