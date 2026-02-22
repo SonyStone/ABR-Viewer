@@ -123,6 +123,7 @@ export default function NestedOverlayDemo(): JSX.Element {
   // ── Drag sensor ─────────────────────────────────────────────────────────
   const sensor = createDragSensor({
     threshold: 5,
+    proxyCapture: true,
     onClick: () => {
       pendingDragId = null;
     },
@@ -210,7 +211,6 @@ export default function NestedOverlayDemo(): JSX.Element {
                   node={node}
                   depth={props.depth}
                   isDragged={isDragged()}
-                  draggedClass="!m-0 !h-0 overflow-hidden !border-0 !p-0 opacity-0"
                   onPointerDown={(ev) => handlePointerDown(key, ev)}
                   ref={(el) => itemRefs.set(key, el)}
                 >
@@ -224,7 +224,6 @@ export default function NestedOverlayDemo(): JSX.Element {
                 id={key}
                 node={node}
                 isDragged={isDragged()}
-                draggedClass="border-transparent bg-transparent opacity-0 !h-0 overflow-hidden !py-0 !my-0"
                 onPointerDown={(ev) => handlePointerDown(key, ev)}
                 ref={(el) => itemRefs.set(key, el)}
               />

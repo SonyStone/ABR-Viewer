@@ -36,6 +36,20 @@ export type DragSensorOptions = {
    * @default 8
    */
   threshold?: number;
+  /**
+   * Use a hidden proxy element for pointer capture instead of the source element.
+   *
+   * When enabled, pointer capture is transferred from the source element to an
+   * invisible proxy `<div>` when the drag threshold is exceeded. This allows the
+   * source element to be safely removed from the DOM during drag (e.g., when using
+   * `createDropzone` which removes dragged items from the display list).
+   *
+   * Without this, removing the source element from the DOM causes the browser to
+   * fire `lostpointercapture`, which cancels the drag.
+   *
+   * @default false
+   */
+  proxyCapture?: boolean;
   /** Called when drag starts (threshold exceeded). */
   onDragStart?: (event: DragStartEvent) => void;
   /** Called on every pointer move during an active drag. */
@@ -118,6 +132,7 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
   let capturedElement: HTMLElement | null = null;
   let capturedPointerId: number | null = null;
   let startPointerEvent: PointerEvent | null = null;
+  let proxyElement: HTMLElement | null = null;
 
   // ── Escape key handler ────────────────────────────────────────────────
   // Registered globally — we only act on it when tracking/dragging.
@@ -133,6 +148,10 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
   onCleanup(() => {
     releaseCapture();
     resetState();
+    if (proxyElement) {
+      proxyElement.remove();
+      proxyElement = null;
+    }
   });
 
   // ── Event handlers ────────────────────────────────────────────────────
@@ -186,6 +205,12 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
       // Threshold exceeded — transition to dragging
       tracking = false;
       dragging = true;
+
+      // Transfer pointer capture to an invisible proxy element so the
+      // source element can be safely removed from the DOM during drag.
+      if (options.proxyCapture) {
+        transferToProxy();
+      }
 
       const d = vec2(pos.x - origin.x, pos.y - origin.y);
       setIsDragging(true);
@@ -255,6 +280,61 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────
+
+  /**
+   * Lazily creates a hidden proxy element for pointer capture.
+   * The proxy is a zero-size, invisible div appended to document.body.
+   * It persists for the lifetime of the sensor and is cleaned up on disposal.
+   */
+  function getOrCreateProxy(): HTMLElement {
+    if (!proxyElement && typeof document !== 'undefined') {
+      proxyElement = document.createElement('div');
+      proxyElement.style.cssText =
+        'position:fixed;top:0;left:0;width:0;height:0;opacity:0;overflow:hidden;pointer-events:none;';
+      proxyElement.setAttribute('data-dnd-capture-proxy', '');
+      document.body.appendChild(proxyElement);
+    }
+    return proxyElement!;
+  }
+
+  /**
+   * Transfer pointer capture from the source element to the proxy.
+   *
+   * Steps:
+   * 1. Remove all listeners from the source element
+   * 2. Release capture on the source (safe — no lostpointercapture listener)
+   * 3. Set capture on the proxy element
+   * 4. Bind listeners to the proxy
+   * 5. Update internal state to point at the proxy
+   */
+  function transferToProxy(): void {
+    if (!capturedElement || capturedPointerId === null) return;
+
+    // Remove listeners from source — must happen BEFORE releasing capture
+    // so the lostpointercapture event (fired by releasePointerCapture)
+    // doesn't trigger our onLostCapture handler.
+    cleanupListeners();
+
+    // Release capture on the source element
+    try {
+      capturedElement.releasePointerCapture(capturedPointerId);
+    } catch {
+      // Already released — ignore
+    }
+
+    // Set capture on the proxy
+    const proxy = getOrCreateProxy();
+    proxy.setPointerCapture(capturedPointerId);
+
+    // Bind listeners to the proxy
+    proxy.addEventListener('pointermove', onPointerMove);
+    proxy.addEventListener('pointerup', onPointerUp);
+    proxy.addEventListener('pointercancel', onPointerCancel);
+    proxy.addEventListener('lostpointercapture', onLostCapture);
+
+    // Update internal state
+    capturedElement = proxy;
+  }
 
   function cancelDrag(): void {
     if (dragging) {

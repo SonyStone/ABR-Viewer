@@ -18,20 +18,19 @@ export type GapKey = typeof GAP_KEY;
 /**
  * Compute a display key list from item keys, inserting a gap at the drop position.
  *
- * **Critically, dragged items are kept in the list.** They stay at their original
- * positions so that their DOM nodes persist — this is required for pointer capture
- * to work (the browser cancels pointer capture if the element is removed from DOM).
+ * **Dragged items are removed from the output list.** This is safe when the drag
+ * sensor uses `proxyCapture: true`, which transfers pointer capture to a hidden
+ * proxy element so the source DOM node can be removed without cancelling the drag.
  *
- * The consumer renders dragged items as collapsed (height: 0, opacity: 0) and the
- * FLIP animation handles the layout transition.
+ * A gap sentinel (`GAP_KEY`) is inserted at the current drop position.
  *
  * This is a **pure function** — no reactivity, no side effects.
  *
  * @param keys          Ordered list of item keys in the container.
- * @param draggedKeys   Set of keys currently being dragged.
+ * @param draggedKeys   Set of keys currently being dragged (these are excluded).
  * @param place         Where to insert the gap, or `undefined` for no gap.
  * @param containerKey  The key of this container (to match against `place.parent`).
- * @returns             Array of keys (including dragged) with a gap key inserted.
+ * @returns             Array of non-dragged keys with a gap key inserted.
  *
  * @example
  * ```ts
@@ -41,8 +40,8 @@ export type GapKey = typeof GAP_KEY;
  *   { parent: 'list', before: 'c' },
  *   'list'
  * );
- * // → ['a', 'b', '__dnd_gap__', 'c', 'd']
- * // 'b' stays in the list (render it collapsed), gap inserted before 'c'
+ * // → ['a', '__dnd_gap__', 'c', 'd']
+ * // 'b' is removed from the list, gap inserted before 'c'
  * ```
  */
 export function computeDisplayKeys<K>(
@@ -60,7 +59,9 @@ export function computeDisplayKeys<K>(
       result.push(GAP_KEY);
       gapInserted = true;
     }
-    result.push(key);
+    if (!draggedKeys.has(key)) {
+      result.push(key);
+    }
   }
 
   // Append gap if it wasn't inserted in the loop (before is null or key not found)
@@ -78,8 +79,10 @@ export function computeDisplayKeys<K>(
 /**
  * Compute display key lists for all containers in a tree.
  *
+ * Dragged items are removed from their containers' display lists.
+ *
  * @param tree          Tree structure: containerKey → ordered child keys.
- * @param draggedKeys   Set of keys currently being dragged.
+ * @param draggedKeys   Set of keys currently being dragged (excluded from output).
  * @param place         Where to insert the gap, or `undefined` for no gap.
  * @returns             Map from container key → display keys.
  *
@@ -91,7 +94,7 @@ export function computeDisplayKeys<K>(
  *   new Set(['y']),
  *   { parent: 'groupB', before: 'z' }
  * );
- * // displays['groupA'] → ['x', 'y']          ('y' stays but renders collapsed)
+ * // displays['groupA'] → ['x']               ('y' is removed)
  * // displays['groupB'] → ['__dnd_gap__', 'z']
  * // displays['root']   → ['groupA', 'groupB']
  * ```

@@ -26,6 +26,12 @@ if (typeof globalThis.PointerEvent === 'undefined') {
   (globalThis as any).PointerEvent = MockPointerEvent;
 }
 
+// Polyfill pointer capture methods for JSDOM (needed for proxy element tests)
+if (typeof HTMLElement.prototype.setPointerCapture === 'undefined') {
+  HTMLElement.prototype.setPointerCapture = function () {};
+  HTMLElement.prototype.releasePointerCapture = function () {};
+}
+
 /**
  * Creates a PointerEvent with clientX/clientY set.
  * Adds `currentTarget` via defineProperty since it's read-only.
@@ -582,6 +588,141 @@ describe('createDragSensor', () => {
       fireEscapeKey();
 
       expect(onClick).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Proxy capture ───────────────────────────────────────────────────────
+
+  describe('proxyCapture', () => {
+    afterEach(() => {
+      // Clean up stray proxy elements for test isolation
+      document.querySelectorAll('[data-dnd-capture-proxy]').forEach((el) => el.remove());
+    });
+
+    it('creates a proxy element when drag threshold is exceeded', () => {
+      const onDragStart = vi.fn();
+      const { sensor, el } = setup({ proxyCapture: true, onDragStart, threshold: 5 });
+
+      firePointerDown(el, 100, 100);
+      firePointerMove(el, 120, 100);
+
+      expect(onDragStart).toHaveBeenCalledOnce();
+      expect(sensor.isDragging()).toBe(true);
+
+      const proxy = document.querySelector('[data-dnd-capture-proxy]');
+      expect(proxy).toBeTruthy();
+    });
+
+    it('does not create a proxy when proxyCapture is not enabled', () => {
+      const { el } = setup({ threshold: 5 });
+
+      firePointerDown(el, 100, 100);
+      firePointerMove(el, 120, 100);
+
+      const proxy = document.querySelector('[data-dnd-capture-proxy]');
+      expect(proxy).toBeNull();
+    });
+
+    it('delivers drag move events via the proxy element', () => {
+      const onDragMove = vi.fn();
+      const { el } = setup({ proxyCapture: true, onDragMove, threshold: 5 });
+
+      firePointerDown(el, 100, 100);
+      firePointerMove(el, 120, 100); // threshold → proxy transfer
+
+      const proxy = document.querySelector('[data-dnd-capture-proxy]') as HTMLElement;
+      expect(proxy).toBeTruthy();
+
+      // Events dispatched on the proxy (simulating pointer capture delivery)
+      proxy.dispatchEvent(pointer('pointermove', 150, 160));
+
+      expect(onDragMove).toHaveBeenCalledOnce();
+      expect(onDragMove).toHaveBeenCalledWith(
+        expect.objectContaining({
+          position: { x: 150, y: 160 },
+          delta: { x: 50, y: 60 }
+        })
+      );
+    });
+
+    it('delivers drag end via the proxy element', () => {
+      const onDragEnd = vi.fn();
+      const { sensor, el } = setup({ proxyCapture: true, onDragEnd, threshold: 5 });
+
+      firePointerDown(el, 100, 100);
+      firePointerMove(el, 120, 100);
+
+      const proxy = document.querySelector('[data-dnd-capture-proxy]') as HTMLElement;
+      proxy.dispatchEvent(pointer('pointerup', 130, 140));
+
+      expect(onDragEnd).toHaveBeenCalledOnce();
+      expect(sensor.isDragging()).toBe(false);
+    });
+
+    it('releases capture on source element during transfer', () => {
+      const { el } = setup({ proxyCapture: true, threshold: 5 });
+
+      firePointerDown(el, 100, 100);
+      expect(el.setPointerCapture).toHaveBeenCalledWith(1);
+
+      firePointerMove(el, 120, 100); // triggers transfer
+
+      expect(el.releasePointerCapture).toHaveBeenCalledWith(1);
+    });
+
+    it('cleans up proxy element on disposal', () => {
+      const { el } = setup({ proxyCapture: true, threshold: 5 });
+
+      firePointerDown(el, 100, 100);
+      firePointerMove(el, 120, 100);
+      expect(document.querySelector('[data-dnd-capture-proxy]')).toBeTruthy();
+
+      dispose();
+
+      expect(document.querySelector('[data-dnd-capture-proxy]')).toBeNull();
+    });
+
+    it('cancellation works via Escape key', () => {
+      const onDragCancel = vi.fn();
+      const { sensor, el } = setup({ proxyCapture: true, onDragCancel, threshold: 5 });
+
+      firePointerDown(el, 100, 100);
+      firePointerMove(el, 120, 100);
+      expect(sensor.isDragging()).toBe(true);
+
+      fireEscapeKey();
+
+      expect(onDragCancel).toHaveBeenCalledOnce();
+      expect(sensor.isDragging()).toBe(false);
+    });
+
+    it('allows a new drag after proxy drag ends', () => {
+      const onDragStart = vi.fn();
+      const { el } = setup({ proxyCapture: true, onDragStart, threshold: 5 });
+
+      // First drag
+      firePointerDown(el, 100, 100);
+      firePointerMove(el, 120, 100);
+      expect(onDragStart).toHaveBeenCalledOnce();
+
+      const proxy = document.querySelector('[data-dnd-capture-proxy]') as HTMLElement;
+      proxy.dispatchEvent(pointer('pointerup', 130, 140));
+
+      // Second drag
+      firePointerDown(el, 200, 200);
+      firePointerMove(el, 220, 200);
+      expect(onDragStart).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not create proxy before threshold is exceeded', () => {
+      const { el } = setup({ proxyCapture: true, threshold: 10 });
+
+      firePointerDown(el, 100, 100);
+      // Move below threshold
+      firePointerMove(el, 105, 100);
+
+      const proxy = document.querySelector('[data-dnd-capture-proxy]');
+      expect(proxy).toBeNull();
     });
   });
 });

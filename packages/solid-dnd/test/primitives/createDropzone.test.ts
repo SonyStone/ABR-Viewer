@@ -23,7 +23,7 @@ describe('createDropzone', () => {
     });
   });
 
-  it('keeps dragged items and inserts gap', () => {
+  it('removes dragged items and inserts gap', () => {
     createRoot((dispose) => {
       const dropzone = createDropzone<string>({
         keys: () => ['a', 'b', 'c', 'd'],
@@ -32,8 +32,8 @@ describe('createDropzone', () => {
         containerKey: 'list'
       });
 
-      // 'b' stays in list, gap before 'c'
-      expect(dropzone.displayKeys()).toEqual(['a', 'b', GAP_KEY, 'c', 'd']);
+      // 'b' removed from list, gap before 'c'
+      expect(dropzone.displayKeys()).toEqual(['a', GAP_KEY, 'c', 'd']);
       dispose();
     });
   });
@@ -47,7 +47,7 @@ describe('createDropzone', () => {
         containerKey: 'list'
       });
 
-      expect(dropzone.displayKeys()).toEqual(['a', 'b', 'c', GAP_KEY]);
+      expect(dropzone.displayKeys()).toEqual(['a', 'c', GAP_KEY]);
       dispose();
     });
   });
@@ -86,11 +86,11 @@ describe('createDropzone', () => {
       // Start dragging 'b', place before 'c'
       setDraggedKeys(['b']);
       setPlace({ parent: 'list', before: 'c' });
-      expect(dropzone.displayKeys()).toEqual(['a', 'b', GAP_KEY, 'c']);
+      expect(dropzone.displayKeys()).toEqual(['a', GAP_KEY, 'c']);
 
       // Move insertion point to end
       setPlace({ parent: 'list', before: null });
-      expect(dropzone.displayKeys()).toEqual(['a', 'b', 'c', GAP_KEY]);
+      expect(dropzone.displayKeys()).toEqual(['a', 'c', GAP_KEY]);
 
       // Stop dragging
       setDraggedKeys([]);
@@ -110,8 +110,8 @@ describe('createDropzone', () => {
         containerKey: 'list'
       });
 
-      // Both 'a' and 'c' stay, gap before 'd'
-      expect(dropzone.displayKeys()).toEqual(['a', 'b', 'c', GAP_KEY, 'd']);
+      // Both 'a' and 'c' removed, gap before 'd'
+      expect(dropzone.displayKeys()).toEqual(['b', GAP_KEY, 'd']);
       dispose();
     });
   });
@@ -144,7 +144,7 @@ describe('createTreeDropzone', () => {
     });
   });
 
-  it('keeps dragged item and inserts gap in target container', () => {
+  it('removes dragged item and inserts gap in target container', () => {
     createRoot((dispose) => {
       const dropzone = createTreeDropzone<string>({
         tree,
@@ -152,8 +152,8 @@ describe('createTreeDropzone', () => {
         place: () => ({ parent: 'groupB', before: 'z' })
       });
 
-      // 'y' stays in groupA
-      expect(dropzone.getDisplayKeys('groupA' as any)).toEqual(['x', 'y']);
+      // 'y' removed from groupA
+      expect(dropzone.getDisplayKeys('groupA' as any)).toEqual(['x']);
       // Gap in groupB before 'z'
       expect(dropzone.getDisplayKeys('groupB' as any)).toEqual([GAP_KEY, 'z']);
       expect(dropzone.getDisplayKeys('root')).toEqual(['groupA', 'groupB']);

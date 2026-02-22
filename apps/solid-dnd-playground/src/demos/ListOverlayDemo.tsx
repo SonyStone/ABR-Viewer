@@ -112,6 +112,7 @@ export default function ListOverlayDemo(): JSX.Element {
   // ── Drag sensor ─────────────────────────────────────────────────────────
   const sensor = createDragSensor({
     threshold: 5,
+    proxyCapture: true,
     onClick: (ev) => {
       if (pendingDragId) {
         selection.handleClick(pendingDragId, ev);
@@ -230,7 +231,6 @@ export default function ListOverlayDemo(): JSX.Element {
                 isSelected={selection.isSelected(key)}
                 onPointerDown={(ev) => handleItemPointerDown(key, ev)}
                 ref={(el) => itemRefs.set(key, el)}
-                draggedClass="border-transparent bg-transparent opacity-0 !h-0 overflow-hidden !py-0 !my-0"
               />
             );
           }}

@@ -13,38 +13,38 @@ describe('computeDisplayKeys', () => {
     expect(result).toEqual(['a', 'b', 'c', 'd']);
   });
 
-  it('keeps dragged items in the list when no place', () => {
+  it('removes dragged items when no place', () => {
     const result = computeDisplayKeys(keys, new Set(['b']), undefined, 'list');
-    // Dragged items stay — consumer renders them collapsed
-    expect(result).toEqual(['a', 'b', 'c', 'd']);
+    // Dragged items are removed from the display list
+    expect(result).toEqual(['a', 'c', 'd']);
   });
 
-  it('keeps dragged items and inserts gap before a specific key', () => {
+  it('removes dragged items and inserts gap before a specific key', () => {
     const result = computeDisplayKeys(keys, new Set(['b']), { parent: 'list', before: 'c' }, 'list');
-    // 'b' stays in list, gap inserted before 'c'
-    expect(result).toEqual(['a', 'b', GAP_KEY, 'c', 'd']);
+    // 'b' removed from list, gap inserted before 'c'
+    expect(result).toEqual(['a', GAP_KEY, 'c', 'd']);
   });
 
   it('appends gap when before is null', () => {
     const result = computeDisplayKeys(keys, new Set(['b']), { parent: 'list', before: null }, 'list');
-    expect(result).toEqual(['a', 'b', 'c', 'd', GAP_KEY]);
+    expect(result).toEqual(['a', 'c', 'd', GAP_KEY]);
   });
 
   it('inserts gap before first item', () => {
     const result = computeDisplayKeys(keys, new Set(['c']), { parent: 'list', before: 'a' }, 'list');
-    expect(result).toEqual([GAP_KEY, 'a', 'b', 'c', 'd']);
+    expect(result).toEqual([GAP_KEY, 'a', 'b', 'd']);
   });
 
   it('ignores place when parent does not match containerKey', () => {
     const result = computeDisplayKeys(keys, new Set(['b']), { parent: 'other-container', before: 'c' }, 'list');
-    // No gap inserted, all keys present
-    expect(result).toEqual(['a', 'b', 'c', 'd']);
+    // No gap inserted, dragged items still removed
+    expect(result).toEqual(['a', 'c', 'd']);
   });
 
   it('handles multiple dragged keys', () => {
     const result = computeDisplayKeys(keys, new Set(['a', 'c']), { parent: 'list', before: 'd' }, 'list');
-    // Both 'a' and 'c' stay, gap before 'd'
-    expect(result).toEqual(['a', 'b', 'c', GAP_KEY, 'd']);
+    // Both 'a' and 'c' removed, gap before 'd'
+    expect(result).toEqual(['b', GAP_KEY, 'd']);
   });
 
   it('handles empty list with append place', () => {
@@ -54,25 +54,25 @@ describe('computeDisplayKeys', () => {
 
   it('handles all items dragged with append place', () => {
     const result = computeDisplayKeys(keys, new Set(['a', 'b', 'c', 'd']), { parent: 'list', before: null }, 'list');
-    // All keys stay (rendered collapsed), gap appended
-    expect(result).toEqual(['a', 'b', 'c', 'd', GAP_KEY]);
+    // All items removed, only gap remains
+    expect(result).toEqual([GAP_KEY]);
   });
 
   it('inserts gap before a dragged key if place.before references it', () => {
     const result = computeDisplayKeys(['a', 'b', 'c'], new Set(['b']), { parent: 'list', before: 'b' }, 'list');
-    // Gap inserted before 'b' (even though 'b' is dragged)
-    expect(result).toEqual(['a', GAP_KEY, 'b', 'c']);
+    // Gap inserted at 'b' position, 'b' removed
+    expect(result).toEqual(['a', GAP_KEY, 'c']);
   });
 
-  it('preserves original order with dragged items', () => {
+  it('preserves original order without dragged items', () => {
     const result = computeDisplayKeys(
       ['x', 'y', 'z', 'w'],
       new Set(['y', 'w']),
       { parent: 'list', before: 'z' },
       'list'
     );
-    // 'y' and 'w' stay in list, gap before 'z'
-    expect(result).toEqual(['x', 'y', GAP_KEY, 'z', 'w']);
+    // 'y' and 'w' removed, gap before 'z'
+    expect(result).toEqual(['x', GAP_KEY, 'z']);
   });
 
   it('only inserts one gap', () => {
@@ -100,17 +100,17 @@ describe('computeTreeDisplayKeys', () => {
     expect(result['groupB']).toEqual(['z']);
   });
 
-  it('keeps dragged item in its container', () => {
+  it('removes dragged item from its container', () => {
     const result = computeTreeDisplayKeys(tree, new Set(['y']), undefined);
-    // 'y' stays in groupA
-    expect(result['groupA']).toEqual(['x', 'y']);
+    // 'y' removed from groupA
+    expect(result['groupA']).toEqual(['x']);
     expect(result['groupB']).toEqual(['z']);
   });
 
-  it('keeps dragged item and inserts gap in target container', () => {
+  it('removes dragged item and inserts gap in target container', () => {
     const result = computeTreeDisplayKeys(tree, new Set(['y']), { parent: 'groupB', before: 'z' });
-    // 'y' stays in groupA (rendered collapsed)
-    expect(result['groupA']).toEqual(['x', 'y']);
+    // 'y' removed from groupA
+    expect(result['groupA']).toEqual(['x']);
     // Gap inserted in groupB before 'z'
     expect(result['groupB']).toEqual([GAP_KEY, 'z']);
     expect(result['root']).toEqual(['groupA', 'groupB']);
@@ -118,15 +118,15 @@ describe('computeTreeDisplayKeys', () => {
 
   it('inserts gap at append position', () => {
     const result = computeTreeDisplayKeys(tree, new Set(['x']), { parent: 'groupB', before: null });
-    expect(result['groupA']).toEqual(['x', 'y']);
+    expect(result['groupA']).toEqual(['y']);
     expect(result['groupB']).toEqual(['z', GAP_KEY]);
   });
 
   it('moves group between root-level positions', () => {
     const result = computeTreeDisplayKeys(tree, new Set(['groupA']), { parent: 'root', before: null });
-    // groupA stays in root, gap appended
-    expect(result['root']).toEqual(['groupA', 'groupB', GAP_KEY]);
-    // groupA's children unchanged
+    // groupA removed from root, gap appended
+    expect(result['root']).toEqual(['groupB', GAP_KEY]);
+    // groupA's children unchanged (they aren't dragged)
     expect(result['groupA']).toEqual(['x', 'y']);
   });
 });

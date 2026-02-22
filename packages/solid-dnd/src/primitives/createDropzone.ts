@@ -19,11 +19,11 @@ export type DropzoneOptions<K> = {
 
 export type Dropzone<K> = {
   /**
-   * Display key list: all item keys in order, with a gap key inserted at the
-   * drop position. Dragged items remain in the list — render them as collapsed.
+   * Display key list: non-dragged item keys in order, with a gap key inserted
+   * at the drop position. Dragged items are removed from the list.
    *
-   * Use with `<For each={displayKeys()}>` — string keys give stable DOM node
-   * identity, which preserves pointer capture during drag.
+   * Use with `<For each={displayKeys()}>` and `createDragSensor({ proxyCapture: true })`
+   * so the source element's removal from the DOM doesn't cancel the drag.
    */
   displayKeys: Accessor<(K | GapKey)[]>;
   /** Whether the given key is currently being dragged. */
@@ -37,9 +37,10 @@ export type Dropzone<K> = {
 /**
  * Manages a display key list for a flat sortable container with live gap support.
  *
- * Dragged items stay in the list (for DOM stability / pointer capture) but should
- * be rendered as collapsed. A gap key (`GAP_KEY`) is inserted at the current
- * drop position.
+ * Dragged items are removed from the display list. Use with
+ * `createDragSensor({ proxyCapture: true })` so the source element's removal
+ * from the DOM doesn't cancel the drag. A gap key (`GAP_KEY`) is inserted at
+ * the current drop position.
  *
  * @example
  * ```tsx
