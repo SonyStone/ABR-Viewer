@@ -723,10 +723,10 @@ Then M3 (`createFlip`) because:
 - [x] Core types (Vec2, Rect, Place, ItemId)
 - [x] Playground app with static demos
 - [x] **M1 — createDragSensor** ✅ 27 tests passing
-- [ ] M2 — createSortable ← NEXT
-- [ ] M3 — createFlip
-- [ ] M4 — createSelection
-- [ ] M5 — createNestable
+- [x] **M2 — createSortable** ✅ 32 tests passing
+- [x] **M3 — createFlip** ✅ 29 tests passing (13 flipUtils + 16 createFlip)
+- [x] **M4 — createSelection** ✅ 61 tests passing (26 selectionModes + 35 createSelection)
+- [ ] M5 — createNestable ← NEXT
 - [ ] M6 — Grid layout
 - [ ] M7 — createAutoScroll
 - [ ] M8 — SortableList component

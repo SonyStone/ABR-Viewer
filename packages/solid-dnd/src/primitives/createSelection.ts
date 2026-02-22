@@ -1,0 +1,160 @@
+import { type Accessor, createMemo, createSignal } from 'solid-js';
+import { applyRange, applySet, applyToggle, getSelectionMode, type SelectionMode } from '../core/selectionModes';
+
+// ============================================================================
+// MARK: Types
+// ============================================================================
+
+export type SelectionOptions<K> = {
+  /** The ordered list of selectable items. */
+  items: Accessor<K[]>;
+  /**
+   * Whether multi-selection (toggle / range) is enabled.
+   * When `false`, modifier keys are ignored and clicks always use set mode.
+   * @default true
+   */
+  multiselect?: boolean;
+  /** Called whenever the selection changes. */
+  onSelectionChange?: (keys: K[]) => void;
+};
+
+export type Selection<K> = {
+  /** The currently selected keys, in selection order. */
+  selected: Accessor<K[]>;
+  /** Reactive lookup — whether a specific key is currently selected. */
+  isSelected: (key: K) => boolean;
+  /**
+   * Handle a click/tap on an item. Reads modifier keys to determine mode.
+   *
+   * Use this for the `onClick` / `onPointerUp` after a non-drag gesture.
+   * For already-selected items, this is the "commit" action that was
+   * deferred from `handlePointerDown` to allow drag disambiguation.
+   */
+  handleClick: (key: K, ev: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => void;
+  /**
+   * Select specific keys programmatically (replaces current selection).
+   * The anchor is set to the first key.
+   */
+  select: (keys: K[]) => void;
+  /** Clear the entire selection. */
+  clear: () => void;
+  /**
+   * Get the selection mode that would be used for a given event.
+   * Useful for UI indicators ("Shift = range", "Ctrl = toggle").
+   */
+  getMode: (ev: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => SelectionMode;
+  /** The current range anchor key, or `null` if no anchor is set. */
+  anchor: Accessor<K | null>;
+};
+
+// ============================================================================
+// MARK: createSelection
+// ============================================================================
+
+/**
+ * A primitive for multi-select in an ordered list of items.
+ *
+ * ## Selection modes
+ *
+ * | Modifier          | Mode     | Behavior                                  |
+ * |-------------------|----------|-------------------------------------------|
+ * | (none)            | `set`    | Replace selection with clicked item       |
+ * | Ctrl / ⌘          | `toggle` | Add or remove clicked item                |
+ * | Shift             | `range`  | Select contiguous range from anchor       |
+ *
+ * When `multiselect` is `false`, modifier keys are ignored and all clicks
+ * use `set` mode.
+ *
+ * ## Anchor
+ *
+ * The **anchor** is the key from which Shift+click ranges are computed.
+ * It's updated on every `set` or `toggle` click, but NOT during `range`
+ * clicks (so you can Shift+click multiple times to adjust the range end
+ * without moving the anchor).
+ *
+ * @example
+ * ```tsx
+ * const selection = createSelection({ items: () => itemKeys });
+ *
+ * <For each={items()}>
+ *   {(item) => (
+ *     <div
+ *       class={selection.isSelected(item.id) ? 'selected' : ''}
+ *       onClick={(ev) => selection.handleClick(item.id, ev)}
+ *     >
+ *       {item.label}
+ *     </div>
+ *   )}
+ * </For>
+ * ```
+ */
+export function createSelection<K>(options: SelectionOptions<K>): Selection<K> {
+  const [selected, setSelected] = createSignal<K[]>([]);
+  const [anchor, setAnchor] = createSignal<K | null>(null) as [Accessor<K | null>, (v: K | null) => void];
+
+  // Fast lookup set, derived from selected()
+  const selectedSet = createMemo(() => new Set(selected()));
+
+  function isSelected(key: K): boolean {
+    return selectedSet().has(key);
+  }
+
+  function getMode(ev: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }): SelectionMode {
+    if (options.multiselect === false) return 'set';
+    return getSelectionMode(ev);
+  }
+
+  function updateSelection(keys: K[]): void {
+    setSelected(keys);
+    options.onSelectionChange?.(keys);
+  }
+
+  function handleClick(key: K, ev: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }): void {
+    const mode = getMode(ev);
+
+    switch (mode) {
+      case 'set': {
+        updateSelection(applySet(key));
+        setAnchor(key);
+        break;
+      }
+      case 'toggle': {
+        updateSelection(applyToggle(selected(), key));
+        setAnchor(key);
+        break;
+      }
+      case 'range': {
+        const a = anchor();
+        if (a === null) {
+          // No anchor yet — treat as set
+          updateSelection(applySet(key));
+          setAnchor(key);
+        } else {
+          updateSelection(applyRange(options.items(), a, key));
+          // Don't update anchor on range — user can shift-click again to adjust
+        }
+        break;
+      }
+    }
+  }
+
+  function select(keys: K[]): void {
+    updateSelection(keys);
+    setAnchor(keys.length > 0 ? keys[0] : null);
+  }
+
+  function clear(): void {
+    updateSelection([]);
+    setAnchor(null);
+  }
+
+  return {
+    selected,
+    isSelected,
+    handleClick,
+    select,
+    clear,
+    getMode,
+    anchor
+  };
+}
