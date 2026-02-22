@@ -10,11 +10,13 @@ import {
   Place,
   Rect,
   Tree,
-  Vec2
+  Vec2,
+  type FlipAnimateEntry
 } from 'solid-dnd';
 import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from 'solid-js';
 import { AnimationControls } from '../components/AnimationControls';
 import EventLog, { createEventLogger } from '../components/EventLog';
+import { FlipDebugOverlay } from '../components/FlipDebugOverlay';
 import { GroupNode } from '../components/GroupNode';
 import { LeafItem } from '../components/LeafItem';
 import { NestedOverlayItem } from '../components/NestedOverlayItem';
@@ -36,6 +38,8 @@ export default function NestedOverlayDemo(): JSX.Element {
   const [gapHeight, setGapHeight] = createSignal(0);
   const [animEnabled, setAnimEnabled] = createSignal(true);
   const [animDuration, setAnimDuration] = createSignal(200);
+  const [debugEnabled, setDebugEnabled] = createSignal(false);
+  const [flipEntries, setFlipEntries] = createSignal<FlipAnimateEntry[]>([]);
   let pendingDragId: string | null = null;
 
   // ── Element refs ────────────────────────────────────────────────────────
@@ -77,7 +81,10 @@ export default function NestedOverlayDemo(): JSX.Element {
   });
 
   // ── FLIP animation ─────────────────────────────────────────────────────
-  const flip = createFlip({ elements: itemRefs as Map<string, HTMLElement> });
+  const flip = createFlip({
+    elements: itemRefs as Map<string, HTMLElement>,
+    onAnimate: (entries) => setFlipEntries(entries)
+  });
 
   // ── Drag overlay ────────────────────────────────────────────────────────
   const overlay = createDragOverlay({
@@ -261,6 +268,8 @@ export default function NestedOverlayDemo(): JSX.Element {
         duration={animDuration()}
         setDuration={setAnimDuration}
         isAnimating={flip.isAnimating()}
+        debugEnabled={debugEnabled()}
+        setDebugEnabled={setDebugEnabled}
       />
 
       {/* ── Nested tree ──────────────────────────────────────────── */}
@@ -281,6 +290,15 @@ export default function NestedOverlayDemo(): JSX.Element {
           <NestedOverlayItem draggedId={draggedId()} />
         </div>
       </Show>
+
+      {/* ── FLIP debug overlay ────────────────────────────────────── */}
+      <FlipDebugOverlay
+        entries={flipEntries}
+        elements={itemRefs as Map<string, HTMLElement>}
+        isAnimating={flip.isAnimating}
+        enabled={debugEnabled}
+        isDragging={sensor.isDragging}
+      />
 
       {/* ── Controls ──────────────────────────────────────────────── */}
       <button

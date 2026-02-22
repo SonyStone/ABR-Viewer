@@ -8,6 +8,8 @@ export type GridControlsProps = {
   animDuration: number;
   setAnimDuration: (v: number) => void;
   isAnimating: boolean;
+  debugEnabled?: boolean;
+  setDebugEnabled?: (v: boolean) => void;
 };
 
 export function GridControls(props: GridControlsProps): JSX.Element {
@@ -53,6 +55,18 @@ export function GridControls(props: GridControlsProps): JSX.Element {
         />
         <span class="w-12 font-mono text-neutral-300">{props.animDuration}ms</span>
       </label>
+
+      <Show when={props.setDebugEnabled !== undefined}>
+        <label class="flex cursor-pointer items-center gap-2 text-xs text-neutral-400">
+          <input
+            type="checkbox"
+            checked={props.debugEnabled}
+            onChange={(e) => props.setDebugEnabled?.(e.currentTarget.checked)}
+            class="accent-yellow-500"
+          />
+          FLIP debug
+        </label>
+      </Show>
 
       <Show when={props.isAnimating}>
         <span class="text-xs text-blue-400">⟳ animating…</span>

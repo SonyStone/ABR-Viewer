@@ -38,7 +38,7 @@ export type {
 export { createDropzone, createTreeDropzone } from './primitives/createDropzone';
 export type { Dropzone, DropzoneOptions, TreeDropzone, TreeDropzoneOptions } from './primitives/createDropzone';
 export { createFlip } from './primitives/createFlip';
-export type { Flip, FlipOptions } from './primitives/createFlip';
+export type { Flip, FlipAnimateEntry, FlipOptions } from './primitives/createFlip';
 export { createNestable } from './primitives/createNestable';
 export type { Nestable, NestableContainer, NestableOptions } from './primitives/createNestable';
 export { createSelection } from './primitives/createSelection';

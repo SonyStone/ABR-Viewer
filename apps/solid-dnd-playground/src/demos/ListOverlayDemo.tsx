@@ -11,11 +11,13 @@ import {
   Place,
   Rect,
   reorderItems,
-  Vec2
+  Vec2,
+  type FlipAnimateEntry
 } from 'solid-dnd';
 import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from 'solid-js';
 import { AnimationControls } from '../components/AnimationControls';
 import EventLog, { createEventLogger } from '../components/EventLog';
+import { FlipDebugOverlay } from '../components/FlipDebugOverlay';
 import { ListItem } from '../components/ListItem';
 import { ListOverlayItem } from '../components/ListOverlayItem';
 import { OrderDisplay } from '../components/OrderDisplay';
@@ -47,6 +49,8 @@ export default function ListOverlayDemo(): JSX.Element {
   // ── Animation controls ──────────────────────────────────────────────────
   const [animEnabled, setAnimEnabled] = createSignal(true);
   const [animDuration, setAnimDuration] = createSignal(200);
+  const [debugEnabled, setDebugEnabled] = createSignal(false);
+  const [flipEntries, setFlipEntries] = createSignal<FlipAnimateEntry[]>([]);
 
   // ── Selection ───────────────────────────────────────────────────────────
   const selection = createSelection<string>({
@@ -74,7 +78,10 @@ export default function ListOverlayDemo(): JSX.Element {
   });
 
   // ── FLIP animation ─────────────────────────────────────────────────────
-  const flip = createFlip({ elements: itemRefs as Map<string, HTMLElement> });
+  const flip = createFlip({
+    elements: itemRefs as Map<string, HTMLElement>,
+    onAnimate: (entries) => setFlipEntries(entries)
+  });
 
   // ── Drag overlay ────────────────────────────────────────────────────────
   const overlay = createDragOverlay({
@@ -205,6 +212,8 @@ export default function ListOverlayDemo(): JSX.Element {
         duration={animDuration()}
         setDuration={setAnimDuration}
         isAnimating={flip.isAnimating()}
+        debugEnabled={debugEnabled()}
+        setDebugEnabled={setDebugEnabled}
       />
 
       {/* ── Selection info ─────────────────────────────────────────── */}
@@ -250,6 +259,15 @@ export default function ListOverlayDemo(): JSX.Element {
           <ListOverlayItem items={items()} draggedIds={draggedIds()} />
         </div>
       </Show>
+
+      {/* ── FLIP debug overlay ────────────────────────────────────── */}
+      <FlipDebugOverlay
+        entries={flipEntries}
+        elements={itemRefs as Map<string, HTMLElement>}
+        isAnimating={flip.isAnimating}
+        enabled={debugEnabled}
+        isDragging={sensor.isDragging}
+      />
 
       {/* ── Current order ─────────────────────────────────────────── */}
       <OrderDisplay items={items()} />

@@ -1,9 +1,23 @@
 import { createSignal, type Accessor } from 'solid-js';
-import { calculateDeltas, measureElements, type ElementSnapshot } from './flipUtils';
+import { calculateDeltas, measureElements, type ElementSnapshot, type FlipDelta } from './flipUtils';
 
 // ============================================================================
 // MARK: Types
 // ============================================================================
+
+/**
+ * Describes a single element's FLIP animation for debug/visualization.
+ */
+export type FlipAnimateEntry = {
+  /** The item key. */
+  key: string;
+  /** Center position before the DOM change (viewport coords). */
+  from: { x: number; y: number };
+  /** Center position after the DOM change (viewport coords). */
+  to: { x: number; y: number };
+  /** The inverse delta applied at animation start. */
+  delta: FlipDelta;
+};
 
 export type FlipOptions = {
   /**
@@ -23,6 +37,11 @@ export type FlipOptions = {
    * The flip primitive reads from this map when measuring positions.
    */
   elements: Map<string, HTMLElement>;
+  /**
+   * Called when a FLIP animation cycle starts. Receives an array of entries
+   * describing each element's motion. Useful for debug visualization.
+   */
+  onAnimate?: (entries: FlipAnimateEntry[]) => void;
 };
 
 export type Flip = {
@@ -125,6 +144,22 @@ export function createFlip(options: FlipOptions): Flip {
 
     const dur = options.duration ?? 200;
     const ease = options.easing ?? 'ease-out';
+
+    // Fire debug callback with animation entries
+    if (options.onAnimate) {
+      const entries: FlipAnimateEntry[] = [];
+      for (const [key, delta] of deltas) {
+        const last = lastSnapshot.get(key);
+        if (!last) continue;
+        entries.push({
+          key,
+          from: { x: last.x + last.width / 2 + delta.dx, y: last.y + last.height / 2 + delta.dy },
+          to: { x: last.x + last.width / 2, y: last.y + last.height / 2 },
+          delta
+        });
+      }
+      options.onAnimate(entries);
+    }
 
     setIsAnimating(true);
     const animations: Animation[] = [];
