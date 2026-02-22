@@ -25,7 +25,17 @@ export const navSections: NavSection[] = [
     ]
   },
   {
+    title: 'Sortable + Overlay',
+    items: [
+      { label: 'List overlay', href: '/list-overlay' },
+      { label: 'Grid overlay', href: '/grid-overlay' }
+    ]
+  },
+  {
     title: 'Containers',
-    items: [{ label: 'Nested', href: '/nested' }]
+    items: [
+      { label: 'Nested', href: '/nested' },
+      { label: 'Nested overlay', href: '/nested-overlay' }
+    ]
   }
 ];

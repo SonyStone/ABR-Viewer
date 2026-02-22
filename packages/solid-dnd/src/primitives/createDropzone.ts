@@ -1,0 +1,141 @@
+import { type Accessor, createMemo } from 'solid-js';
+import { computeDisplayKeys, computeTreeDisplayKeys, type GapKey } from '../core/displayList';
+import type { Place } from '../core/place';
+
+// ============================================================================
+// MARK: Types — Flat list
+// ============================================================================
+
+export type DropzoneOptions<K> = {
+  /** Ordered item keys. */
+  keys: Accessor<K[]>;
+  /** Keys currently being dragged. */
+  draggedKeys: Accessor<K[]>;
+  /** Current insertion point (where the gap should appear), or `undefined`. */
+  place: Accessor<Place<K> | undefined>;
+  /** The container key to match against `place.parent`. */
+  containerKey: K | string;
+};
+
+export type Dropzone<K> = {
+  /**
+   * Display key list: all item keys in order, with a gap key inserted at the
+   * drop position. Dragged items remain in the list — render them as collapsed.
+   *
+   * Use with `<For each={displayKeys()}>` — string keys give stable DOM node
+   * identity, which preserves pointer capture during drag.
+   */
+  displayKeys: Accessor<(K | GapKey)[]>;
+  /** Whether the given key is currently being dragged. */
+  isDragged: (key: K) => boolean;
+};
+
+// ============================================================================
+// MARK: createDropzone (flat list)
+// ============================================================================
+
+/**
+ * Manages a display key list for a flat sortable container with live gap support.
+ *
+ * Dragged items stay in the list (for DOM stability / pointer capture) but should
+ * be rendered as collapsed. A gap key (`GAP_KEY`) is inserted at the current
+ * drop position.
+ *
+ * @example
+ * ```tsx
+ * const dropzone = createDropzone<string>({
+ *   keys: () => items().map(i => i.id),
+ *   draggedKeys: () => draggedIds(),
+ *   place: () => dropPlace(),
+ *   containerKey: 'list',
+ * });
+ *
+ * <For each={dropzone.displayKeys()}>
+ *   {(key) => {
+ *     if (key === GAP_KEY) return <GapPlaceholder />;
+ *     const item = () => items().find(i => i.id === key)!;
+ *     return <ItemComponent item={item()} isDragged={dropzone.isDragged(key)} />;
+ *   }}
+ * </For>
+ * ```
+ */
+export function createDropzone<K>(options: DropzoneOptions<K>): Dropzone<K> {
+  const draggedSet = createMemo(() => new Set(options.draggedKeys()));
+
+  const displayKeys = createMemo(() =>
+    computeDisplayKeys(options.keys(), draggedSet(), options.place(), options.containerKey)
+  );
+
+  function isDragged(key: K): boolean {
+    return draggedSet().has(key);
+  }
+
+  return { displayKeys, isDragged };
+}
+
+// ============================================================================
+// MARK: Types — Tree
+// ============================================================================
+
+export type TreeDropzoneOptions<K extends string> = {
+  /** Tree structure: containerKey → ordered child keys. */
+  tree: Accessor<Record<K | 'root', K[]>>;
+  /** Keys currently being dragged. */
+  draggedKeys: Accessor<K[]>;
+  /** Current insertion point (where the gap should appear), or `undefined`. */
+  place: Accessor<Place<K> | undefined>;
+};
+
+export type TreeDropzone<K extends string> = {
+  /** Get the display keys for a specific container. */
+  getDisplayKeys: (containerKey: K | 'root') => (K | GapKey)[];
+  /** Whether the given key is currently being dragged. */
+  isDragged: (key: K) => boolean;
+};
+
+// ============================================================================
+// MARK: createTreeDropzone
+// ============================================================================
+
+/**
+ * Manages display key lists for all containers in a tree with live gap support.
+ *
+ * This is the tree/nested equivalent of {@link createDropzone}. Instead of
+ * a single display key list, it provides per-container lists via
+ * `getDisplayKeys(containerKey)`.
+ *
+ * @example
+ * ```tsx
+ * const dropzone = createTreeDropzone<string>({
+ *   tree: () => tree(),
+ *   draggedKeys: () => draggedId() ? [draggedId()!] : [],
+ *   place: () => dropPlace(),
+ * });
+ *
+ * function renderContainer(parentKey: string) {
+ *   return (
+ *     <For each={dropzone.getDisplayKeys(parentKey)}>
+ *       {(key) => {
+ *         if (key === GAP_KEY) return <GapPlaceholder />;
+ *         return <NodeComponent id={key} isDragged={dropzone.isDragged(key)} />;
+ *       }}
+ *     </For>
+ *   );
+ * }
+ * ```
+ */
+export function createTreeDropzone<K extends string>(options: TreeDropzoneOptions<K>): TreeDropzone<K> {
+  const draggedSet = createMemo(() => new Set(options.draggedKeys()));
+
+  const allDisplayKeys = createMemo(() => computeTreeDisplayKeys(options.tree(), draggedSet(), options.place()));
+
+  function getDisplayKeys(containerKey: K | 'root'): (K | GapKey)[] {
+    return allDisplayKeys()[containerKey as string] ?? [];
+  }
+
+  function isDragged(key: K): boolean {
+    return draggedSet().has(key);
+  }
+
+  return { getDisplayKeys, isDragged };
+}

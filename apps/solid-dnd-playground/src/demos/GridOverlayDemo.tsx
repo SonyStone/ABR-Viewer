@@ -1,8 +1,20 @@
 import { createBodyCursor } from '@solid-primitives/cursor';
 import { throttle } from '@solid-primitives/scheduled';
 import type { GridConfig } from 'solid-dnd';
-import { createDragSensor, createFlip, createSelection, createSortable, Place, Rect, reorderItems } from 'solid-dnd';
-import { createMemo, createSignal, For, Show, type JSX } from 'solid-js';
+import {
+  createDragOverlay,
+  createDragSensor,
+  createDropzone,
+  createFlip,
+  createSelection,
+  createSortable,
+  GAP_KEY,
+  Place,
+  Rect,
+  reorderItems,
+  Vec2
+} from 'solid-dnd';
+import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from 'solid-js';
 import EventLog, { createEventLogger } from '../components/EventLog';
 import { GridControls } from '../components/GridControls';
 import { OrderDisplay } from '../components/OrderDisplay';
@@ -11,14 +23,10 @@ import { StateCard } from '../components/StateCard';
 import { createGridItems, type DemoItem } from '../data';
 
 // ============================================================================
-// MARK: Grid Demo
+// MARK: Grid Overlay Demo
 // ============================================================================
 
-/**
- * Interactive grid demo combining createDragSensor + createSortable (grid mode)
- * + createFlip + createSelection (with grid range selection).
- */
-export default function GridDemo(): JSX.Element {
+export default function GridOverlayDemo(): JSX.Element {
   const logger = createEventLogger();
 
   // ── Item state ──────────────────────────────────────────────────────────
@@ -36,6 +44,7 @@ export default function GridDemo(): JSX.Element {
   // ── Drag state ──────────────────────────────────────────────────────────
   const [draggedIds, setDraggedIds] = createSignal<string[]>([]);
   const [dropPlace, setDropPlace] = createSignal<Place.Place<string> | undefined>();
+  const [gapHeight, setGapHeight] = createSignal(0);
   let pendingDragId: string | null = null;
 
   // ── Element refs ────────────────────────────────────────────────────────
@@ -43,7 +52,6 @@ export default function GridDemo(): JSX.Element {
   let containerRef: HTMLDivElement | undefined;
 
   // ── Animation controls ──────────────────────────────────────────────────
-  const [animEnabled, setAnimEnabled] = createSignal(true);
   const [animDuration, setAnimDuration] = createSignal(200);
 
   // ── Selection ───────────────────────────────────────────────────────────
@@ -51,9 +59,7 @@ export default function GridDemo(): JSX.Element {
     items: itemKeys,
     gridColumns: () => columns(),
     onSelectionChange: (keys) => {
-      if (keys.length > 0) {
-        logger.addLog(`☑ SELECT  [${keys.join(', ')}]`);
-      }
+      if (keys.length > 0) logger.addLog(`☑ SELECT  [${keys.join(', ')}]`);
     }
   });
 
@@ -68,13 +74,39 @@ export default function GridDemo(): JSX.Element {
     getContainerRect: () => Rect.fromElement(containerRef)
   });
 
-  // ── FLIP animation primitive ────────────────────────────────────────────
+  // ── Dropzone primitive (live gap) ───────────────────────────────────────
+  const dropzone = createDropzone<string>({
+    keys: itemKeys,
+    draggedKeys: () => draggedIds(),
+    place: dropPlace,
+    containerKey: 'grid'
+  });
+
+  // ── FLIP animation ─────────────────────────────────────────────────────
   const flip = createFlip({ elements: itemRefs as Map<string, HTMLElement> });
 
-  // ── Throttled drop-place update (~60fps) ─────────────────────────────────
+  // ── Drag overlay ────────────────────────────────────────────────────────
+  const overlay = createDragOverlay({
+    currentPosition: () => sensor.position() ?? Vec2.Zero
+  });
+
+  // ── Throttled drop-place update ─────────────────────────────────────────
   const throttledSetDropPlace = throttle((pos: { x: number; y: number }) => {
     setDropPlace(sortable.getInsertionPoint(pos));
   }, 16);
+
+  // ── Animate display key changes during drag ─────────────────────────────
+  createEffect(
+    on(
+      () => dropzone.displayKeys(),
+      () => {
+        if (sensor.isDragging()) {
+          flip.playFromFirst();
+        }
+      },
+      { defer: true }
+    )
+  );
 
   // ── Shared cleanup ──────────────────────────────────────────────────────
   function resetDragState() {
@@ -82,6 +114,8 @@ export default function GridDemo(): JSX.Element {
     pendingDragId = null;
     setDraggedIds([]);
     setDropPlace(undefined);
+    setGapHeight(0);
+    overlay.stop();
   }
 
   // ── Drag sensor ─────────────────────────────────────────────────────────
@@ -96,46 +130,56 @@ export default function GridDemo(): JSX.Element {
     onDragStart: (e) => {
       const id = pendingDragId;
       const ids = id && selection.isSelected(id) ? selection.selected() : id ? [id] : [];
+
+      // 1. Measure source element BEFORE any state changes
+      const sourceEl = id ? itemRefs.get(id) : undefined;
+      if (sourceEl) {
+        setGapHeight(sourceEl.getBoundingClientRect().height);
+        overlay.start(sourceEl, e.position);
+      }
+
+      // 2. Capture FLIP positions before DOM changes
+      flip.captureFirst();
+
+      // 3. Set drag state
       setDraggedIds(ids);
-      logger.addLog(`▶ DRAG  [${ids.join(', ')}] at (${e.position.x.toFixed(0)}, ${e.position.y.toFixed(0)})`);
       setDropPlace(sortable.getInsertionPoint(e.position));
+
+      logger.addLog(`▶ DRAG  [${ids.join(', ')}] at (${e.position.x.toFixed(0)}, ${e.position.y.toFixed(0)})`);
     },
     onDragMove: (e) => {
+      flip.captureFirst();
       throttledSetDropPlace(e.position);
     },
     onDragEnd: () => {
       const place = dropPlace();
       const ids = draggedIds();
       if (place && ids.length > 0) {
-        const doReorder = () => setItems((prev) => reorderItems(prev, ids, place, (i) => i.id));
-        if (animEnabled()) {
-          flip.animate(doReorder, { duration: animDuration() });
-        } else {
-          doReorder();
-        }
+        const doReorder = () => {
+          setItems((prev) => reorderItems(prev, ids, place, (i) => i.id));
+          resetDragState();
+        };
+        flip.animate(doReorder, { duration: animDuration() });
         logger.addLog(`■ DROP  [${ids.join(', ')}] → ${Place.label(place)}`);
+      } else {
+        flip.animate(() => resetDragState(), { duration: animDuration() });
       }
-      resetDragState();
     },
     onDragCancel: () => {
       logger.addLog('✕ CANCEL');
-      resetDragState();
+      flip.animate(() => resetDragState(), { duration: animDuration() });
     }
   });
 
-  // ── Reactive cursor ─────────────────────────────────────────────────────
   createBodyCursor(() => (sensor.isDragging() ? 'grabbing' : null));
 
-  // ── Per-item pointer down ───────────────────────────────────────────────
   function handleItemPointerDown(id: string, ev: PointerEvent) {
     pendingDragId = id;
     sensor.onPointerDown(ev);
   }
 
-  // ── Grid indicator position ─────────────────────────────────────────────
-  function indicatorPos() {
-    if (!sensor.isDragging()) return undefined;
-    return sortable.getGridIndicator(dropPlace());
+  function getItem(key: string): DemoItem | undefined {
+    return items().find((i) => i.id === key);
   }
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -143,12 +187,11 @@ export default function GridDemo(): JSX.Element {
     <div class="flex flex-col gap-6">
       {/* Header */}
       <div>
-        <h2 class="mb-1 text-sm font-semibold text-neutral-300">Sortable Grid</h2>
+        <h2 class="mb-1 text-sm font-semibold text-neutral-300">Sortable Grid — Drag Overlay</h2>
         <p class="mb-4 text-xs text-neutral-500">
-          Drag items to reorder in a grid. Click to select, Ctrl+click to toggle, Shift+click for rectangular range.
-          Combines <code class="rounded bg-white/10 px-1">createSortable</code> (grid mode) +{' '}
-          <code class="rounded bg-white/10 px-1">createSelection</code> (grid range) +{' '}
-          <code class="rounded bg-white/10 px-1">createFlip</code>.
+          Grid items pop out as a floating overlay when dragged. A gap opens at the drop position. Combines{' '}
+          <code class="rounded bg-white/10 px-1">createDropzone</code> +{' '}
+          <code class="rounded bg-white/10 px-1">createDragOverlay</code> with the grid sortable.
         </p>
       </div>
 
@@ -156,8 +199,6 @@ export default function GridDemo(): JSX.Element {
       <GridControls
         columns={columns()}
         setColumns={setColumns}
-        animEnabled={animEnabled()}
-        setAnimEnabled={setAnimEnabled}
         animDuration={animDuration()}
         setAnimDuration={setAnimDuration}
         isAnimating={flip.isAnimating()}
@@ -168,7 +209,7 @@ export default function GridDemo(): JSX.Element {
         selected={selection.selected()}
         items={items()}
         onClear={() => selection.clear()}
-        hint="Click items to select · Ctrl+click to multi-select · Shift+click for rectangular range"
+        hint="Click to select · Ctrl+click toggle · Shift+click rectangular range"
       />
 
       {/* ── Grid container ─────────────────────────────────────────── */}
@@ -177,24 +218,44 @@ export default function GridDemo(): JSX.Element {
         class="relative rounded-xl border border-white/10 bg-white/2 p-3"
         style={{ display: 'grid', 'grid-template-columns': `repeat(${columns()}, 1fr)`, gap: '8px' }}
       >
-        <For each={items()}>
-          {(item) => (
-            <GridItem
-              item={item}
-              isDragged={draggedIds().includes(item.id)}
-              isDragging={sensor.isDragging()}
-              isSelected={selection.isSelected(item.id)}
-              onPointerDown={(ev) => handleItemPointerDown(item.id, ev)}
-              ref={(el) => itemRefs.set(item.id, el)}
-            />
-          )}
+        <For each={dropzone.displayKeys()}>
+          {(key) => {
+            if (key === GAP_KEY) {
+              return (
+                <div
+                  ref={(el) => itemRefs.set(GAP_KEY, el)}
+                  class="rounded-lg border border-dashed border-blue-500/30 bg-blue-500/5"
+                  style={{ height: `${gapHeight()}px` }}
+                />
+              );
+            }
+            const item = () => getItem(key)!;
+            return (
+              <GridItem
+                item={item()}
+                isDragged={dropzone.isDragged(key) && sensor.isDragging()}
+                isSelected={selection.isSelected(key)}
+                onPointerDown={(ev) => handleItemPointerDown(key, ev)}
+                ref={(el) => itemRefs.set(key, el)}
+              />
+            );
+          }}
         </For>
-
-        {/* Drop indicator (vertical bar) */}
-        <Show when={indicatorPos()}>
-          {(pos) => <GridDropIndicator x={pos().x} y={pos().y} height={pos().height} />}
-        </Show>
       </div>
+
+      {/* ── Drag overlay ──────────────────────────────────────────── */}
+      <Show when={overlay.active()}>
+        <div
+          class="pointer-events-none fixed z-[10000]"
+          style={{
+            left: `${overlay.position().x}px`,
+            top: `${overlay.position().y}px`,
+            width: `${overlay.size().x}px`
+          }}
+        >
+          <GridOverlayItem items={items()} draggedIds={draggedIds()} />
+        </div>
+      </Show>
 
       {/* ── Order display ─────────────────────────────────────────── */}
       <OrderDisplay items={items()} columns={columns()} />
@@ -215,7 +276,6 @@ export default function GridDemo(): JSX.Element {
         />
       </div>
 
-      {/* ── Event log ─────────────────────────────────────────────── */}
       <EventLog logger={logger} />
     </div>
   );
@@ -228,17 +288,16 @@ export default function GridDemo(): JSX.Element {
 function GridItem(props: {
   item: DemoItem;
   isDragged: boolean;
-  isDragging: boolean;
   isSelected: boolean;
   onPointerDown: (ev: PointerEvent) => void;
   ref: (el: HTMLDivElement) => void;
 }): JSX.Element {
   const baseClass =
-    'flex cursor-grab touch-none flex-col items-center gap-2 rounded-lg border p-4 transition-all select-none active:cursor-grabbing';
+    'flex cursor-grab touch-none flex-col items-center gap-2 rounded-lg border p-4 select-none active:cursor-grabbing';
 
   const stateClass = () => {
-    if (props.isDragged && props.isDragging) {
-      return 'border-blue-500/30 bg-blue-500/10 opacity-40';
+    if (props.isDragged) {
+      return 'border-transparent bg-transparent opacity-0 !h-0 overflow-hidden !p-0 !m-0';
     }
     if (props.isSelected) {
       return 'border-purple-500/40 bg-purple-500/10 ring-1 ring-purple-500/20';
@@ -255,23 +314,20 @@ function GridItem(props: {
   );
 }
 
-function GridDropIndicator(props: { x: number; y: number; height: number }): JSX.Element {
+function GridOverlayItem(props: { items: DemoItem[]; draggedIds: string[] }): JSX.Element {
+  const primary = () => props.items.find((i) => props.draggedIds.includes(i.id));
+
   return (
-    <div
-      class="pointer-events-none absolute z-10"
-      style={{
-        left: `${props.x}px`,
-        top: `${props.y}px`,
-        width: '3px',
-        height: `${props.height}px`,
-        transform: 'translateX(-1.5px)'
-      }}
-    >
-      <div class="h-full w-full rounded-full bg-blue-400 shadow-sm shadow-blue-400/50" />
-      {/* Top dot */}
-      <div class="absolute -top-1 -left-1 h-2.5 w-2.5 rounded-full border-2 border-blue-400 bg-neutral-900" />
-      {/* Bottom dot */}
-      <div class="absolute -bottom-1 -left-1 h-2.5 w-2.5 rounded-full border-2 border-blue-400 bg-neutral-900" />
-    </div>
+    <Show when={primary()}>
+      {(item) => (
+        <div class="flex flex-col items-center gap-2 rounded-lg border border-blue-500/50 bg-neutral-800 p-4 shadow-xl shadow-blue-500/10">
+          <div class="h-8 w-8 rounded" style={{ background: item().color }} />
+          <span class="text-xs text-neutral-200">{item().label}</span>
+          <Show when={props.draggedIds.length > 1}>
+            <span class="text-[10px] text-blue-400/70">+{props.draggedIds.length - 1} more</span>
+          </Show>
+        </div>
+      )}
+    </Show>
   );
 }
