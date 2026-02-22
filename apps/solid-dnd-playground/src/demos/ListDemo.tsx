@@ -5,10 +5,11 @@ import { createMemo, createSignal, For, Show, type JSX } from 'solid-js';
 import { AnimationControls } from '../components/AnimationControls';
 import { DropIndicator } from '../components/DropIndicator';
 import EventLog, { createEventLogger } from '../components/EventLog';
+import { ListItem } from '../components/ListItem';
 import { OrderDisplay } from '../components/OrderDisplay';
 import { SelectionInfo } from '../components/SelectionInfo';
 import { StateCard } from '../components/StateCard';
-import { createDemoItems, type DemoItem } from '../data';
+import { createDemoItems } from '../data';
 
 // ============================================================================
 // MARK: List Demo
@@ -159,8 +160,7 @@ export default function ListDemo(): JSX.Element {
           {(item) => (
             <ListItem
               item={item}
-              isDragged={draggedIds().includes(item.id)}
-              isDragging={sensor.isDragging()}
+              isDragged={draggedIds().includes(item.id) && sensor.isDragging()}
               isSelected={selection.isSelected(item.id)}
               onPointerDown={(ev) => handleItemPointerDown(item.id, ev)}
               ref={(el) => itemRefs.set(item.id, el)}
@@ -195,64 +195,6 @@ export default function ListDemo(): JSX.Element {
 
       {/* ── Event log ─────────────────────────────────────────────── */}
       <EventLog logger={logger} />
-    </div>
-  );
-}
-
-// ============================================================================
-// MARK: Sub-Components
-// ============================================================================
-
-function ListItem(props: {
-  item: DemoItem;
-  isDragged: boolean;
-  isDragging: boolean;
-  isSelected: boolean;
-  onPointerDown: (ev: PointerEvent) => void;
-  ref: (el: HTMLDivElement) => void;
-}): JSX.Element {
-  const baseClass =
-    'flex cursor-grab touch-none items-center gap-3 rounded-lg border px-4 py-3 transition-all select-none';
-
-  const stateClass = () => {
-    if (props.isDragged && props.isDragging) {
-      return 'border-blue-500/30 bg-blue-500/10 opacity-40';
-    }
-    if (props.isSelected) {
-      return 'border-purple-500/40 bg-purple-500/10 ring-1 ring-purple-500/20 hover:border-purple-400/50';
-    }
-    return 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/8';
-  };
-
-  return (
-    <div ref={props.ref} onPointerDown={props.onPointerDown} class={`${baseClass} ${stateClass()}`}>
-      {/* Selection check / Drag handle */}
-      <Show
-        when={props.isSelected}
-        fallback={
-          <svg class="h-4 w-4 shrink-0 text-neutral-500" viewBox="0 0 16 16" fill="currentColor">
-            <circle cx="5" cy="3" r="1.2" />
-            <circle cx="11" cy="3" r="1.2" />
-            <circle cx="5" cy="8" r="1.2" />
-            <circle cx="11" cy="8" r="1.2" />
-            <circle cx="5" cy="13" r="1.2" />
-            <circle cx="11" cy="13" r="1.2" />
-          </svg>
-        }
-      >
-        <svg class="h-4 w-4 shrink-0 text-purple-400" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
-        </svg>
-      </Show>
-
-      {/* Color dot */}
-      <div class="h-3 w-3 shrink-0 rounded-full" style={{ background: props.item.color }} />
-
-      {/* Label */}
-      <span class={`text-sm ${props.isSelected ? 'text-purple-200' : 'text-neutral-200'}`}>{props.item.label}</span>
-
-      {/* ID badge */}
-      <span class="ml-auto font-mono text-xs text-neutral-500">{props.item.id}</span>
     </div>
   );
 }

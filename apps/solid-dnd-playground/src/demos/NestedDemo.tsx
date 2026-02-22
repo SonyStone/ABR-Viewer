@@ -4,9 +4,11 @@ import { createDragSensor, createFlip, createNestable, Place, Rect, Tree } from 
 import { createMemo, createSignal, For, Show, type JSX } from 'solid-js';
 import { DropIndicator } from '../components/DropIndicator';
 import EventLog, { createEventLogger } from '../components/EventLog';
+import { GroupNode } from '../components/GroupNode';
+import { LeafItem } from '../components/LeafItem';
 import { StateCard } from '../components/StateCard';
 import { TreeDisplay } from '../components/TreeDisplay';
-import { createInitialTree, NODES, type NodeData } from '../data';
+import { createInitialTree, NODES } from '../data';
 
 // ============================================================================
 // MARK: Nested Demo
@@ -134,11 +136,23 @@ export default function NestedDemo(): JSX.Element {
                   node={node}
                   depth={props.depth}
                   isDragged={childId === draggedId() && sensor.isDragging()}
-                />
+                  onPointerDown={(ev) => handlePointerDown(childId, ev)}
+                  ref={(el) => itemRefs.set(childId, el)}
+                >
+                  <NodeChildren parentId={childId} depth={props.depth + 1} />
+                </GroupNode>
               );
             }
 
-            return <LeafItem id={childId} node={node} isDragged={childId === draggedId() && sensor.isDragging()} />;
+            return (
+              <LeafItem
+                id={childId}
+                node={node}
+                isDragged={childId === draggedId() && sensor.isDragging()}
+                onPointerDown={(ev) => handlePointerDown(childId, ev)}
+                ref={(el) => itemRefs.set(childId, el)}
+              />
+            );
           }}
         </For>
 
@@ -151,71 +165,6 @@ export default function NestedDemo(): JSX.Element {
         <Show when={indicatorFor(props.parentId) !== undefined}>
           <DropIndicator y={indicatorFor(props.parentId)!} />
         </Show>
-      </div>
-    );
-  }
-
-  function GroupNode(props: { id: string; node: NodeData; depth: number; isDragged: boolean }): JSX.Element {
-    const depthColors = ['border-white/15', 'border-white/10', 'border-white/5'];
-    const borderClass = () => depthColors[Math.min(props.depth, depthColors.length - 1)];
-
-    return (
-      <div
-        ref={(el) => itemRefs.set(props.id, el)}
-        class={`rounded-lg border border-dashed bg-white/3 ${borderClass()} ${props.isDragged ? 'opacity-40' : ''}`}
-      >
-        {/* Draggable group header */}
-        <div
-          onPointerDown={(ev) => handlePointerDown(props.id, ev)}
-          class="flex cursor-grab touch-none items-center gap-2 rounded-t-lg px-3 py-2 select-none hover:bg-white/5"
-        >
-          <svg class="h-3.5 w-3.5 shrink-0 text-neutral-500" viewBox="0 0 16 16" fill="currentColor">
-            <circle cx="5" cy="3" r="1.2" />
-            <circle cx="11" cy="3" r="1.2" />
-            <circle cx="5" cy="8" r="1.2" />
-            <circle cx="11" cy="8" r="1.2" />
-            <circle cx="5" cy="13" r="1.2" />
-            <circle cx="11" cy="13" r="1.2" />
-          </svg>
-          <div class="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: props.node.color }} />
-          <span class="text-xs font-semibold text-neutral-400">{props.node.label}</span>
-          <span class="ml-auto font-mono text-xs text-neutral-600">{props.id}</span>
-        </div>
-
-        {/* Nested children */}
-        <div class="px-2 pb-2">
-          <NodeChildren parentId={props.id} depth={props.depth + 1} />
-        </div>
-      </div>
-    );
-  }
-
-  function LeafItem(props: { id: string; node: NodeData; isDragged: boolean }): JSX.Element {
-    const baseClass =
-      'flex cursor-grab touch-none items-center gap-3 rounded-lg border px-3 py-2.5 transition-all select-none';
-
-    const stateClass = () => {
-      if (props.isDragged) return 'border-blue-500/30 bg-blue-500/10 opacity-40';
-      return 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/8';
-    };
-
-    return (
-      <div
-        ref={(el) => itemRefs.set(props.id, el)}
-        onPointerDown={(ev) => handlePointerDown(props.id, ev)}
-        class={`${baseClass} ${stateClass()}`}
-      >
-        <svg class="h-3.5 w-3.5 shrink-0 text-neutral-500" viewBox="0 0 16 16" fill="currentColor">
-          <circle cx="5" cy="3" r="1.2" />
-          <circle cx="11" cy="3" r="1.2" />
-          <circle cx="5" cy="8" r="1.2" />
-          <circle cx="11" cy="8" r="1.2" />
-          <circle cx="5" cy="13" r="1.2" />
-          <circle cx="11" cy="13" r="1.2" />
-        </svg>
-        <div class="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: props.node.color }} />
-        <span class="text-sm text-neutral-200">{props.node.label}</span>
-        <span class="ml-auto font-mono text-xs text-neutral-500">{props.id}</span>
       </div>
     );
   }

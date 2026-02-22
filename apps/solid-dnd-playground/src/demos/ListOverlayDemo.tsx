@@ -16,6 +16,8 @@ import {
 import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from 'solid-js';
 import { AnimationControls } from '../components/AnimationControls';
 import EventLog, { createEventLogger } from '../components/EventLog';
+import { ListItem } from '../components/ListItem';
+import { ListOverlayItem } from '../components/ListOverlayItem';
 import { OrderDisplay } from '../components/OrderDisplay';
 import { SelectionInfo } from '../components/SelectionInfo';
 import { StateCard } from '../components/StateCard';
@@ -220,6 +222,7 @@ export default function ListOverlayDemo(): JSX.Element {
                 isSelected={selection.isSelected(key)}
                 onPointerDown={(ev) => handleItemPointerDown(key, ev)}
                 ref={(el) => itemRefs.set(key, el)}
+                draggedClass="border-transparent bg-transparent opacity-0 !h-0 overflow-hidden !py-0 !my-0"
               />
             );
           }}
@@ -236,7 +239,7 @@ export default function ListOverlayDemo(): JSX.Element {
             width: `${overlay.size().x}px`
           }}
         >
-          <OverlayItem items={items()} draggedIds={draggedIds()} />
+          <ListOverlayItem items={items()} draggedIds={draggedIds()} />
         </div>
       </Show>
 
@@ -261,93 +264,6 @@ export default function ListOverlayDemo(): JSX.Element {
 
       {/* ── Event log ─────────────────────────────────────────────── */}
       <EventLog logger={logger} />
-    </div>
-  );
-}
-
-// ============================================================================
-// MARK: Sub-Components
-// ============================================================================
-
-function ListItem(props: {
-  item: DemoItem;
-  isDragged: boolean;
-  isSelected: boolean;
-  onPointerDown: (ev: PointerEvent) => void;
-  ref: (el: HTMLDivElement) => void;
-}): JSX.Element {
-  const baseClass =
-    'flex cursor-grab touch-none items-center gap-3 rounded-lg border px-4 py-3 transition-shadow select-none';
-
-  const stateClass = () => {
-    if (props.isDragged) {
-      // Item is being dragged — collapse it (but keep in DOM for pointer capture!)
-      return 'border-transparent bg-transparent opacity-0 !h-0 overflow-hidden !py-0 !my-0';
-    }
-    if (props.isSelected) {
-      return 'border-purple-500/40 bg-purple-500/10 ring-1 ring-purple-500/20 hover:border-purple-400/50';
-    }
-    return 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/8';
-  };
-
-  return (
-    <div ref={props.ref} onPointerDown={props.onPointerDown} class={`${baseClass} ${stateClass()}`}>
-      <Show
-        when={props.isSelected}
-        fallback={
-          <svg class="h-4 w-4 shrink-0 text-neutral-500" viewBox="0 0 16 16" fill="currentColor">
-            <circle cx="5" cy="3" r="1.2" />
-            <circle cx="11" cy="3" r="1.2" />
-            <circle cx="5" cy="8" r="1.2" />
-            <circle cx="11" cy="8" r="1.2" />
-            <circle cx="5" cy="13" r="1.2" />
-            <circle cx="11" cy="13" r="1.2" />
-          </svg>
-        }
-      >
-        <svg class="h-4 w-4 shrink-0 text-purple-400" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
-        </svg>
-      </Show>
-      <div class="h-3 w-3 shrink-0 rounded-full" style={{ background: props.item.color }} />
-      <span class={`text-sm ${props.isSelected ? 'text-purple-200' : 'text-neutral-200'}`}>{props.item.label}</span>
-      <span class="ml-auto font-mono text-xs text-neutral-500">{props.item.id}</span>
-    </div>
-  );
-}
-
-/** Floating overlay showing the dragged item(s). */
-function OverlayItem(props: { items: DemoItem[]; draggedIds: string[] }): JSX.Element {
-  const draggedItems = () => props.items.filter((i) => props.draggedIds.includes(i.id));
-
-  return (
-    <div class="flex flex-col gap-1">
-      <For each={draggedItems()}>
-        {(item, i) => (
-          <div
-            class="flex items-center gap-3 rounded-lg border border-blue-500/50 bg-neutral-800 px-4 py-3 shadow-xl shadow-blue-500/10"
-            style={{
-              opacity: i() === 0 ? 1 : Math.max(0.3, 1 - i() * 0.2),
-              transform: i() > 0 ? `translate(${i() * 4}px, ${i() * 2}px)` : undefined
-            }}
-          >
-            <svg class="h-4 w-4 shrink-0 text-blue-400" viewBox="0 0 16 16" fill="currentColor">
-              <circle cx="5" cy="3" r="1.2" />
-              <circle cx="11" cy="3" r="1.2" />
-              <circle cx="5" cy="8" r="1.2" />
-              <circle cx="11" cy="8" r="1.2" />
-              <circle cx="5" cy="13" r="1.2" />
-              <circle cx="11" cy="13" r="1.2" />
-            </svg>
-            <div class="h-3 w-3 shrink-0 rounded-full" style={{ background: item.color }} />
-            <span class="text-sm text-neutral-200">{item.label}</span>
-            <span class="ml-auto font-mono text-xs text-neutral-500">{item.id}</span>
-          </div>
-        )}
-      </For>
-      <Show when={props.draggedIds.length > 1}>
-        <div class="mt-1 text-center text-xs text-blue-400/70">{props.draggedIds.length} items</div>
-      </Show>
     </div>
   );
 }

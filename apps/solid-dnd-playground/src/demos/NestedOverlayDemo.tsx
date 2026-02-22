@@ -14,9 +14,12 @@ import {
 } from 'solid-dnd';
 import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from 'solid-js';
 import EventLog, { createEventLogger } from '../components/EventLog';
+import { GroupNode } from '../components/GroupNode';
+import { LeafItem } from '../components/LeafItem';
+import { NestedOverlayItem } from '../components/NestedOverlayItem';
 import { StateCard } from '../components/StateCard';
 import { TreeDisplay } from '../components/TreeDisplay';
-import { createInitialTree, NODES, type NodeData } from '../data';
+import { createInitialTree, NODES } from '../data';
 
 // ============================================================================
 // MARK: Nested Overlay Demo
@@ -197,10 +200,31 @@ export default function NestedOverlayDemo(): JSX.Element {
             const isDragged = () => dropzone.isDragged(key) && sensor.isDragging();
 
             if (node.isGroup) {
-              return <GroupNode id={key} node={node} depth={props.depth} isDragged={isDragged()} />;
+              return (
+                <GroupNode
+                  id={key}
+                  node={node}
+                  depth={props.depth}
+                  isDragged={isDragged()}
+                  draggedClass="!m-0 !h-0 overflow-hidden !border-0 !p-0 opacity-0"
+                  onPointerDown={(ev) => handlePointerDown(key, ev)}
+                  ref={(el) => itemRefs.set(key, el)}
+                >
+                  <NodeChildren parentId={key} depth={props.depth + 1} />
+                </GroupNode>
+              );
             }
 
-            return <LeafItem id={key} node={node} isDragged={isDragged()} />;
+            return (
+              <LeafItem
+                id={key}
+                node={node}
+                isDragged={isDragged()}
+                draggedClass="border-transparent bg-transparent opacity-0 !h-0 overflow-hidden !py-0 !my-0"
+                onPointerDown={(ev) => handlePointerDown(key, ev)}
+                ref={(el) => itemRefs.set(key, el)}
+              />
+            );
           }}
         </For>
 
@@ -208,67 +232,6 @@ export default function NestedOverlayDemo(): JSX.Element {
         <Show when={displayKeys().filter((k) => k !== GAP_KEY).length === 0}>
           <div class="py-3 text-center text-xs text-neutral-600 italic">Drop items here</div>
         </Show>
-      </div>
-    );
-  }
-
-  function GroupNode(props: { id: string; node: NodeData; depth: number; isDragged: boolean }): JSX.Element {
-    const depthColors = ['border-white/15', 'border-white/10', 'border-white/5'];
-    const borderClass = () => depthColors[Math.min(props.depth, depthColors.length - 1)];
-
-    return (
-      <div
-        ref={(el) => itemRefs.set(props.id, el)}
-        class={`rounded-lg border border-dashed bg-white/3 ${borderClass()} ${props.isDragged ? '!m-0 !h-0 overflow-hidden !border-0 !p-0 opacity-0' : ''}`}
-      >
-        <div
-          onPointerDown={(ev) => handlePointerDown(props.id, ev)}
-          class="flex cursor-grab touch-none items-center gap-2 rounded-t-lg px-3 py-2 select-none hover:bg-white/5"
-        >
-          <svg class="h-3.5 w-3.5 shrink-0 text-neutral-500" viewBox="0 0 16 16" fill="currentColor">
-            <circle cx="5" cy="3" r="1.2" />
-            <circle cx="11" cy="3" r="1.2" />
-            <circle cx="5" cy="8" r="1.2" />
-            <circle cx="11" cy="8" r="1.2" />
-            <circle cx="5" cy="13" r="1.2" />
-            <circle cx="11" cy="13" r="1.2" />
-          </svg>
-          <div class="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: props.node.color }} />
-          <span class="text-xs font-semibold text-neutral-400">{props.node.label}</span>
-          <span class="ml-auto font-mono text-xs text-neutral-600">{props.id}</span>
-        </div>
-        <div class="px-2 pb-2">
-          <NodeChildren parentId={props.id} depth={props.depth + 1} />
-        </div>
-      </div>
-    );
-  }
-
-  function LeafItem(props: { id: string; node: NodeData; isDragged: boolean }): JSX.Element {
-    const baseClass = 'flex cursor-grab touch-none items-center gap-3 rounded-lg border px-3 py-2.5 select-none';
-
-    const stateClass = () => {
-      if (props.isDragged) return 'border-transparent bg-transparent opacity-0 !h-0 overflow-hidden !py-0 !my-0';
-      return 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/8';
-    };
-
-    return (
-      <div
-        ref={(el) => itemRefs.set(props.id, el)}
-        onPointerDown={(ev) => handlePointerDown(props.id, ev)}
-        class={`${baseClass} ${stateClass()}`}
-      >
-        <svg class="h-3.5 w-3.5 shrink-0 text-neutral-500" viewBox="0 0 16 16" fill="currentColor">
-          <circle cx="5" cy="3" r="1.2" />
-          <circle cx="11" cy="3" r="1.2" />
-          <circle cx="5" cy="8" r="1.2" />
-          <circle cx="11" cy="8" r="1.2" />
-          <circle cx="5" cy="13" r="1.2" />
-          <circle cx="11" cy="13" r="1.2" />
-        </svg>
-        <div class="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: props.node.color }} />
-        <span class="text-sm text-neutral-200">{props.node.label}</span>
-        <span class="ml-auto font-mono text-xs text-neutral-500">{props.id}</span>
       </div>
     );
   }
@@ -327,35 +290,5 @@ export default function NestedOverlayDemo(): JSX.Element {
 
       <EventLog logger={logger} />
     </div>
-  );
-}
-
-// ============================================================================
-// MARK: Sub-Components
-// ============================================================================
-
-function NestedOverlayItem(props: { draggedId: string | null }): JSX.Element {
-  const node = () => (props.draggedId ? NODES[props.draggedId] : undefined);
-
-  return (
-    <Show when={node()}>
-      {(n) => (
-        <div
-          class={`flex items-center gap-3 rounded-lg border border-blue-500/50 bg-neutral-800 shadow-xl shadow-blue-500/10 ${n().isGroup ? 'px-3 py-2' : 'px-3 py-2.5'}`}
-        >
-          <svg class="h-3.5 w-3.5 shrink-0 text-blue-400" viewBox="0 0 16 16" fill="currentColor">
-            <circle cx="5" cy="3" r="1.2" />
-            <circle cx="11" cy="3" r="1.2" />
-            <circle cx="5" cy="8" r="1.2" />
-            <circle cx="11" cy="8" r="1.2" />
-            <circle cx="5" cy="13" r="1.2" />
-            <circle cx="11" cy="13" r="1.2" />
-          </svg>
-          <div class="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: n().color }} />
-          <span class={`text-sm text-neutral-200 ${n().isGroup ? 'text-xs font-semibold' : ''}`}>{n().label}</span>
-          <span class="ml-auto font-mono text-xs text-neutral-500">{n().id}</span>
-        </div>
-      )}
-    </Show>
   );
 }

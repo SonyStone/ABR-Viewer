@@ -5,10 +5,12 @@ import { createDragSensor, createFlip, createSelection, createSortable, Place, R
 import { createMemo, createSignal, For, Show, type JSX } from 'solid-js';
 import EventLog, { createEventLogger } from '../components/EventLog';
 import { GridControls } from '../components/GridControls';
+import { GridDropIndicator } from '../components/GridDropIndicator';
+import { GridItem } from '../components/GridItem';
 import { OrderDisplay } from '../components/OrderDisplay';
 import { SelectionInfo } from '../components/SelectionInfo';
 import { StateCard } from '../components/StateCard';
-import { createGridItems, type DemoItem } from '../data';
+import { createGridItems } from '../data';
 
 // ============================================================================
 // MARK: Grid Demo
@@ -181,8 +183,7 @@ export default function GridDemo(): JSX.Element {
           {(item) => (
             <GridItem
               item={item}
-              isDragged={draggedIds().includes(item.id)}
-              isDragging={sensor.isDragging()}
+              isDragged={draggedIds().includes(item.id) && sensor.isDragging()}
               isSelected={selection.isSelected(item.id)}
               onPointerDown={(ev) => handleItemPointerDown(item.id, ev)}
               ref={(el) => itemRefs.set(item.id, el)}
@@ -217,61 +218,6 @@ export default function GridDemo(): JSX.Element {
 
       {/* ── Event log ─────────────────────────────────────────────── */}
       <EventLog logger={logger} />
-    </div>
-  );
-}
-
-// ============================================================================
-// MARK: Sub-Components
-// ============================================================================
-
-function GridItem(props: {
-  item: DemoItem;
-  isDragged: boolean;
-  isDragging: boolean;
-  isSelected: boolean;
-  onPointerDown: (ev: PointerEvent) => void;
-  ref: (el: HTMLDivElement) => void;
-}): JSX.Element {
-  const baseClass =
-    'flex cursor-grab touch-none flex-col items-center gap-2 rounded-lg border p-4 transition-all select-none active:cursor-grabbing';
-
-  const stateClass = () => {
-    if (props.isDragged && props.isDragging) {
-      return 'border-blue-500/30 bg-blue-500/10 opacity-40';
-    }
-    if (props.isSelected) {
-      return 'border-purple-500/40 bg-purple-500/10 ring-1 ring-purple-500/20';
-    }
-    return 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/8';
-  };
-
-  return (
-    <div ref={props.ref} onPointerDown={props.onPointerDown} class={`${baseClass} ${stateClass()}`}>
-      <div class="h-8 w-8 rounded" style={{ background: props.item.color }} />
-      <span class={`text-xs ${props.isSelected ? 'text-purple-200' : 'text-neutral-300'}`}>{props.item.label}</span>
-      <span class="font-mono text-[10px] text-neutral-500">{props.item.id}</span>
-    </div>
-  );
-}
-
-function GridDropIndicator(props: { x: number; y: number; height: number }): JSX.Element {
-  return (
-    <div
-      class="pointer-events-none absolute z-10"
-      style={{
-        left: `${props.x}px`,
-        top: `${props.y}px`,
-        width: '3px',
-        height: `${props.height}px`,
-        transform: 'translateX(-1.5px)'
-      }}
-    >
-      <div class="h-full w-full rounded-full bg-blue-400 shadow-sm shadow-blue-400/50" />
-      {/* Top dot */}
-      <div class="absolute -top-1 -left-1 h-2.5 w-2.5 rounded-full border-2 border-blue-400 bg-neutral-900" />
-      {/* Bottom dot */}
-      <div class="absolute -bottom-1 -left-1 h-2.5 w-2.5 rounded-full border-2 border-blue-400 bg-neutral-900" />
     </div>
   );
 }

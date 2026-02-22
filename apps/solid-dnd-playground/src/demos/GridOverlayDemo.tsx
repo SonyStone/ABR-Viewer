@@ -17,6 +17,8 @@ import {
 import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from 'solid-js';
 import EventLog, { createEventLogger } from '../components/EventLog';
 import { GridControls } from '../components/GridControls';
+import { GridItem } from '../components/GridItem';
+import { GridOverlayItem } from '../components/GridOverlayItem';
 import { OrderDisplay } from '../components/OrderDisplay';
 import { SelectionInfo } from '../components/SelectionInfo';
 import { StateCard } from '../components/StateCard';
@@ -237,6 +239,7 @@ export default function GridOverlayDemo(): JSX.Element {
                 isSelected={selection.isSelected(key)}
                 onPointerDown={(ev) => handleItemPointerDown(key, ev)}
                 ref={(el) => itemRefs.set(key, el)}
+                draggedClass="border-transparent bg-transparent opacity-0 !h-0 overflow-hidden !p-0 !m-0"
               />
             );
           }}
@@ -278,56 +281,5 @@ export default function GridOverlayDemo(): JSX.Element {
 
       <EventLog logger={logger} />
     </div>
-  );
-}
-
-// ============================================================================
-// MARK: Sub-Components
-// ============================================================================
-
-function GridItem(props: {
-  item: DemoItem;
-  isDragged: boolean;
-  isSelected: boolean;
-  onPointerDown: (ev: PointerEvent) => void;
-  ref: (el: HTMLDivElement) => void;
-}): JSX.Element {
-  const baseClass =
-    'flex cursor-grab touch-none flex-col items-center gap-2 rounded-lg border p-4 select-none active:cursor-grabbing';
-
-  const stateClass = () => {
-    if (props.isDragged) {
-      return 'border-transparent bg-transparent opacity-0 !h-0 overflow-hidden !p-0 !m-0';
-    }
-    if (props.isSelected) {
-      return 'border-purple-500/40 bg-purple-500/10 ring-1 ring-purple-500/20';
-    }
-    return 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/8';
-  };
-
-  return (
-    <div ref={props.ref} onPointerDown={props.onPointerDown} class={`${baseClass} ${stateClass()}`}>
-      <div class="h-8 w-8 rounded" style={{ background: props.item.color }} />
-      <span class={`text-xs ${props.isSelected ? 'text-purple-200' : 'text-neutral-300'}`}>{props.item.label}</span>
-      <span class="font-mono text-[10px] text-neutral-500">{props.item.id}</span>
-    </div>
-  );
-}
-
-function GridOverlayItem(props: { items: DemoItem[]; draggedIds: string[] }): JSX.Element {
-  const primary = () => props.items.find((i) => props.draggedIds.includes(i.id));
-
-  return (
-    <Show when={primary()}>
-      {(item) => (
-        <div class="flex flex-col items-center gap-2 rounded-lg border border-blue-500/50 bg-neutral-800 p-4 shadow-xl shadow-blue-500/10">
-          <div class="h-8 w-8 rounded" style={{ background: item().color }} />
-          <span class="text-xs text-neutral-200">{item().label}</span>
-          <Show when={props.draggedIds.length > 1}>
-            <span class="text-[10px] text-blue-400/70">+{props.draggedIds.length - 1} more</span>
-          </Show>
-        </div>
-      )}
-    </Show>
   );
 }
