@@ -13,6 +13,7 @@ import {
   Vec2
 } from 'solid-dnd';
 import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from 'solid-js';
+import { AnimationControls } from '../components/AnimationControls';
 import EventLog, { createEventLogger } from '../components/EventLog';
 import { GroupNode } from '../components/GroupNode';
 import { LeafItem } from '../components/LeafItem';
@@ -33,6 +34,8 @@ export default function NestedOverlayDemo(): JSX.Element {
   const [draggedId, setDraggedId] = createSignal<string | null>(null);
   const [dropPlace, setDropPlace] = createSignal<Place.Place<string> | undefined>();
   const [gapHeight, setGapHeight] = createSignal(0);
+  const [animEnabled, setAnimEnabled] = createSignal(true);
+  const [animDuration, setAnimDuration] = createSignal(200);
   let pendingDragId: string | null = null;
 
   // ── Element refs ────────────────────────────────────────────────────────
@@ -96,7 +99,7 @@ export default function NestedOverlayDemo(): JSX.Element {
         return dropzone.getDisplayKeys(place.parent as any);
       },
       () => {
-        if (sensor.isDragging()) {
+        if (sensor.isDragging() && animEnabled()) {
           flip.playFromFirst();
         }
       },
@@ -135,7 +138,7 @@ export default function NestedOverlayDemo(): JSX.Element {
       }
 
       // 2. Capture FLIP positions before DOM changes
-      flip.captureFirst();
+      if (animEnabled()) flip.captureFirst();
 
       // 3. Set drag state
       setDraggedId(id);
@@ -146,26 +149,27 @@ export default function NestedOverlayDemo(): JSX.Element {
       setDropPlace(nestable.getInsertionPoint(e.position));
     },
     onDragMove: (e) => {
-      flip.captureFirst();
+      if (animEnabled()) flip.captureFirst();
       throttledSetDropPlace(e.position);
     },
     onDragEnd: () => {
       const place = dropPlace();
       const id = draggedId();
+      const dur = animEnabled() ? animDuration() : 0;
       if (place && id) {
         const doApply = () => {
           applyDrop(id, place);
           resetDragState();
         };
-        flip.animate(doApply, { duration: 200 });
+        flip.animate(doApply, { duration: dur });
         logger.addLog(`■ DROP  "${id}" → ${Place.label(place)}`);
       } else {
-        flip.animate(() => resetDragState(), { duration: 200 });
+        flip.animate(() => resetDragState(), { duration: dur });
       }
     },
     onDragCancel: () => {
       logger.addLog('✕ CANCEL');
-      flip.animate(() => resetDragState(), { duration: 200 });
+      flip.animate(() => resetDragState(), { duration: animEnabled() ? animDuration() : 0 });
     }
   });
 
@@ -250,6 +254,15 @@ export default function NestedOverlayDemo(): JSX.Element {
           <code class="rounded bg-white/10 px-1">createFlip</code>.
         </p>
       </div>
+
+      {/* ── Animation controls ─────────────────────────────────────── */}
+      <AnimationControls
+        enabled={animEnabled()}
+        setEnabled={setAnimEnabled}
+        duration={animDuration()}
+        setDuration={setAnimDuration}
+        isAnimating={flip.isAnimating()}
+      />
 
       {/* ── Nested tree ──────────────────────────────────────────── */}
       <div class="rounded-xl border border-white/10 bg-white/2 p-3">

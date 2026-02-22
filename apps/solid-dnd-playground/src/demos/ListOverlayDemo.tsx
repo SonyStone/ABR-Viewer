@@ -45,6 +45,7 @@ export default function ListOverlayDemo(): JSX.Element {
   let containerRef: HTMLDivElement | undefined;
 
   // ── Animation controls ──────────────────────────────────────────────────
+  const [animEnabled, setAnimEnabled] = createSignal(true);
   const [animDuration, setAnimDuration] = createSignal(200);
 
   // ── Selection ───────────────────────────────────────────────────────────
@@ -90,7 +91,7 @@ export default function ListOverlayDemo(): JSX.Element {
     on(
       () => dropzone.displayKeys(),
       () => {
-        if (sensor.isDragging()) {
+        if (sensor.isDragging() && animEnabled()) {
           flip.playFromFirst();
         }
       },
@@ -129,7 +130,7 @@ export default function ListOverlayDemo(): JSX.Element {
       }
 
       // 2. Capture FLIP positions before DOM changes
-      flip.captureFirst();
+      if (animEnabled()) flip.captureFirst();
 
       // 3. Set drag state (triggers display key changes → items get collapsed class)
       setDraggedIds(ids);
@@ -141,26 +142,27 @@ export default function ListOverlayDemo(): JSX.Element {
     },
     onDragMove: (e) => {
       // Capture before place changes (so FLIP sees the old positions)
-      flip.captureFirst();
+      if (animEnabled()) flip.captureFirst();
       throttledSetDropPlace(e.position);
     },
     onDragEnd: () => {
       const place = dropPlace();
       const ids = draggedIds();
+      const dur = animEnabled() ? animDuration() : 0;
       if (place && ids.length > 0) {
         const doReorder = () => {
           setItems((prev) => reorderItems(prev, ids, place, (i) => i.id));
           resetDragState();
         };
-        flip.animate(doReorder, { duration: animDuration() });
+        flip.animate(doReorder, { duration: dur });
         logger.addLog(`■ DROP  [${ids.join(', ')}] → ${Place.label(place)}`);
       } else {
-        flip.animate(() => resetDragState(), { duration: animDuration() });
+        flip.animate(() => resetDragState(), { duration: dur });
       }
     },
     onDragCancel: () => {
       logger.addLog('✕ CANCEL');
-      flip.animate(() => resetDragState(), { duration: animDuration() });
+      flip.animate(() => resetDragState(), { duration: animEnabled() ? animDuration() : 0 });
     }
   });
 
@@ -196,7 +198,13 @@ export default function ListOverlayDemo(): JSX.Element {
       </div>
 
       {/* ── Animation controls ─────────────────────────────────────── */}
-      <AnimationControls duration={animDuration()} setDuration={setAnimDuration} isAnimating={flip.isAnimating()} />
+      <AnimationControls
+        enabled={animEnabled()}
+        setEnabled={setAnimEnabled}
+        duration={animDuration()}
+        setDuration={setAnimDuration}
+        isAnimating={flip.isAnimating()}
+      />
 
       {/* ── Selection info ─────────────────────────────────────────── */}
       <SelectionInfo selected={selection.selected()} items={items()} onClear={() => selection.clear()} />

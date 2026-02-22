@@ -54,6 +54,7 @@ export default function GridOverlayDemo(): JSX.Element {
   let containerRef: HTMLDivElement | undefined;
 
   // ── Animation controls ──────────────────────────────────────────────────
+  const [animEnabled, setAnimEnabled] = createSignal(true);
   const [animDuration, setAnimDuration] = createSignal(200);
 
   // ── Selection ───────────────────────────────────────────────────────────
@@ -102,7 +103,7 @@ export default function GridOverlayDemo(): JSX.Element {
     on(
       () => dropzone.displayKeys(),
       () => {
-        if (sensor.isDragging()) {
+        if (sensor.isDragging() && animEnabled()) {
           flip.playFromFirst();
         }
       },
@@ -141,7 +142,7 @@ export default function GridOverlayDemo(): JSX.Element {
       }
 
       // 2. Capture FLIP positions before DOM changes
-      flip.captureFirst();
+      if (animEnabled()) flip.captureFirst();
 
       // 3. Set drag state
       setDraggedIds(ids);
@@ -150,26 +151,27 @@ export default function GridOverlayDemo(): JSX.Element {
       logger.addLog(`▶ DRAG  [${ids.join(', ')}] at (${e.position.x.toFixed(0)}, ${e.position.y.toFixed(0)})`);
     },
     onDragMove: (e) => {
-      flip.captureFirst();
+      if (animEnabled()) flip.captureFirst();
       throttledSetDropPlace(e.position);
     },
     onDragEnd: () => {
       const place = dropPlace();
       const ids = draggedIds();
+      const dur = animEnabled() ? animDuration() : 0;
       if (place && ids.length > 0) {
         const doReorder = () => {
           setItems((prev) => reorderItems(prev, ids, place, (i) => i.id));
           resetDragState();
         };
-        flip.animate(doReorder, { duration: animDuration() });
+        flip.animate(doReorder, { duration: dur });
         logger.addLog(`■ DROP  [${ids.join(', ')}] → ${Place.label(place)}`);
       } else {
-        flip.animate(() => resetDragState(), { duration: animDuration() });
+        flip.animate(() => resetDragState(), { duration: dur });
       }
     },
     onDragCancel: () => {
       logger.addLog('✕ CANCEL');
-      flip.animate(() => resetDragState(), { duration: animDuration() });
+      flip.animate(() => resetDragState(), { duration: animEnabled() ? animDuration() : 0 });
     }
   });
 
@@ -201,6 +203,8 @@ export default function GridOverlayDemo(): JSX.Element {
       <GridControls
         columns={columns()}
         setColumns={setColumns}
+        animEnabled={animEnabled()}
+        setAnimEnabled={setAnimEnabled}
         animDuration={animDuration()}
         setAnimDuration={setAnimDuration}
         isAnimating={flip.isAnimating()}
