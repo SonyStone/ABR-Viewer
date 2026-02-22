@@ -1,5 +1,12 @@
 import { type Accessor, createMemo, createSignal } from 'solid-js';
-import { applyRange, applySet, applyToggle, getSelectionMode, type SelectionMode } from '../core/selectionModes';
+import {
+  applyGridRange,
+  applyRange,
+  applySet,
+  applyToggle,
+  getSelectionMode,
+  type SelectionMode
+} from '../core/selectionModes';
 
 // ============================================================================
 // MARK: Types
@@ -14,6 +21,12 @@ export type SelectionOptions<K> = {
    * @default true
    */
   multiselect?: boolean;
+  /**
+   * Grid columns for rectangular range selection.
+   * When set, Shift+click selects a rectangular region instead of a linear range.
+   * When `undefined`, Shift+click selects a linear range (default list behavior).
+   */
+  gridColumns?: Accessor<number | undefined>;
   /** Called whenever the selection changes. */
   onSelectionChange?: (keys: K[]) => void;
 };
@@ -130,7 +143,12 @@ export function createSelection<K>(options: SelectionOptions<K>): Selection<K> {
           updateSelection(applySet(key));
           setAnchor(key);
         } else {
-          updateSelection(applyRange(options.items(), a, key));
+          const cols = options.gridColumns?.();
+          if (cols !== undefined && cols > 0) {
+            updateSelection(applyGridRange(options.items(), a, key, cols));
+          } else {
+            updateSelection(applyRange(options.items(), a, key));
+          }
           // Don't update anchor on range — user can shift-click again to adjust
         }
         break;

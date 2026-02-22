@@ -1,6 +1,6 @@
 import { createBodyCursor } from '@solid-primitives/cursor';
 import { throttle } from '@solid-primitives/scheduled';
-import { createDragSensor, createFlip, createNestable, Place, Rect, type NestableContainer } from 'solid-dnd';
+import { createDragSensor, createFlip, createNestable, Place, Rect, Tree } from 'solid-dnd';
 import { createMemo, createSignal, For, Show, type JSX } from 'solid-js';
 import EventLog, { createEventLogger } from '../components/EventLog';
 
@@ -68,68 +68,25 @@ export default function NestedDemo(): JSX.Element {
   let pendingDragId: string | null = null;
 
   // ── Element refs ────────────────────────────────────────────────────────
-  // itemRefs: outer bounding rect for ALL nodes (used by parent container's getRect)
   const itemRefs = new Map<string, HTMLDivElement>();
-  // containerRefs: inner content rect for group nodes + root (used by getContainerRect)
   const containerRefs = new Map<string, HTMLDivElement>();
 
   // ── Derived: parent lookup ──────────────────────────────────────────────
-  const parentMap = createMemo(() => {
-    const map = new Map<string, string>();
-    for (const [parent, kids] of Object.entries(tree())) {
-      for (const kid of kids) map.set(kid, parent);
-    }
-    return map;
-  });
-
-  const getParent = (key: string): string | undefined => parentMap().get(key);
-
-  // ── Derived: all group keys in tree (recursive) ─────────────────────────
-  const allGroupKeys = createMemo((): Set<string> => {
-    const groups = new Set<string>();
-    const t = tree();
-    function walk(ids: string[]) {
-      for (const id of ids) {
-        if (NODES[id]?.isGroup) {
-          groups.add(id);
-          walk(t[id] ?? []);
-        }
-      }
-    }
-    walk(t['root'] ?? []);
-    return groups;
-  });
+  const parents = createMemo(() => Tree.parentMap(tree()));
+  const getParent = (key: string): string | undefined => parents().get(key);
 
   // ── Build NestableContainers from tree ──────────────────────────────────
-  const nestableContainers = createMemo((): NestableContainer<string>[] => {
-    const t = tree();
-    const result: NestableContainer<string>[] = [
-      {
-        key: 'root',
-        items: () => t['root'] ?? [],
-        getRect: (key) => Rect.fromElement(itemRefs.get(key)),
-        getContainerRect: () => Rect.fromElement(containerRefs.get('root'))
-      }
-    ];
-
-    // Add a container entry for every group node in the tree
-    for (const groupId of allGroupKeys()) {
-      result.push({
-        key: groupId,
-        items: () => t[groupId] ?? [],
-        getRect: (key) => Rect.fromElement(itemRefs.get(key)),
-        getContainerRect: () => Rect.fromElement(containerRefs.get(groupId))
-      });
-    }
-
-    return result;
-  });
+  const containers = createMemo(() =>
+    Tree.buildContainers(tree(), {
+      isContainer: (id) => NODES[id]?.isGroup ?? false,
+      getItemRect: (key) => Rect.fromElement(itemRefs.get(key)),
+      getContainerRect: (key) => Rect.fromElement(containerRefs.get(key))
+    })
+  );
 
   // ── Nestable primitive ──────────────────────────────────────────────────
   const nestable = createNestable<string>({
-    containers: nestableContainers,
-    // No tag constraints — all containers accept everything.
-    // Cycle prevention handles the rest.
+    containers,
     dragTags: () => undefined,
     draggedKeys: () => {
       const id = draggedId();
@@ -155,37 +112,7 @@ export default function NestedDemo(): JSX.Element {
 
   // ── Apply drop: move node in the tree ───────────────────────────────────
   function applyDrop(id: string, place: Place.Place<string>) {
-    setTree((prev) => {
-      const result = { ...prev };
-
-      // Remove the node from ALL parent lists
-      for (const [parent, kids] of Object.entries(result)) {
-        if (kids.includes(id)) {
-          result[parent] = kids.filter((k) => k !== id);
-        }
-      }
-
-      // Insert into target parent at the right position
-      const targetKids = [...(result[place.parent] ?? [])];
-      if (place.before === null) {
-        targetKids.push(id);
-      } else {
-        const idx = targetKids.indexOf(place.before as string);
-        if (idx === -1) {
-          targetKids.push(id);
-        } else {
-          targetKids.splice(idx, 0, id);
-        }
-      }
-      result[place.parent] = targetKids;
-
-      // Ensure group nodes keep their children entry
-      if (NODES[id]?.isGroup && !(id in result)) {
-        result[id] = [];
-      }
-
-      return result;
-    });
+    setTree((prev) => Tree.move(prev, id, place));
   }
 
   // ── Drag sensor ─────────────────────────────────────────────────────────

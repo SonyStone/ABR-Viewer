@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --port 3040",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "kill": "pkill -9 -f \"vite\" 2>/dev/null; sleep 1; echo \"All vite processes killed\""
   },
   "dependencies": {
     "@corvu/drawer": "^0.2.4",

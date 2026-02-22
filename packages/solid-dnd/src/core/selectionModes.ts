@@ -90,3 +90,49 @@ export function applyRange<K>(items: K[], anchor: K, key: K): K[] {
   const end = Math.max(anchorIdx, keyIdx);
   return items.slice(start, end + 1);
 }
+
+// ============================================================================
+// MARK: applyGridRange
+// ============================================================================
+
+/**
+ * **Grid range mode**: Select a rectangular region from `anchor` to `key`.
+ *
+ * Unlike `applyRange` which selects a linear slice, this selects all items
+ * within the rectangular bounding box defined by the two cells in the grid.
+ *
+ * @param items   The full ordered list of item keys.
+ * @param anchor  The key that started the range (anchor cell).
+ * @param key     The key at the end of the range (shift-clicked cell).
+ * @param columns Number of columns in the grid.
+ * @returns New selection array covering the rectangular region, in items order.
+ */
+export function applyGridRange<K>(items: K[], anchor: K, key: K, columns: number): K[] {
+  const anchorIdx = items.indexOf(anchor);
+  const keyIdx = items.indexOf(key);
+
+  if (anchorIdx === -1 || keyIdx === -1) {
+    return [key];
+  }
+
+  const anchorRow = Math.floor(anchorIdx / columns);
+  const anchorCol = anchorIdx % columns;
+  const keyRow = Math.floor(keyIdx / columns);
+  const keyCol = keyIdx % columns;
+
+  const minRow = Math.min(anchorRow, keyRow);
+  const maxRow = Math.max(anchorRow, keyRow);
+  const minCol = Math.min(anchorCol, keyCol);
+  const maxCol = Math.max(anchorCol, keyCol);
+
+  const result: K[] = [];
+  for (let r = minRow; r <= maxRow; r++) {
+    for (let c = minCol; c <= maxCol; c++) {
+      const idx = r * columns + c;
+      if (idx < items.length) {
+        result.push(items[idx]);
+      }
+    }
+  }
+  return result;
+}

@@ -1,6 +1,9 @@
-import { type Accessor, createMemo } from 'solid-js';
+import { createMemo, type Accessor } from 'solid-js';
+import { getGridIndicatorPosition, getGridInsertionPoint } from '../core/gridInsertion';
+import { resolveGrid, type ResolvedGrid } from '../core/gridLayout';
 import type { Place } from '../core/place';
 import type { Rect } from '../core/rect';
+import type { GridConfig } from '../core/types';
 import type { Vec2 } from '../core/vec2';
 
 // ============================================================================
@@ -18,13 +21,19 @@ export type SortableOptions<K> = {
   getContainerRect: () => Rect | undefined;
   /**
    * Layout mode for insertion point calculation.
-   * Currently only 'list' (vertical) is supported. Grid comes in M6.
+   * - `'list'` — vertical list (default)
+   * - `'grid'` — CSS grid / flex-wrap layout (requires `gridConfig`)
    * @default 'list'
    */
-  layout?: 'list';
+  layout?: 'list' | 'grid';
   /**
-   * Spacing between items in pixels. Used as a hint for indicator placement,
-   * but does not affect insertion point detection (rects already include gaps).
+   * Grid configuration. Required when `layout` is `'grid'`.
+   * Defines columns, row height, and gap.
+   */
+  gridConfig?: GridConfig;
+  /**
+   * Spacing between items in pixels. Used as a hint for indicator placement
+   * in list mode. Does not affect grid mode (use gridConfig.gap instead).
    * @default 0
    */
   spacing?: number;
@@ -43,6 +52,8 @@ export type Sortable<K> = {
    *
    * For a vertical list, the boundary between "before item[i]" and
    * "before item[i+1]" is at the vertical center of item[i]'s rect.
+   *
+   * For a grid, uses 2D cell detection with left/right half logic.
    */
   getInsertionPoint: (position: Vec2) => Place<K> | undefined;
   /**
@@ -53,14 +64,28 @@ export type Sortable<K> = {
    * - `before: null` (append) → bottom edge of the last item, relative to container.
    * - Returns `undefined` if the place is undefined, the container has no rect,
    *   or the referenced item has no rect.
+   *
+   * For grid layouts, use `getGridIndicator` instead.
    */
   getIndicatorOffset: (place: Place<K> | undefined) => number | undefined;
+  /**
+   * Grid-specific indicator positioning. Returns `{ x, y, height }` relative
+   * to the container, for a vertical insertion bar.
+   *
+   * Returns `undefined` for non-grid layouts or invalid places.
+   */
+  getGridIndicator: (place: Place<K> | undefined) => { x: number; y: number; height: number } | undefined;
   /**
    * All valid insertion points for the current item list.
    * For N items, returns N+1 places: before each item + append at end.
    * Useful for rendering drop indicators at every possible position.
    */
   insertionPoints: Accessor<Place<K>[]>;
+  /**
+   * The resolved grid dimensions, or `undefined` if layout is not 'grid'.
+   * Useful for rendering and computing cell positions.
+   */
+  resolvedGrid: Accessor<ResolvedGrid | undefined>;
 };
 
 // ============================================================================
@@ -116,6 +141,25 @@ export type Sortable<K> = {
  * ```
  */
 export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
+  const isGrid = () => options.layout === 'grid';
+
+  // ── Resolved grid (memoized, undefined for list layout) ────────────────
+  const resolvedGrid = createMemo<ResolvedGrid | undefined>(() => {
+    if (!isGrid() || !options.gridConfig) return undefined;
+    const containerRect = options.getContainerRect();
+    const keys = activeItems();
+    // Measure first item height for 'auto' rowHeight
+    const firstRect = keys.length > 0 ? options.getRect(keys[0]) : undefined;
+    return resolveGrid(options.gridConfig, keys.length, containerRect?.width, firstRect?.height);
+  });
+
+  // ── Active items (excluding dragged) ───────────────────────────────────
+  function activeItems(): K[] {
+    const dKeys = options.draggedKeys?.();
+    const allKeys = options.items();
+    return dKeys && dKeys.length > 0 ? allKeys.filter((k) => !dKeys.includes(k)) : allKeys;
+  }
+
   // ── Derived: all valid insertion points ────────────────────────────────
   const insertionPoints = createMemo<Place<K>[]>(() => {
     const keys = options.items();
@@ -133,6 +177,17 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
     const containerRect = options.getContainerRect();
     if (!containerRect) return undefined;
 
+    const keys = activeItems();
+    const containerKey = options.containerKey;
+
+    // ── Grid layout ──────────────────────────────────────────────────────
+    const grid = resolvedGrid();
+    if (grid) {
+      return getGridInsertionPoint(position, containerKey, keys, grid, containerRect, options.getRect);
+    }
+
+    // ── List layout ──────────────────────────────────────────────────────
+
     // Reject pointer outside container bounds
     if (
       position.x < containerRect.x ||
@@ -142,11 +197,6 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
     ) {
       return undefined;
     }
-
-    const dKeys = options.draggedKeys?.();
-    const allKeys = options.items();
-    const keys = dKeys && dKeys.length > 0 ? allKeys.filter((k) => !dKeys.includes(k)) : allKeys;
-    const containerKey = options.containerKey;
 
     // Empty list (or all items are being dragged) → only valid position is append
     if (keys.length === 0) {
@@ -169,7 +219,7 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
     return { parent: containerKey, before: null };
   }
 
-  // ── Indicator offset for a given place ─────────────────────────────────
+  // ── Indicator offset for a given place (list layout) ───────────────────
   function getIndicatorOffset(place: Place<K> | undefined): number | undefined {
     if (!place) return undefined;
 
@@ -183,9 +233,7 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
     }
 
     // Append: bottom edge of last non-dragged item
-    const dKeys = options.draggedKeys?.();
-    const allKeys = options.items();
-    const keys = dKeys && dKeys.length > 0 ? allKeys.filter((k) => !dKeys.includes(k)) : allKeys;
+    const keys = activeItems();
     if (keys.length === 0) return 0;
 
     const lastRect = options.getRect(keys[keys.length - 1]);
@@ -193,9 +241,23 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
     return lastRect.y + lastRect.height - containerRect.y;
   }
 
+  // ── Grid indicator position ────────────────────────────────────────────
+  function getGridIndicator(place: Place<K> | undefined): { x: number; y: number; height: number } | undefined {
+    const grid = resolvedGrid();
+    if (!grid) return undefined;
+
+    const containerRect = options.getContainerRect();
+    if (!containerRect) return undefined;
+
+    const keys = activeItems();
+    return getGridIndicatorPosition(place, keys, grid, containerRect, options.getRect);
+  }
+
   return {
     getInsertionPoint,
     getIndicatorOffset,
-    insertionPoints
+    getGridIndicator,
+    insertionPoints,
+    resolvedGrid
   };
 }

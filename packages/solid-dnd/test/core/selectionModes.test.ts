@@ -1,4 +1,4 @@
-import { applyRange, applySet, applyToggle, getSelectionMode } from 'src/core/selectionModes';
+import { applyGridRange, applyRange, applySet, applyToggle, getSelectionMode } from 'src/core/selectionModes';
 import { describe, expect, it } from 'vitest';
 
 // ============================================================================
@@ -130,5 +130,55 @@ describe('applyRange', () => {
   it('result follows items order regardless of direction', () => {
     // Even though anchor=e and key=b, result is [b,c,d,e] not [e,d,c,b]
     expect(applyRange(items, 'e', 'b')).toEqual(['b', 'c', 'd', 'e']);
+  });
+});
+
+// ============================================================================
+// MARK: applyGridRange
+// ============================================================================
+
+describe('applyGridRange', () => {
+  // 4-column grid: a b c d / e f g h / i j k l
+  const items = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l'];
+
+  it('single cell → selects just that item', () => {
+    expect(applyGridRange(items, 'f', 'f', 4)).toEqual(['f']);
+  });
+
+  it('horizontal range in same row', () => {
+    expect(applyGridRange(items, 'b', 'd', 4)).toEqual(['b', 'c', 'd']);
+  });
+
+  it('vertical range in same column', () => {
+    // col 0: a(0,0), e(1,0), i(2,0)
+    expect(applyGridRange(items, 'a', 'i', 4)).toEqual(['a', 'e', 'i']);
+  });
+
+  it('2x2 block', () => {
+    // (0,1)=b to (1,2)=g → rows 0-1, cols 1-2
+    expect(applyGridRange(items, 'b', 'g', 4)).toEqual(['b', 'c', 'f', 'g']);
+  });
+
+  it('full 3x3 block', () => {
+    // (0,1)=b to (2,3)=l → rows 0-2, cols 1-3
+    expect(applyGridRange(items, 'b', 'l', 4)).toEqual(['b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'l']);
+  });
+
+  it('reversed corners produce same result', () => {
+    expect(applyGridRange(items, 'l', 'b', 4)).toEqual(['b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'l']);
+  });
+
+  it('clips to item count on partial last row', () => {
+    const items10 = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
+    // (2,0)=i to (2,3) → only i,j exist (indices 8,9)
+    expect(applyGridRange(items10, 'i', 'd', 4)).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']);
+  });
+
+  it('anchor not in items → fallback to [key]', () => {
+    expect(applyGridRange(items, 'z', 'c', 4)).toEqual(['c']);
+  });
+
+  it('key not in items → fallback to [key]', () => {
+    expect(applyGridRange(items, 'a', 'z', 4)).toEqual(['z']);
   });
 });
