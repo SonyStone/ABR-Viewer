@@ -1,7 +1,7 @@
 import { createBodyCursor } from '@solid-primitives/cursor';
 import { throttle } from '@solid-primitives/scheduled';
 import { createDragSensor, createFlip, createNestable, Place, Rect, Tree } from 'solid-dnd';
-import { createMemo, createSignal, For, Show, type JSX } from 'solid-js';
+import { batch, createMemo, createSignal, For, Show, type JSX } from 'solid-js';
 import { DropIndicator } from '../components/DropIndicator';
 import EventLog, { createEventLogger } from '../components/EventLog';
 import { GroupNode } from '../components/GroupNode';
@@ -20,7 +20,9 @@ export default function NestedDemo(): JSX.Element {
   // ── State ───────────────────────────────────────────────────────────────
   const [tree, setTree] = createSignal(createInitialTree());
   const [draggedId, setDraggedId] = createSignal<string | null>(null);
-  const [dropPlace, setDropPlace] = createSignal<Place.Place<string> | undefined>();
+  const [dropPlace, setDropPlace] = createSignal<Place.Place<string> | undefined>(undefined, {
+    equals: Place.equals
+  });
   let pendingDragId: string | null = null;
 
   // ── Element refs ────────────────────────────────────────────────────────
@@ -80,11 +82,13 @@ export default function NestedDemo(): JSX.Element {
     onDragStart: (e) => {
       const id = pendingDragId;
       if (!id) return;
-      setDraggedId(id);
-      const node = NODES[id];
-      const tag = node?.isGroup ? '📁' : '📄';
-      logger.addLog(`▶ DRAG  ${tag} "${id}" at (${e.position.x.toFixed(0)}, ${e.position.y.toFixed(0)})`);
-      setDropPlace(nestable.getInsertionPoint(e.position));
+      batch(() => {
+        setDraggedId(id);
+        const node = NODES[id];
+        const tag = node?.isGroup ? '📁' : '📄';
+        logger.addLog(`▶ DRAG  ${tag} "${id}" at (${e.position.x.toFixed(0)}, ${e.position.y.toFixed(0)})`);
+        setDropPlace(nestable.getInsertionPoint(e.position));
+      });
     },
     onDragMove: (e) => {
       throttledSetDropPlace(e.position);

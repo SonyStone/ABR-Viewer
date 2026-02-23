@@ -14,7 +14,7 @@ import {
   Vec2,
   type FlipAnimateEntry
 } from 'solid-dnd';
-import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from 'solid-js';
+import { batch, createEffect, createMemo, createSignal, For, on, Show, type JSX } from 'solid-js';
 import { AnimationControls } from '../components/AnimationControls';
 import EventLog, { createEventLogger } from '../components/EventLog';
 import { FlipDebugOverlay } from '../components/FlipDebugOverlay';
@@ -38,7 +38,9 @@ export default function ListOverlayDemo(): JSX.Element {
 
   // ── Drag state ──────────────────────────────────────────────────────────
   const [draggedIds, setDraggedIds] = createSignal<string[]>([]);
-  const [dropPlace, setDropPlace] = createSignal<Place.Place<string> | undefined>();
+  const [dropPlace, setDropPlace] = createSignal<Place.Place<string> | undefined>(undefined, {
+    equals: Place.equals
+  });
   const [gapHeight, setGapHeight] = createSignal(0);
   let pendingDragId: string | null = null;
 
@@ -140,11 +142,11 @@ export default function ListOverlayDemo(): JSX.Element {
       // 2. Capture FLIP positions before DOM changes
       if (animEnabled()) flip.captureFirst();
 
-      // 3. Set drag state (triggers display key changes → items get collapsed class)
-      setDraggedIds(ids);
-
-      // 4. Set drop place (triggers gap insertion → displayKeys changes → effect fires playFromFirst)
-      setDropPlace(sortable.getInsertionPoint(e.position));
+      // 3. Set drag state (batched so displayKeys computes once with final state)
+      batch(() => {
+        setDraggedIds(ids);
+        setDropPlace(sortable.getInsertionPoint(e.position));
+      });
 
       logger.addLog(`▶ DRAG  [${ids.join(', ')}] at (${e.position.x.toFixed(0)}, ${e.position.y.toFixed(0)})`);
     },

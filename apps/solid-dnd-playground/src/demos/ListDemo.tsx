@@ -1,7 +1,7 @@
 import { createBodyCursor } from '@solid-primitives/cursor';
 import { throttle } from '@solid-primitives/scheduled';
 import { createDragSensor, createFlip, createSelection, createSortable, Place, Rect, reorderItems } from 'solid-dnd';
-import { createMemo, createSignal, For, Show, type JSX } from 'solid-js';
+import { batch, createMemo, createSignal, For, Show, type JSX } from 'solid-js';
 import { AnimationControls } from '../components/AnimationControls';
 import { DropIndicator } from '../components/DropIndicator';
 import EventLog, { createEventLogger } from '../components/EventLog';
@@ -24,7 +24,9 @@ export default function ListDemo(): JSX.Element {
 
   // ── Drag state ──────────────────────────────────────────────────────────
   const [draggedIds, setDraggedIds] = createSignal<string[]>([]);
-  const [dropPlace, setDropPlace] = createSignal<Place.Place<string> | undefined>();
+  const [dropPlace, setDropPlace] = createSignal<Place.Place<string> | undefined>(undefined, {
+    equals: Place.equals
+  });
   let pendingDragId: string | null = null;
 
   // ── Element refs ────────────────────────────────────────────────────────
@@ -84,10 +86,11 @@ export default function ListDemo(): JSX.Element {
       const id = pendingDragId;
       // If dragging a selected item, drag the whole selection; otherwise just the one
       const ids = id && selection.isSelected(id) ? selection.selected() : id ? [id] : [];
-      setDraggedIds(ids);
-
-      logger.addLog(LOGS.DRAG(ids, id, e));
-      setDropPlace(sortable.getInsertionPoint(e.position));
+      batch(() => {
+        setDraggedIds(ids);
+        logger.addLog(LOGS.DRAG(ids, id, e));
+        setDropPlace(sortable.getInsertionPoint(e.position));
+      });
     },
     onDragMove: (e) => {
       throttledSetDropPlace(e.position);

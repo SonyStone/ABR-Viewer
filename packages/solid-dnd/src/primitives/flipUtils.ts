@@ -39,6 +39,10 @@ export type FlipDelta = Readonly<{
 export function measureElements(elements: Map<string, HTMLElement>): Map<string, ElementSnapshot> {
   const snapshots = new Map<string, ElementSnapshot>();
   for (const [key, el] of elements) {
+    // Skip detached elements (e.g., stale refs from items removed by <For>).
+    // getBoundingClientRect() on detached elements returns all-zero rects,
+    // which would produce incorrect FLIP deltas.
+    if (!el.isConnected) continue;
     const r = el.getBoundingClientRect();
     snapshots.set(key, { x: r.left, y: r.top, width: r.width, height: r.height });
   }
@@ -62,6 +66,21 @@ export function measureElements(elements: Map<string, HTMLElement>): Map<string,
  * @param last  Snapshot taken after the DOM change.
  * @returns Map of keys → inverse translation deltas for elements that moved.
  */
+/**
+ * Compares two element snapshots for exact positional equality.
+ * Used by createFlip to detect whether animation targets have changed.
+ */
+export function snapshotsEqual(a: Map<string, ElementSnapshot>, b: Map<string, ElementSnapshot>): boolean {
+  if (a.size !== b.size) return false;
+  for (const [key, snapA] of a) {
+    const snapB = b.get(key);
+    if (!snapB) return false;
+    if (snapA.x !== snapB.x || snapA.y !== snapB.y || snapA.width !== snapB.width || snapA.height !== snapB.height)
+      return false;
+  }
+  return true;
+}
+
 export function calculateDeltas(
   first: Map<string, ElementSnapshot>,
   last: Map<string, ElementSnapshot>

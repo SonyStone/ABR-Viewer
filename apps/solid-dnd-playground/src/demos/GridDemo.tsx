@@ -2,7 +2,7 @@ import { createBodyCursor } from '@solid-primitives/cursor';
 import { throttle } from '@solid-primitives/scheduled';
 import type { GridConfig } from 'solid-dnd';
 import { createDragSensor, createFlip, createSelection, createSortable, Place, Rect, reorderItems } from 'solid-dnd';
-import { createMemo, createSignal, For, Show, type JSX } from 'solid-js';
+import { batch, createMemo, createSignal, For, Show, type JSX } from 'solid-js';
 import EventLog, { createEventLogger } from '../components/EventLog';
 import { GridControls } from '../components/GridControls';
 import { GridDropIndicator } from '../components/GridDropIndicator';
@@ -37,7 +37,9 @@ export default function GridDemo(): JSX.Element {
 
   // ── Drag state ──────────────────────────────────────────────────────────
   const [draggedIds, setDraggedIds] = createSignal<string[]>([]);
-  const [dropPlace, setDropPlace] = createSignal<Place.Place<string> | undefined>();
+  const [dropPlace, setDropPlace] = createSignal<Place.Place<string> | undefined>(undefined, {
+    equals: Place.equals
+  });
   let pendingDragId: string | null = null;
 
   // ── Element refs ────────────────────────────────────────────────────────
@@ -98,9 +100,11 @@ export default function GridDemo(): JSX.Element {
     onDragStart: (e) => {
       const id = pendingDragId;
       const ids = id && selection.isSelected(id) ? selection.selected() : id ? [id] : [];
-      setDraggedIds(ids);
-      logger.addLog(`▶ DRAG  [${ids.join(', ')}] at (${e.position.x.toFixed(0)}, ${e.position.y.toFixed(0)})`);
-      setDropPlace(sortable.getInsertionPoint(e.position));
+      batch(() => {
+        setDraggedIds(ids);
+        logger.addLog(`▶ DRAG  [${ids.join(', ')}] at (${e.position.x.toFixed(0)}, ${e.position.y.toFixed(0)})`);
+        setDropPlace(sortable.getInsertionPoint(e.position));
+      });
     },
     onDragMove: (e) => {
       throttledSetDropPlace(e.position);

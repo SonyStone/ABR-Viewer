@@ -1,5 +1,5 @@
-import { createSignal, type Accessor } from 'solid-js';
-import { calculateDeltas, measureElements, type ElementSnapshot, type FlipDelta } from './flipUtils';
+import { batch, createSignal, type Accessor } from 'solid-js';
+import { calculateDeltas, measureElements, snapshotsEqual, type ElementSnapshot, type FlipDelta } from './flipUtils';
 
 // ============================================================================
 // MARK: Types
@@ -124,41 +124,65 @@ export function createFlip(options: FlipOptions): Flip {
   let firstSnapshot: Map<string, ElementSnapshot> | null = null;
   let activeAnimations: Animation[] = [];
 
+  // Track the target positions and start time of the current animation cycle.
+  // When playFromFirst() is called redundantly (same targets), we use the
+  // remaining time so the animation still completes on schedule.
+  let lastTargets: Map<string, ElementSnapshot> | null = null;
+  let animationStartTime = 0;
+
   // ── First: capture current positions ──────────────────────────────────
   function captureFirst(): void {
-    // If animations are in flight, finish them first so getBoundingClientRect()
-    // returns the true resting positions, not mid-animation transforms.
-    finishActive();
+    // Simply measure current visual positions. getBoundingClientRect()
+    // includes Web Animation API transforms, so this captures where
+    // elements truly are on screen — even mid-animation.
     firstSnapshot = measureElements(options.elements);
   }
 
   // ── Last + Invert + Play ──────────────────────────────────────────────
   function playFromFirst(): void {
     if (!firstSnapshot) return;
+    const first = firstSnapshot;
+    firstSnapshot = null;
 
-    // Cancel any still-running animations (shouldn't be any after
-    // captureFirst finished them, but just in case).
+    // Cancel any still-running animations so elements snap to their
+    // current position and getBoundingClientRect() reads layout values.
     cancelActive();
 
     const lastSnapshot = measureElements(options.elements);
-    const deltas = calculateDeltas(firstSnapshot, lastSnapshot);
-    firstSnapshot = null;
+    const deltas = calculateDeltas(first, lastSnapshot);
 
-    if (deltas.size === 0) return;
+    if (deltas.size === 0) {
+      lastTargets = null;
+      return;
+    }
 
-    const dur = options.duration ?? 200;
+    const baseDur = options.duration ?? 200;
     const ease = options.easing ?? 'ease-out';
+
+    // If targets haven't changed (same layout as previous animation),
+    // use remaining time so the overall animation finishes on schedule
+    // instead of restarting a full-duration animation every call.
+    const targetsUnchanged = lastTargets !== null && snapshotsEqual(lastTargets, lastSnapshot);
+    let dur: number;
+    if (targetsUnchanged && animationStartTime > 0) {
+      const elapsed = performance.now() - animationStartTime;
+      dur = Math.max(baseDur - elapsed, 16);
+    } else {
+      dur = baseDur;
+      animationStartTime = performance.now();
+    }
+    lastTargets = lastSnapshot;
 
     // Fire debug callback with animation entries
     if (options.onAnimate) {
       const entries: FlipAnimateEntry[] = [];
       for (const [key, delta] of deltas) {
-        const last = lastSnapshot.get(key);
-        if (!last) continue;
+        const snap = lastSnapshot.get(key);
+        if (!snap) continue;
         entries.push({
           key,
-          from: { x: last.x + last.width / 2 + delta.dx, y: last.y + last.height / 2 + delta.dy },
-          to: { x: last.x + last.width / 2, y: last.y + last.height / 2 },
+          from: { x: snap.x + snap.width / 2 + delta.dx, y: snap.y + snap.height / 2 + delta.dy },
+          to: { x: snap.x + snap.width / 2, y: snap.y + snap.height / 2 },
           delta
         });
       }
@@ -239,8 +263,12 @@ export function createFlip(options: FlipOptions): Flip {
     if (overrides?.duration !== undefined) {
       options.duration = overrides.duration;
     }
+    // animate() is a discrete operation (e.g., on dragEnd).
+    // Reset animation tracking so playFromFirst() uses full duration.
+    lastTargets = null;
+    animationStartTime = 0;
     captureFirst();
-    fn();
+    batch(() => fn());
     playFromFirst();
     // Restore original duration so the options object isn't permanently mutated
     options.duration = prevDuration;

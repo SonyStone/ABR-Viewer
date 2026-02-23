@@ -46,6 +46,7 @@ type MockElement = HTMLDivElement & {
 
 function createMockElement(initialRect: MockRect): MockElement {
   const el = document.createElement('div') as MockElement;
+  document.body.appendChild(el);
   let currentRect = { ...initialRect };
 
   el.getBoundingClientRect = vi.fn(

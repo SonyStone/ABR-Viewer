@@ -13,7 +13,7 @@ import {
   Vec2,
   type FlipAnimateEntry
 } from 'solid-dnd';
-import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from 'solid-js';
+import { batch, createEffect, createMemo, createSignal, For, on, Show, type JSX } from 'solid-js';
 import { AnimationControls } from '../components/AnimationControls';
 import EventLog, { createEventLogger } from '../components/EventLog';
 import { FlipDebugOverlay } from '../components/FlipDebugOverlay';
@@ -34,7 +34,9 @@ export default function NestedOverlayDemo(): JSX.Element {
   // ── State ───────────────────────────────────────────────────────────────
   const [tree, setTree] = createSignal(createInitialTree());
   const [draggedId, setDraggedId] = createSignal<string | null>(null);
-  const [dropPlace, setDropPlace] = createSignal<Place.Place<string> | undefined>();
+  const [dropPlace, setDropPlace] = createSignal<Place.Place<string> | undefined>(undefined, {
+    equals: Place.equals
+  });
   const [gapHeight, setGapHeight] = createSignal(0);
   const [animEnabled, setAnimEnabled] = createSignal(true);
   const [animDuration, setAnimDuration] = createSignal(200);
@@ -148,13 +150,14 @@ export default function NestedOverlayDemo(): JSX.Element {
       // 2. Capture FLIP positions before DOM changes
       if (animEnabled()) flip.captureFirst();
 
-      // 3. Set drag state
-      setDraggedId(id);
-
-      const node = NODES[id];
-      const tag = node?.isGroup ? '📁' : '📄';
-      logger.addLog(`▶ DRAG  ${tag} "${id}" at (${e.position.x.toFixed(0)}, ${e.position.y.toFixed(0)})`);
-      setDropPlace(nestable.getInsertionPoint(e.position));
+      // 3. Set drag state (batched so display keys compute once with final state)
+      batch(() => {
+        setDraggedId(id);
+        const node = NODES[id];
+        const tag = node?.isGroup ? '📁' : '📄';
+        logger.addLog(`▶ DRAG  ${tag} "${id}" at (${e.position.x.toFixed(0)}, ${e.position.y.toFixed(0)})`);
+        setDropPlace(nestable.getInsertionPoint(e.position));
+      });
     },
     onDragMove: (e) => {
       if (animEnabled()) flip.captureFirst();

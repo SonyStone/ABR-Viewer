@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
  */
 function mockElement(rect: { x: number; y: number; width: number; height: number }) {
   const el = document.createElement('div');
+  document.body.appendChild(el);
   el.getBoundingClientRect = vi.fn(
     () =>
       ({
@@ -60,6 +61,26 @@ describe('measureElements', () => {
     measureElements(elements);
 
     expect(elA.getBoundingClientRect).toHaveBeenCalledOnce();
+  });
+
+  it('skips detached elements (isConnected = false)', () => {
+    const elA = mockElement({ x: 0, y: 0, width: 100, height: 40 });
+    const elB = mockElement({ x: 0, y: 50, width: 100, height: 40 });
+
+    // Detach element B from the DOM
+    elB.remove();
+
+    const elements = new Map<string, HTMLElement>([
+      ['a', elA],
+      ['b', elB]
+    ]);
+
+    const snapshots = measureElements(elements);
+
+    expect(snapshots.size).toBe(1);
+    expect(snapshots.has('a')).toBe(true);
+    expect(snapshots.has('b')).toBe(false);
+    expect(elB.getBoundingClientRect).not.toHaveBeenCalled();
   });
 });
 

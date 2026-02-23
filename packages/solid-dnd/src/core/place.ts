@@ -24,6 +24,23 @@ export type Place<K> = {
  *   label({ parent: 'list', before: null }) // 'append'
  *   label(undefined)                        // 'none'
  */
+/**
+ * Structural equality check for two Place values.
+ * Returns `true` if both are the same reference, both undefined, or have
+ * identical `parent` and `before` fields.
+ *
+ * Useful as a SolidJS signal `equals` option to prevent redundant updates
+ * when the logical insertion point hasn't changed.
+ *
+ * @example
+ *   const [place, setPlace] = createSignal(undefined, { equals: Place.equals });
+ */
+export function equals<K>(a: Place<K> | undefined, b: Place<K> | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.parent === b.parent && a.before === b.before;
+}
+
 export function label<K>(place: Place<K> | undefined): string {
   if (!place) return 'none';
   return place.before !== null ? `before "${place.before}"` : 'append';
