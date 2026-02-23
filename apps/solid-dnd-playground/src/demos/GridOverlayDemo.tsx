@@ -280,6 +280,18 @@ export default function GridOverlayDemo(): JSX.Element {
         isAnimating={flip.isAnimating}
         enabled={debugEnabled}
         isDragging={sensor.isDragging}
+        debugContext={() =>
+          sensor.isDragging()
+            ? {
+                dragging: draggedIds(),
+                place: Place.label(dropPlace()),
+                pointer: sensor.position(),
+                columns: columns(),
+                items: itemKeys(),
+                displayKeys: dropzone.displayKeys()
+              }
+            : undefined
+        }
       />
 
       {/* ── Order display ─────────────────────────────────────────── */}

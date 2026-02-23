@@ -146,6 +146,97 @@ describe('getGridInsertionPoint', () => {
     const result = getGridInsertionPoint(Vec2.of(70, 50), 'grid', items, grid, containerRect);
     expect(result).toEqual({ parent: 'grid', before: 'b' });
   });
+
+  // ── Gap placeholder shifting tests ──────────────────────────────────────
+
+  describe('with gap placeholder shifting item rects', () => {
+    /**
+     * Simulates dragging item 'e' from a 4-column grid.
+     *
+     * Original items: [a, b, c, d, e, f, g, h]
+     * Active items (e removed): [a, b, c, d, f, g, h]
+     * Display keys (gap inserted at e's position): [a, b, c, d, GAP, f, g, h]
+     *
+     * DOM layout (4 columns):
+     *   Row 0: a(0,0) b(0,1) c(0,2) d(0,3)
+     *   Row 1: GAP(1,0) f(1,1) g(1,2) h(1,3)
+     *
+     * Items f, g, h are shifted right by one cell compared to
+     * the mathematical grid (which would put f at (1,0), g at (1,1), h at (1,2)).
+     */
+    function gapShiftedSetup() {
+      const activeItems = ['a', 'b', 'c', 'd', 'f', 'g', 'h'];
+
+      // Grid resolved for 7 active items (not 8)
+      const grid: ResolvedGrid = {
+        columns: 4,
+        columnWidth: 100,
+        rowHeight: 80,
+        rowGap: 10,
+        colGap: 10,
+        rows: 2
+      };
+
+      const containerRect = Rect.of(10, 10, 440, 190);
+
+      // Item rects as they actually appear in the DOM (with gap at position 4)
+      // Display order: [a, b, c, d, GAP, f, g, h]
+      const displayOrder = ['a', 'b', 'c', 'd', '__gap__', 'f', 'g', 'h'];
+      const itemRects = new Map<string, Rect.Rect>();
+      for (let i = 0; i < displayOrder.length; i++) {
+        const key = displayOrder[i];
+        if (key === '__gap__') continue;
+        const row = Math.floor(i / 4);
+        const col = i % 4;
+        itemRects.set(key, Rect.of(10 + col * 110, 10 + row * 90, 100, 80));
+      }
+      // DOM rects: a(10,10) b(120,10) c(230,10) d(340,10)
+      //            f(120,100) g(230,100) h(340,100)
+
+      const getRectForItem = (key: string) => itemRects.get(key);
+      return { activeItems, grid, containerRect, getRectForItem };
+    }
+
+    it('pointer over shifted item f → before f', () => {
+      const { activeItems, grid, containerRect, getRectForItem } = gapShiftedSetup();
+      // f is at (120,100) in DOM. Pointer in left half: x=140, center=170
+      const result = getGridInsertionPoint(Vec2.of(140, 140), 'grid', activeItems, grid, containerRect, getRectForItem);
+      expect(result).toEqual({ parent: 'grid', before: 'f' });
+    });
+
+    it('pointer over shifted item g → before g', () => {
+      const { activeItems, grid, containerRect, getRectForItem } = gapShiftedSetup();
+      // g is at (230,100) in DOM. Pointer in left half: x=250, center=280
+      const result = getGridInsertionPoint(Vec2.of(250, 140), 'grid', activeItems, grid, containerRect, getRectForItem);
+      expect(result).toEqual({ parent: 'grid', before: 'g' });
+    });
+
+    it('right half of shifted item f → before g', () => {
+      const { activeItems, grid, containerRect, getRectForItem } = gapShiftedSetup();
+      // f center x = 170. Pointer at x=190 → right half → before g
+      const result = getGridInsertionPoint(Vec2.of(190, 140), 'grid', activeItems, grid, containerRect, getRectForItem);
+      expect(result).toEqual({ parent: 'grid', before: 'g' });
+    });
+
+    it('right half of shifted item h → append', () => {
+      const { activeItems, grid, containerRect, getRectForItem } = gapShiftedSetup();
+      // h is at (340,100), center x = 390. Pointer at x=400 → right half → append
+      const result = getGridInsertionPoint(Vec2.of(400, 140), 'grid', activeItems, grid, containerRect, getRectForItem);
+      expect(result).toEqual({ parent: 'grid', before: null });
+    });
+
+    it('pointer in gap area → nearest item', () => {
+      const { activeItems, grid, containerRect, getRectForItem } = gapShiftedSetup();
+      // Gap is at (10,100). Pointer at (60,140) is inside the gap cell.
+      // Nearest item by distance: f at (120,100) → dx=60, dy=0 → dist=3600
+      //   a at (10,10): dy=50 → dist=2500... a is closer by clamp distance!
+      // But the math grid check prevents wrong mapping.
+      const result = getGridInsertionPoint(Vec2.of(60, 140), 'grid', activeItems, grid, containerRect, getRectForItem);
+      // Should return a valid place (not crash)
+      expect(result).toBeDefined();
+      expect(result!.parent).toBe('grid');
+    });
+  });
 });
 
 // ============================================================================

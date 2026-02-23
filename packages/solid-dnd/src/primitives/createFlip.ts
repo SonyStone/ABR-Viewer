@@ -126,6 +126,9 @@ export function createFlip(options: FlipOptions): Flip {
 
   // ── First: capture current positions ──────────────────────────────────
   function captureFirst(): void {
+    // If animations are in flight, finish them first so getBoundingClientRect()
+    // returns the true resting positions, not mid-animation transforms.
+    finishActive();
     firstSnapshot = measureElements(options.elements);
   }
 
@@ -133,7 +136,8 @@ export function createFlip(options: FlipOptions): Flip {
   function playFromFirst(): void {
     if (!firstSnapshot) return;
 
-    // Cancel any running animations from a previous FLIP cycle
+    // Cancel any still-running animations (shouldn't be any after
+    // captureFirst finished them, but just in case).
     cancelActive();
 
     const lastSnapshot = measureElements(options.elements);
@@ -198,6 +202,24 @@ export function createFlip(options: FlipOptions): Flip {
       .catch(() => {
         // Animation was cancelled — ignore
       });
+  }
+
+  // ── Finish running animations (snap to end) ────────────────────────────
+  function finishActive(): void {
+    if (activeAnimations.length === 0) return;
+    for (const anim of activeAnimations) {
+      // finish() snaps to the final keyframe; fall back to cancel() in
+      // environments where finish() isn't available (e.g., jsdom mocks).
+      if (typeof anim.finish === 'function') {
+        anim.finish();
+      } else {
+        anim.cancel();
+      }
+    }
+    activeAnimations = [];
+    if (isAnimating()) {
+      setIsAnimating(false);
+    }
   }
 
   // ── Cancel running animations ─────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { createMemo, type Accessor } from 'solid-js';
-import { getGridIndicatorPosition, getGridInsertionPoint } from '../core/gridInsertion';
-import { resolveGrid, type ResolvedGrid } from '../core/gridLayout';
+import { getGridIndicatorPosition } from '../core/gridInsertion';
+import { cellToIndex, pointToCell, resolveGrid, type ResolvedGrid } from '../core/gridLayout';
 import type { Place } from '../core/place';
 import type { Rect } from '../core/rect';
 import type { GridConfig } from '../core/types';
@@ -177,16 +177,61 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
     const containerRect = options.getContainerRect();
     if (!containerRect) return undefined;
 
-    const keys = activeItems();
     const containerKey = options.containerKey;
 
     // ── Grid layout ──────────────────────────────────────────────────────
-    const grid = resolvedGrid();
-    if (grid) {
-      return getGridInsertionPoint(position, containerKey, keys, grid, containerRect, options.getRect);
+    // Strategy: use the FULL item count for grid geometry (stable cell
+    // dimensions), but use visibleKeys (dragged items removed) for item
+    // lookup. The display list is visibleKeys + 1 gap = same total cell
+    // count as the full grid, so cell index maps directly to visibleKeys.
+    //
+    // We do NOT use left/right-half detection here. In a grid, the gap
+    // always appears at the cell the pointer is over. Left/right halving
+    // would cause the gap to jump to the next row when hovering the right
+    // side of the last column, which feels wrong.
+    if (isGrid() && options.gridConfig) {
+      const allKeys = options.items();
+      const dKeys = options.draggedKeys?.() ?? [];
+      const visibleKeys = dKeys.length > 0 ? allKeys.filter((k) => !dKeys.includes(k)) : allKeys;
+
+      // Measure row height from the first visible (non-dragged) item
+      let measuredHeight: number | undefined;
+      for (const k of visibleKeys) {
+        measuredHeight = options.getRect(k)?.height;
+        if (measuredHeight !== undefined) break;
+      }
+
+      // Resolve grid using FULL item count for stable cell dimensions
+      const fullGrid = resolveGrid(options.gridConfig, allKeys.length, containerRect.width, measuredHeight);
+
+      // Reject pointer outside container
+      if (
+        position.x < containerRect.x ||
+        position.x > containerRect.x + containerRect.width ||
+        position.y < containerRect.y ||
+        position.y > containerRect.y + containerRect.height
+      ) {
+        return undefined;
+      }
+
+      // Empty visible list → append
+      if (visibleKeys.length === 0) {
+        return { parent: containerKey, before: null };
+      }
+
+      // Map pointer → cell → flat index (no left/right half)
+      const origin = { x: containerRect.x, y: containerRect.y };
+      const cell = pointToCell(position, fullGrid, origin);
+      const cellIndex = cellToIndex(cell, fullGrid.columns);
+
+      if (cellIndex >= visibleKeys.length) {
+        return { parent: containerKey, before: null };
+      }
+      return { parent: containerKey, before: visibleKeys[cellIndex] };
     }
 
     // ── List layout ──────────────────────────────────────────────────────
+    const keys = activeItems();
 
     // Reject pointer outside container bounds
     if (

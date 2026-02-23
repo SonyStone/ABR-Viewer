@@ -91,6 +91,8 @@ export type FlipDebugOverlayProps = {
   enabled: Accessor<boolean>;
   /** Whether a drag session is active (start → drop/cancel). */
   isDragging: Accessor<boolean>;
+  /** Optional extra context to include in Copy Debug output (e.g. drag state). */
+  debugContext?: Accessor<Record<string, unknown> | undefined>;
 };
 
 /**
@@ -275,27 +277,31 @@ export function FlipDebugOverlay(props: FlipDebugOverlayProps): JSX.Element {
 
   // ── Copy debug data ─────────────────────────────────────────────────────
 
+  /** Compact coordinate: [x, y] */
+  const pt = (p: { x: number; y: number }): [number, number] => {
+    const r = roundPt(p);
+    return [r.x, r.y];
+  };
+
   function copyDebugData() {
+    const ctx = props.debugContext?.();
     const data = {
-      gapTrail: gapTrail().map(roundPt),
-      gapSamples: gapTrail().length,
-      cycleMarkers: cycleMarkers().map((m) => ({
-        cycle: m.number,
-        position: roundPt(m.position)
-      })),
-      elementTrails: allCycleTrails().map((ct) => ({
-        cycle: ct.cycle,
-        elements: ct.trails.map((t) => ({
-          key: t.key,
-          from: roundPt(t.from),
-          to: roundPt(t.to),
-          samples: t.trail.length,
-          trail: t.trail.map(roundPt)
+      ...(ctx ? { ctx } : {}),
+      gap: gapTrail().map(pt),
+      markers: cycleMarkers().map((m) => [m.number, ...pt(m.position)]),
+      cycles: allCycleTrails().map((ct) => ({
+        c: ct.cycle,
+        el: ct.trails.map((t) => ({
+          k: t.key,
+          f: pt(t.from),
+          t: pt(t.to),
+          n: t.trail.length,
+          ...(t.trail.length > 2 ? { path: t.trail.map(pt) } : {})
         }))
       }))
     };
 
-    const text = JSON.stringify(data, null, 2);
+    const text = JSON.stringify(data);
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
