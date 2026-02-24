@@ -225,10 +225,15 @@ export function createFlip(options: FlipOptions): Flip {
     const currentBatch = animations;
     Promise.all(animations.map((a) => a.finished))
       .then(() => {
-        // Only clear if this is still the active batch (not replaced by a newer FLIP)
+        // Only clear if this is still the active batch (not replaced by a newer FLIP).
+        // IMPORTANT: Clear activeAnimations BEFORE the signal write.
+        // setIsAnimating(false) triggers synchronous SolidJS effects which may
+        // call playFromFirst() and start a NEW animation batch. If we cleared
+        // activeAnimations after, we'd overwrite the new batch, orphaning it
+        // so isAnimating gets stuck at true and all future moves are swallowed.
         if (activeAnimations === currentBatch) {
-          setIsAnimating(false);
           activeAnimations = [];
+          setIsAnimating(false);
         }
       })
       .catch(() => {

@@ -53,12 +53,23 @@ describe('getListInsertionPoint', () => {
     expect(result).toEqual({ parent: 'root', before: 'a' });
   });
 
-  it('returns append when pointer is below center of single item', () => {
+  it('returns before item when pointer is below center but above bottom edge of single item', () => {
     const rects = stackedRects(['a']);
     const result = getListInsertionPoint(
       ['a'],
       'root',
-      { x: 50, y: 30 }, // center of 'a' is at y=20
+      { x: 50, y: 30 }, // center of 'a' is at y=20, bottom is at y=40
+      (key) => rects.get(key)
+    );
+    expect(result).toEqual({ parent: 'root', before: 'a' });
+  });
+
+  it('returns append when pointer is below bottom edge of single item', () => {
+    const rects = stackedRects(['a']);
+    const result = getListInsertionPoint(
+      ['a'],
+      'root',
+      { x: 50, y: 45 }, // bottom of 'a' is at y=40
       (key) => rects.get(key)
     );
     expect(result).toEqual({ parent: 'root', before: null });
@@ -75,32 +86,49 @@ describe('getListInsertionPoint', () => {
     expect(result).toEqual({ parent: 'list', before: 'a' });
   });
 
-  it('returns before second item when pointer is between first and second centers', () => {
+  it('returns before second item when pointer is past boundary between first and second', () => {
     const rects = stackedRects(['a', 'b', 'c']);
-    // y=30 is above center of 'b' (60) but below center of 'a' (20)
-    const result = getListInsertionPoint(['a', 'b', 'c'], 'list', { x: 50, y: 30 }, (key) => rects.get(key));
+    // boundary between a and b = (a.bottom + b.top) / 2 = (40 + 40) / 2 = 40
+    // y=50 is past the boundary (50 > 40) → before 'b'
+    const result = getListInsertionPoint(['a', 'b', 'c'], 'list', { x: 50, y: 50 }, (key) => rects.get(key));
     expect(result).toEqual({ parent: 'list', before: 'b' });
   });
 
-  it('returns before third item when pointer is between second and third centers', () => {
+  it('returns before third item when pointer is past boundary between second and third', () => {
     const rects = stackedRects(['a', 'b', 'c']);
-    // y=70 is above center of 'c' (100) but below center of 'b' (60)
-    const result = getListInsertionPoint(['a', 'b', 'c'], 'list', { x: 50, y: 70 }, (key) => rects.get(key));
+    // boundary between b and c = (b.bottom + c.top) / 2 = (80 + 80) / 2 = 80
+    // y=90 is past the boundary (90 > 80) → before 'c'
+    const result = getListInsertionPoint(['a', 'b', 'c'], 'list', { x: 50, y: 90 }, (key) => rects.get(key));
     expect(result).toEqual({ parent: 'list', before: 'c' });
   });
 
-  it('returns append when pointer is below all item centers', () => {
+  it('returns before last item when pointer is below its center but above its bottom', () => {
     const rects = stackedRects(['a', 'b', 'c']);
+    // c is at y=80..120, center=100, bottom=120. y=110 is above bottom.
     const result = getListInsertionPoint(['a', 'b', 'c'], 'list', { x: 50, y: 110 }, (key) => rects.get(key));
+    expect(result).toEqual({ parent: 'list', before: 'c' });
+  });
+
+  it('returns append when pointer is below bottom edge of last item', () => {
+    const rects = stackedRects(['a', 'b', 'c']);
+    // c bottom is at y=120
+    const result = getListInsertionPoint(['a', 'b', 'c'], 'list', { x: 50, y: 125 }, (key) => rects.get(key));
     expect(result).toEqual({ parent: 'list', before: null });
   });
 
   // ── Exact center ────────────────────────────────────────────────────────
 
-  it('returns append when pointer is exactly at center (not strictly less)', () => {
+  it('returns before item when pointer is exactly at center of single item', () => {
     const rects = stackedRects(['a']);
-    // center of 'a' is exactly y=20. position.y < centerY is false.
+    // center of 'a' is exactly y=20. Bottom of 'a' is y=40. 20 < 40 → before 'a'.
     const result = getListInsertionPoint(['a'], 'root', { x: 50, y: 20 }, (key) => rects.get(key));
+    expect(result).toEqual({ parent: 'root', before: 'a' });
+  });
+
+  it('returns append when pointer is exactly at bottom edge of single item', () => {
+    const rects = stackedRects(['a']);
+    // bottom of 'a' is exactly y=40. position.y < boundary is false.
+    const result = getListInsertionPoint(['a'], 'root', { x: 50, y: 40 }, (key) => rects.get(key));
     expect(result).toEqual({ parent: 'root', before: null });
   });
 
@@ -137,11 +165,21 @@ describe('getListInsertionPoint', () => {
 
   it('handles variable-height items correctly', () => {
     const rects = new Map<string, Rect>();
-    rects.set('tall', rect(0, 0, 100, 100)); // center = 50
-    rects.set('short', rect(0, 100, 100, 20)); // center = 110
-
-    // y=60 is above center of 'tall' (50)? No, 60 > 50. Below center of 'short' (110)? 60 < 110.
+    rects.set('tall', rect(0, 0, 100, 100)); // bottom = 100
+    rects.set('short', rect(0, 100, 100, 20)); // top = 100, bottom = 120
+    // boundary between 'tall' and 'short' = (100 + 100) / 2 = 100
+    // y=60 < 100 → before 'tall'
     const result = getListInsertionPoint(['tall', 'short'], 'list', { x: 50, y: 60 }, (key) => rects.get(key));
+    expect(result).toEqual({ parent: 'list', before: 'tall' });
+  });
+
+  it('returns before second item when pointer is past midpoint of variable-height items', () => {
+    const rects = new Map<string, Rect>();
+    rects.set('tall', rect(0, 0, 100, 100)); // bottom = 100
+    rects.set('short', rect(0, 100, 100, 20)); // top = 100, center = 110
+    // boundary between 'tall' and 'short' = (100 + 100) / 2 = 100
+    // y=105 > 100 but < 120 (short.bottom) → before 'short'
+    const result = getListInsertionPoint(['tall', 'short'], 'list', { x: 50, y: 105 }, (key) => rects.get(key));
     expect(result).toEqual({ parent: 'list', before: 'short' });
   });
 

@@ -9,24 +9,29 @@ import type { Vec2 } from './vec2';
 /**
  * Finds the insertion point within a vertical list of items based on pointer position.
  *
- * Uses the vertical center-line algorithm: for each item, if the pointer is above
- * the item's vertical center, the insertion point is "before" that item. If the
- * pointer is below all item centers, the result is "append" (`before: null`).
+ * Uses the **midpoint-between-items** algorithm: the boundary between two
+ * adjacent zones is the midpoint of the gap between the two items. For the
+ * last item, the boundary is at the item's **bottom edge** (not its center).
  *
- * This is the shared logic used by both `createSortable` (list mode) and
- * `createNestable` (per-container insertion).
+ * This is more accurate for overlay-based drag-and-drop where the probe
+ * position is the overlay center (which has height), not a bare cursor.
+ * With center-line detection, the overlay can visually cover an item but
+ * the algorithm says "append" because the overlay center is just barely
+ * below the item center. The midpoint-between-items approach avoids this
+ * by placing boundaries at the visual gaps between items.
  *
  * ## How it works
  *
  * ```
  *   ──── before A ────
  *   ┌──────────────┐
- *   │      A       │  ← centerY = rect.y + rect.height / 2
+ *   │      A       │
  *   └──────────────┘
- *   ──── before B ────
+ *   ─ midpoint(A,B) ─  ← boundary between "before A" and "before B"
  *   ┌──────────────┐
  *   │      B       │
  *   └──────────────┘
+ *   ─── B.bottom ───  ← boundary between "before B" and "append"
  *   ──── append ──────
  * ```
  *
@@ -58,13 +63,30 @@ export function getListInsertionPoint<K>(
     return { parent: parentKey, before: null };
   }
 
-  // Find the first item whose vertical center is below the pointer
   for (let i = 0; i < keys.length; i++) {
     const rect = getRect(keys[i]);
     if (!rect) continue;
 
-    const centerY = rect.y + rect.height / 2;
-    if (position.y < centerY) {
+    let boundary: number;
+
+    if (i < keys.length - 1) {
+      // For non-last items: boundary is the midpoint between this item's
+      // bottom edge and the next item's top edge.
+      const nextRect = getRect(keys[i + 1]);
+      if (nextRect) {
+        boundary = (rect.y + rect.height + nextRect.y) / 2;
+      } else {
+        // Fallback if next rect unavailable: use this item's center
+        boundary = rect.y + rect.height / 2;
+      }
+    } else {
+      // Last item: boundary is at the bottom edge.
+      // This prevents "append" from triggering too aggressively — the probe
+      // must be past the entire last item, not just its center.
+      boundary = rect.y + rect.height;
+    }
+
+    if (position.y < boundary) {
       return { parent: parentKey, before: keys[i] };
     }
   }

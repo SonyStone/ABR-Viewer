@@ -120,7 +120,7 @@ describe('sortable + dropzone integration', () => {
       expect(dropzone.displayKeys()).toEqual(['b', GAP_KEY, 'c', 'd']);
 
       // Pointer moves to bottom → append
-      setDropPlace(sortable.getInsertionPoint(Vec2.of(100, 180)));
+      setDropPlace(sortable.getInsertionPoint(Vec2.of(100, 195)));
       expect(dropPlace()).toEqual({ parent: 'list', before: null });
       expect(dropzone.displayKeys()).toEqual(['b', 'c', 'd', GAP_KEY]);
 

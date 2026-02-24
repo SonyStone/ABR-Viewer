@@ -80,11 +80,11 @@ describe('createSortable', () => {
       });
     });
 
-    it('pointer below center of A, above center of B → before B', () => {
+    it('pointer past boundary between A and B → before B', () => {
       const { options } = standardSetup();
       withSortable(options, (s) => {
-        // Center of A=30, center of B=80. 50 is between them.
-        const place = s.getInsertionPoint(Vec2.of(100, 50));
+        // Boundary between A and B = (50 + 60) / 2 = 55. y=56 is past it.
+        const place = s.getInsertionPoint(Vec2.of(100, 56));
         expect(place).toEqual({ parent: 'container', before: 'b' });
       });
     });
@@ -107,11 +107,11 @@ describe('createSortable', () => {
       });
     });
 
-    it('pointer below center of B, above center of C → before C', () => {
+    it('pointer past boundary between B and C → before C', () => {
       const { options } = standardSetup();
       withSortable(options, (s) => {
-        // Center of B=80, center of C=130. y=100 is between them.
-        const place = s.getInsertionPoint(Vec2.of(100, 100));
+        // Boundary between B and C = (100 + 110) / 2 = 105. y=106 is past it.
+        const place = s.getInsertionPoint(Vec2.of(100, 106));
         expect(place).toEqual({ parent: 'container', before: 'c' });
       });
     });
@@ -125,11 +125,11 @@ describe('createSortable', () => {
       });
     });
 
-    it('pointer below center of C → append (before: null)', () => {
+    it('pointer below bottom of C → append (before: null)', () => {
       const { options } = standardSetup();
       withSortable(options, (s) => {
-        // Center of C=130. y=140 is below it.
-        const place = s.getInsertionPoint(Vec2.of(100, 140));
+        // C bottom = 150. y=155 is below it.
+        const place = s.getInsertionPoint(Vec2.of(100, 155));
         expect(place).toEqual({ parent: 'container', before: null });
       });
     });
@@ -144,28 +144,29 @@ describe('createSortable', () => {
   });
 
   // ────────────────────────────────────────────────────────────────────────
-  describe('boundary behavior — pointer exactly at item center', () => {
-    it('pointer exactly at center of A (y=30) → before B (not before A)', () => {
+  describe('boundary behavior — pointer at midpoint between items', () => {
+    it('pointer exactly at A-B boundary (y=55) → before B (not before A)', () => {
       const { options } = standardSetup();
       withSortable(options, (s) => {
-        // position.y < centerY is false when equal → continues to next item
-        const place = s.getInsertionPoint(Vec2.of(100, 30));
+        // Boundary = (A.bottom + B.top) / 2 = (50 + 60) / 2 = 55
+        // position.y < boundary is false when equal → continues to next item
+        const place = s.getInsertionPoint(Vec2.of(100, 55));
         expect(place).toEqual({ parent: 'container', before: 'b' });
       });
     });
 
-    it('pointer exactly at center of B (y=80) → before C', () => {
+    it('pointer exactly at B-C boundary (y=105) → before C', () => {
       const { options } = standardSetup();
       withSortable(options, (s) => {
-        const place = s.getInsertionPoint(Vec2.of(100, 80));
+        const place = s.getInsertionPoint(Vec2.of(100, 105));
         expect(place).toEqual({ parent: 'container', before: 'c' });
       });
     });
 
-    it('pointer exactly at center of C (y=130) → append', () => {
+    it('pointer exactly at C bottom edge (y=150) → append', () => {
       const { options } = standardSetup();
       withSortable(options, (s) => {
-        const place = s.getInsertionPoint(Vec2.of(100, 130));
+        const place = s.getInsertionPoint(Vec2.of(100, 150));
         expect(place).toEqual({ parent: 'container', before: null });
       });
     });
@@ -287,11 +288,11 @@ describe('createSortable', () => {
       });
     });
 
-    it('pointer below center → append', () => {
+    it('pointer below bottom edge → append', () => {
       const { options } = singleSetup();
       withSortable(options, (s) => {
-        // Item center = 30. y=50 > 30.
-        const place = s.getInsertionPoint(Vec2.of(100, 50));
+        // Item bottom = 60. y=65 > 60.
+        const place = s.getInsertionPoint(Vec2.of(100, 65));
         expect(place).toEqual({ parent: 'single', before: null });
       });
     });
@@ -452,8 +453,8 @@ describe('createSortable', () => {
             before: 'tall'
           });
 
-          // y=100: above center of medium (160) → before medium
-          expect(s.getInsertionPoint(Vec2.of(100, 100))).toEqual({
+          // y=136: past boundary between tall and medium ((130+140)/2=135) → before medium
+          expect(s.getInsertionPoint(Vec2.of(100, 136))).toEqual({
             parent: 'var',
             before: 'medium'
           });
@@ -638,8 +639,8 @@ describe('createSortable', () => {
         // Pointer above C center → before C
         const place = s.getInsertionPoint(Vec2.of(100, 120));
         expect(place).toEqual({ parent: 'container', before: 'c' });
-        // Pointer below C center → append
-        const place2 = s.getInsertionPoint(Vec2.of(100, 140));
+        // Pointer below C bottom edge → append
+        const place2 = s.getInsertionPoint(Vec2.of(100, 155));
         expect(place2).toEqual({ parent: 'container', before: null });
       });
     });
@@ -647,8 +648,9 @@ describe('createSortable', () => {
     it('no draggedKeys → normal behavior', () => {
       const { options } = standardSetup();
       // No draggedKeys option at all — same as before
+      // Boundary B-C = (100 + 110) / 2 = 105. y=106 > 105 → before C
       withSortable(options, (s) => {
-        const place = s.getInsertionPoint(Vec2.of(100, 100));
+        const place = s.getInsertionPoint(Vec2.of(100, 106));
         expect(place).toEqual({ parent: 'container', before: 'c' });
       });
     });

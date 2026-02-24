@@ -21,6 +21,17 @@ export type SortableOptions<K> = {
   /** Returns the bounding rect for the container element. */
   getContainerRect: () => Rect | undefined;
   /**
+   * Returns the bounding rect for the container used only for hit-testing
+   * (pointer-inside check). When provided, `getContainerRect` is still
+   * used for grid resolution, but this rect decides if the pointer is
+   * "inside" the sortable area.
+   *
+   * Useful when the dropzone container has different bounds than the
+   * measurement container (e.g., a wrapper that should accept drops in
+   * a larger area).
+   */
+  getHitRect?: () => Rect | undefined;
+  /**
    * Layout mode for insertion point calculation.
    * - `'list'` — vertical list (default)
    * - `'grid'` — CSS grid / flex-wrap layout (requires `gridConfig`)
@@ -90,6 +101,33 @@ export type Sortable<K> = {
    * Useful for rendering and computing cell positions.
    */
   resolvedGrid: Accessor<ResolvedGrid | undefined>;
+  /**
+   * Snapshot the current bounding rects of all items for stable insertion
+   * calculation during drag.
+   *
+   * Once captured, `getInsertionPoint` uses these fixed rects instead of
+   * live DOM measurements. This prevents the gap placeholder from
+   * displacing items and shifting their center-lines, which would make
+   * insertion zones feel unresponsive during drag.
+   *
+   * When `excludeKeys` is provided (typically the dragged item keys), the
+   * snapshot computes "compact" positions: items below the excluded keys
+   * are shifted up as if the excluded items were removed from the layout.
+   * This ensures the insertion zones match the visual positions of the
+   * remaining items.
+   *
+   * Call this at drag start (before the gap is inserted into the DOM).
+   *
+   * @param excludeKeys  Keys to exclude (e.g., the dragged item keys).
+   */
+  snapshotRects: (excludeKeys?: K[]) => void;
+  /**
+   * Clear the rect snapshot so `getInsertionPoint` reverts to live
+   * DOM measurements.
+   *
+   * Call this at drag end / cancel.
+   */
+  clearSnapshot: () => void;
 };
 
 // ============================================================================
@@ -163,6 +201,82 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
     const firstRect = keys.length > 0 ? options.getRect(keys[0]) : undefined;
     return resolveGrid(gc, keys.length, containerRect?.width, firstRect?.height);
   });
+
+  // ── Rect snapshots for stable insertion during drag ─────────────────────
+  let rectSnapshot: Map<K, Rect> | null = null;
+
+  /**
+   * Snapshot rects for stable insertion point calculation.
+   *
+   * When `excludeKeys` is provided, the snapshot computes "compact" positions:
+   * items below the excluded keys are shifted up as if the excluded items were
+   * removed from the layout. This prevents the dragged item's original space
+   * from offsetting insertion zones.
+   *
+   * @param excludeKeys  Keys to exclude from the snapshot (typically the dragged items).
+   */
+  function snapshotRects(excludeKeys?: K[]): void {
+    const allKeys = options.items();
+    const snap = new Map<K, Rect>();
+
+    if (!excludeKeys || excludeKeys.length === 0) {
+      // No exclusions — simple snapshot of active items
+      for (const key of allKeys) {
+        const rect = options.getRect(key);
+        if (rect) snap.set(key, rect);
+      }
+      rectSnapshot = snap;
+      return;
+    }
+
+    const excludeSet = new Set(excludeKeys);
+
+    // Measure all items and sort by vertical position
+    type Measured = { key: K; rect: Rect };
+    const measured: Measured[] = [];
+    for (const key of allKeys) {
+      const rect = options.getRect(key);
+      if (rect) measured.push({ key, rect });
+    }
+    measured.sort((a, b) => a.rect.y - b.rect.y);
+
+    // Detect spacing between adjacent items (CSS flex gap / margin)
+    let spacing = 0;
+    for (let i = 1; i < measured.length; i++) {
+      const gap = measured[i].rect.y - (measured[i - 1].rect.y + measured[i - 1].rect.height);
+      if (gap > 0) {
+        spacing = gap;
+        break;
+      }
+    }
+
+    // Build compact snapshot: excluded items' vertical space is removed,
+    // and items below them shift up accordingly.
+    let removedHeight = 0;
+    for (const m of measured) {
+      if (excludeSet.has(m.key)) {
+        removedHeight += m.rect.height + spacing;
+        continue;
+      }
+      snap.set(m.key, {
+        x: m.rect.x,
+        y: m.rect.y - removedHeight,
+        width: m.rect.width,
+        height: m.rect.height
+      });
+    }
+
+    rectSnapshot = snap;
+  }
+
+  function clearSnapshot(): void {
+    rectSnapshot = null;
+  }
+
+  /** Get a rect for insertion calculation — prefer snapshot over live. */
+  function getInsertionRect(key: K): Rect | undefined {
+    return rectSnapshot?.get(key) ?? options.getRect(key);
+  }
 
   // ── Active items (excluding dragged) ───────────────────────────────────
   function activeItems(): K[] {
@@ -254,18 +368,22 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
     // ── List layout ──────────────────────────────────────────────────────
     const keys = activeItems();
 
+    // Use a separate hit-test rect if provided (e.g., a larger dropzone area)
+    const hitRect = options.getHitRect?.() ?? containerRect;
+
     // Reject pointer outside container bounds
     if (
-      position.x < containerRect.x ||
-      position.x > containerRect.x + containerRect.width ||
-      position.y < containerRect.y ||
-      position.y > containerRect.y + containerRect.height
+      position.x < hitRect.x ||
+      position.x > hitRect.x + hitRect.width ||
+      position.y < hitRect.y ||
+      position.y > hitRect.y + hitRect.height
     ) {
       return undefined;
     }
 
-    // Delegate to shared vertical center-line algorithm
-    return getListInsertionPoint(keys, containerKey, position, options.getRect);
+    // Use snapshot rects when available so gap displacement doesn't
+    // shift item center-lines and make insertion zones unresponsive.
+    return getListInsertionPoint(keys, containerKey, position, getInsertionRect);
   }
 
   // ── Indicator offset for a given place (list layout) ───────────────────
@@ -307,6 +425,8 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
     getIndicatorOffset,
     getGridIndicator,
     insertionPoints,
-    resolvedGrid
+    resolvedGrid,
+    snapshotRects,
+    clearSnapshot
   };
 }

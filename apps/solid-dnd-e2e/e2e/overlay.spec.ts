@@ -461,6 +461,178 @@ test.describe('Overlay — FLIP animations during drag', () => {
 // ============================================================================
 
 test.describe('Overlay — drag to reorder', () => {
+  test('gap follows pointer through all positions when dragging first item down', async ({ page }) => {
+    // This tests that the gap responds promptly as the pointer moves through
+    // each item's zone, rather than lagging behind due to gap displacement.
+    const items = page.locator('[data-item-id]');
+    const first = items.nth(0); // o1 (Red)
+
+    // Record original centers of all items before dragging
+    const centers: { x: number; y: number }[] = [];
+    for (let i = 0; i < 5; i++) {
+      centers.push(await center(items.nth(i)));
+    }
+
+    const from = centers[0];
+
+    // Start drag on first item
+    await pointerDown(page, first, from);
+    await page.waitForTimeout(20);
+
+    // Move past threshold (small downward move)
+    for (let i = 1; i <= 3; i++) {
+      await pointerMove(page, { x: from.x, y: from.y + i * 3 });
+      await page.waitForTimeout(10);
+    }
+    await page.waitForTimeout(200);
+
+    // Helper to get the display list children
+    const getChildren = () =>
+      page.evaluate(() => {
+        const container = document.querySelector('[data-testid="overlay-list"]');
+        if (!container) return [];
+        return Array.from(container.children).map(
+          (c) => c.getAttribute('data-testid') ?? c.getAttribute('data-item-id')
+        );
+      });
+
+    // Move pointer to o4's original center (position 4).
+    // The gap should be at or near position 4 — NOT stuck at position 3.
+    await pointerMove(page, { x: from.x, y: centers[3].y });
+    await page.waitForTimeout(400);
+
+    let children = await getChildren();
+    // The gap should be past o3 — at position 3 or 4 (before o4 or before o5)
+    const gapIndex = children.indexOf('gap-placeholder');
+    // The key assertion: the gap must NOT be stuck at position 1 or 2.
+    // With correct compact snapshot, it should be at index 3 (before o5)
+    // because the pointer at o4's original center maps to "past o4" in
+    // compact coordinates.
+    expect(gapIndex).toBeGreaterThanOrEqual(2);
+
+    // Move to well past o4 (between o4 and o5 original centers)
+    await pointerMove(page, { x: from.x, y: (centers[3].y + centers[4].y) / 2 });
+    await page.waitForTimeout(400);
+
+    children = await getChildren();
+    const gapIndex2 = children.indexOf('gap-placeholder');
+    // Gap should be at index 3 or 4 (before o5 or at end)
+    expect(gapIndex2).toBeGreaterThanOrEqual(3);
+
+    await pointerUp(page, { x: from.x, y: (centers[3].y + centers[4].y) / 2 });
+  });
+
+  test('gap follows pointer when dragging last item upward', async ({ page }) => {
+    // This tests that dragging the last item (Purple) upward over Orange
+    // correctly moves the gap, even when the cursor is offset from the
+    // overlay center (e.g., grabbing near the item's bottom edge).
+    const items = page.locator('[data-item-id]');
+    const last = items.nth(4); // o5 (Purple)
+
+    // Record original centers before dragging
+    const centers: { x: number; y: number }[] = [];
+    for (let i = 0; i < 5; i++) {
+      centers.push(await center(items.nth(i)));
+    }
+
+    const from = centers[4]; // o5's center
+
+    // Grab near the bottom of o5 (offset from center) to test grab-offset robustness
+    const grabY = from.y + 15;
+    await page.mouse.move(from.x, grabY);
+    await page.mouse.down();
+    await page.waitForTimeout(20);
+
+    // Move past threshold (upward)
+    for (let i = 1; i <= 3; i++) {
+      await pointerMove(page, { x: from.x, y: grabY - i * 3 });
+      await page.waitForTimeout(10);
+    }
+    await page.waitForTimeout(400);
+
+    const getChildren = () =>
+      page.evaluate(() => {
+        const container = document.querySelector('[data-testid="overlay-list"]');
+        if (!container) return [];
+        return Array.from(container.children).map(
+          (c) => c.getAttribute('data-testid') ?? c.getAttribute('data-item-id')
+        );
+      });
+
+    // Move to o4's original center (over Orange)
+    await pointerMove(page, { x: from.x, y: centers[3].y });
+    await page.waitForTimeout(600);
+
+    // The gap should be before o4 or earlier — NOT stuck at the end
+    let children = await getChildren();
+    const gapIndex = children.indexOf('gap-placeholder');
+    const o4Index = children.indexOf('o4');
+    expect(gapIndex).toBeLessThanOrEqual(o4Index);
+
+    // Move further up to o2's original center
+    await pointerMove(page, { x: from.x, y: centers[1].y });
+    await page.waitForTimeout(600);
+
+    children = await getChildren();
+    const gapIndex2 = children.indexOf('gap-placeholder');
+    // Gap should be near the top
+    expect(gapIndex2).toBeLessThanOrEqual(1);
+
+    await page.mouse.up();
+  });
+
+  test('dragging first item to last and back preserves original order', async ({ page }) => {
+    const first = page.locator('[data-item-id="o1"]');
+    const last = page.locator('[data-item-id="o5"]');
+
+    const from = await center(first);
+    const to = await center(last);
+
+    // Start drag
+    await pointerDown(page, first, from);
+    await page.waitForTimeout(20);
+
+    // Drag down to the last item (past Purple) with incremental steps
+    const downSteps = 15;
+    for (let i = 1; i <= downSteps; i++) {
+      const y = from.y + (to.y - from.y) * (i / downSteps);
+      await pointerMove(page, { x: from.x, y });
+      await page.waitForTimeout(10);
+    }
+
+    // Pause at the bottom to let FLIP animations settle
+    await page.waitForTimeout(800);
+
+    // Now drag back up to the original position (position 1)
+    const upSteps = 15;
+    for (let i = 1; i <= upSteps; i++) {
+      const y = to.y + (from.y - to.y) * (i / upSteps);
+      await pointerMove(page, { x: from.x, y });
+      await page.waitForTimeout(10);
+    }
+
+    // Pause at the top to let FLIP animations settle and gap to catch up
+    await page.waitForTimeout(800);
+
+    // The gap should be at position 1 (first child in the list)
+    const firstChildTestId = await page.evaluate(() => {
+      const container = document.querySelector('[data-testid="overlay-list"]');
+      if (!container) return null;
+      const children = Array.from(container.children);
+      return children[0]?.getAttribute('data-testid') ?? children[0]?.getAttribute('data-item-id');
+    });
+    expect(firstChildTestId).toBe('gap-placeholder');
+
+    // Drop at position 1
+    await pointerUp(page, { x: from.x, y: from.y });
+    await waitForAnimations(page, '[data-item-id]');
+    await page.waitForTimeout(100);
+
+    // Red should be back at position 1 — original order preserved
+    const order = await page.locator('[data-testid="item-order"]').textContent();
+    expect(order).toBe('o1,o2,o3,o4,o5');
+  });
+
   test('dragging first item to third position reorders', async ({ page }) => {
     const items = page.locator('[data-item-id]');
     const first = items.nth(0);

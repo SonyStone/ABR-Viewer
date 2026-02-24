@@ -106,8 +106,9 @@ describe('createNestable', () => {
     it('selects deepest container for Group B', () => {
       const { containers } = nestedSetup();
       withNestable({ containers: () => containers, dragTags: () => ['item'] }, (nestable) => {
-        // Pointer inside Group B, between item-4 and item-5
-        const place = nestable.getInsertionPoint(Vec2.of(100, 270));
+        // Pointer inside Group B, past boundary between item-4 and item-5
+        // Boundary = (item-4.bottom + item-5.top) / 2 = (280 + 290) / 2 = 285
+        const place = nestable.getInsertionPoint(Vec2.of(100, 286));
         expect(place).toEqual({ parent: 'groupB', before: 'item-5' });
       });
     });
@@ -148,8 +149,8 @@ describe('createNestable', () => {
     it('inserts between items when pointer is between their centers', () => {
       const { containers } = nestedSetup();
       withNestable({ containers: () => containers, dragTags: () => ['item'] }, (nestable) => {
-        // Between item-1 (center=40) and item-2 (center=90), say y=60
-        const place = nestable.getInsertionPoint(Vec2.of(100, 60));
+        // Between item-1 and item-2: boundary = (60 + 70) / 2 = 65. y=66 past it.
+        const place = nestable.getInsertionPoint(Vec2.of(100, 66));
         expect(place).toEqual({ parent: 'groupA', before: 'item-2' });
       });
     });
@@ -395,7 +396,7 @@ describe('createNestable', () => {
 
       withNestable({ containers: () => containers }, (nestable) => {
         expect(nestable.getInsertionPoint(Vec2.of(100, 20))).toEqual({ parent: 'list', before: 'a' });
-        expect(nestable.getInsertionPoint(Vec2.of(100, 50))).toEqual({ parent: 'list', before: 'b' });
+        expect(nestable.getInsertionPoint(Vec2.of(100, 56))).toEqual({ parent: 'list', before: 'b' });
         expect(nestable.getInsertionPoint(Vec2.of(100, 100))).toEqual({ parent: 'list', before: null });
       });
     });
@@ -443,9 +444,9 @@ describe('createNestable', () => {
           getParent: (key) => parents.get(key)
         },
         (nestable) => {
-          // Pointer at y=100 — below item-2 center (90), above item-3 center (140).
-          // With item-3 excluded, this should be "append" in groupA.
-          const place = nestable.getInsertionPoint(Vec2.of(100, 100));
+          // With item-3 excluded, remaining items: item-1(20-60), item-2(70-110).
+          // item-2 is last: boundary = 110. y=115 > 110 → append.
+          const place = nestable.getInsertionPoint(Vec2.of(100, 115));
           expect(place).toEqual({ parent: 'groupA', before: null });
         }
       );
@@ -536,8 +537,8 @@ describe('createNestable', () => {
           // Pointer above item-3 center (140) → before item-3
           const place = nestable.getInsertionPoint(Vec2.of(100, 130));
           expect(place).toEqual({ parent: 'groupA', before: 'item-3' });
-          // Pointer below item-3 center → append
-          const place2 = nestable.getInsertionPoint(Vec2.of(100, 150));
+          // Pointer below item-3 bottom edge (160) → append
+          const place2 = nestable.getInsertionPoint(Vec2.of(100, 165));
           expect(place2).toEqual({ parent: 'groupA', before: null });
         }
       );

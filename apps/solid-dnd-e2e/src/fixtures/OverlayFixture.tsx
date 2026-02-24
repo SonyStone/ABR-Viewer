@@ -90,7 +90,7 @@ export default function OverlayFixture(): JSX.Element {
       (animating) => {
         if (!animating && moveSwallowed && sensor.isDragging()) {
           moveSwallowed = false;
-          const pos = sensor.position();
+          const pos = insertionPos();
           if (pos) {
             flip.captureFirst();
             setDropPlace(sortable.getInsertionPoint(pos));
@@ -101,6 +101,21 @@ export default function OverlayFixture(): JSX.Element {
     )
   );
 
+  // ── Insertion position helper ─────────────────────────────────────
+  // Use the overlay's center (not the raw cursor) for insertion point
+  // detection. This ensures the insertion zone matches the visual position
+  // of the dragged item, regardless of where the user grabbed it.
+  // Without this, grabbing near an item's edge offsets the cursor from the
+  // overlay center, making it feel like the gap lags behind the overlay.
+  function insertionPos(): Vec2.Vec2 | undefined {
+    if (overlay.active()) {
+      const pos = overlay.position();
+      const size = overlay.size();
+      return Vec2.of(pos.x + size.x / 2, pos.y + size.y / 2);
+    }
+    return sensor.position() ?? undefined;
+  }
+
   // ── Shared cleanup ──────────────────────────────────────────────────
   function resetDragState() {
     pendingDragId = null;
@@ -109,6 +124,7 @@ export default function OverlayFixture(): JSX.Element {
     setDropPlace(undefined);
     setGapHeight(0);
     overlay.stop();
+    sortable.clearSnapshot();
     itemRefs.delete(GAP_KEY);
   }
 
@@ -130,30 +146,36 @@ export default function OverlayFixture(): JSX.Element {
         overlay.start(sourceEl, e.position);
       }
 
-      // 2. Capture FLIP positions before DOM changes
+      // 2. Snapshot item rects BEFORE the gap shifts items.
+      //    Pass the dragged ID so its space is removed from the snapshot,
+      //    giving us compact positions that match the visual layout.
+      sortable.snapshotRects(ids);
+
+      // 3. Capture FLIP positions before DOM changes
       flip.captureFirst();
 
-      // 3. Set drag state
+      // 4. Set drag state
       batch(() => {
         setDraggedIds(ids);
-        setDropPlace(sortable.getInsertionPoint(e.position));
+        setDropPlace(sortable.getInsertionPoint(insertionPos() ?? e.position));
       });
     },
-    onDragMove: (e) => {
+    onDragMove: (_e) => {
       if (flip.isAnimating()) {
         moveSwallowed = true;
         return;
       }
       moveSwallowed = false;
       flip.captureFirst();
-      setDropPlace(sortable.getInsertionPoint(e.position));
+      const pos = insertionPos();
+      if (pos) setDropPlace(sortable.getInsertionPoint(pos));
     },
     onDragEnd: () => {
       // If a move was swallowed during FLIP, do a final re-evaluation
       // before reading the drop place.
       if (moveSwallowed) {
         moveSwallowed = false;
-        const pos = sensor.position();
+        const pos = insertionPos();
         if (pos) {
           setDropPlace(sortable.getInsertionPoint(pos));
         }
