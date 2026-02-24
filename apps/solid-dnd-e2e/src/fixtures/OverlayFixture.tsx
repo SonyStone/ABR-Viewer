@@ -1,16 +1,16 @@
 import {
+  createDragController,
   createDropzone,
-  createOverlayDrag,
   createSortable,
   GAP_KEY,
   Rect,
   reorderItems,
-  type OverlayDrag
+  type DragController
 } from 'solid-dnd';
 import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from 'solid-js';
 
 // ============================================================================
-// MARK: OverlayFixture — tests createOverlayDrag in a real browser
+// MARK: OverlayFixture — tests createDragController in a real browser
 // ============================================================================
 
 type Item = { id: string; label: string; color: string };
@@ -45,7 +45,7 @@ export default function OverlayFixture(): JSX.Element {
   // Created second. getInsertionPoint is lazy (only called during drag
   // events). displayKeys is omitted here because dropzone doesn't exist
   // yet — we wire up the FLIP effect manually below.
-  const drag: OverlayDrag<string> = createOverlayDrag<string>({
+  const drag: DragController<string> = createDragController<string>({
     elements: itemRefs,
     getInsertionPoint: (pos) => sortable.getInsertionPoint(pos),
 
@@ -80,7 +80,7 @@ export default function OverlayFixture(): JSX.Element {
 
   // ── FLIP on displayKeys change during drag ───────────────────────────
   // Wired manually because displayKeys couldn't be passed to
-  // createOverlayDrag (dropzone didn't exist at that point).
+  // createDragController (dropzone didn't exist at that point).
   createEffect(
     on(
       () => dropzone.displayKeys(),

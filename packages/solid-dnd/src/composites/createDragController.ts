@@ -3,21 +3,21 @@ import { type Accessor, batch, createEffect, createSignal } from 'solid-js';
 import * as Place from '../core/place';
 import { fromElement } from '../core/rect';
 import { type Vec2, of as vec2, Zero as Vec2Zero } from '../core/vec2';
-import { type DragOverlay, createDragOverlay } from './createDragOverlay';
-import { type DragSensor, createDragSensor } from './createDragSensor';
-import { type Flip, type FlipAnimateEntry, type FlipOptions, createFlip } from './createFlip';
+import { type DragOverlay, createDragOverlay } from '../primitives/createDragOverlay';
+import { type DragSensor, createDragSensor } from '../primitives/createDragSensor';
+import { type Flip, type FlipAnimateEntry, type FlipOptions, createFlip } from '../primitives/createFlip';
 
 // ============================================================================
 // MARK: Types
 // ============================================================================
 
-export type OverlayDragOptions<K> = {
+export type DragControllerOptions<K> = {
   /**
-   * Element ref map shared between the overlay drag and the consumer's
+   * Element ref map shared between the drag controller and the consumer's
    * `<For>` loop. The consumer must populate this with item `ref` callbacks
    * and also register the gap placeholder element under `GAP_KEY`.
    *
-   * The primitive reads from this map but never writes to it — ownership
+   * The controller reads from this map but never writes to it — ownership
    * stays with the consumer.
    */
   elements: Map<K, HTMLElement>;
@@ -26,7 +26,7 @@ export type OverlayDragOptions<K> = {
    * Compute the insertion point for a given position.
    *
    * The consumer wires this to `sortable.getInsertionPoint` or
-   * `nestable.getInsertionPoint`. The primitive calls it during drag start,
+   * `nestable.getInsertionPoint`. The controller calls it during drag start,
    * every drag move, and when re-evaluating after FLIP completes.
    */
   getInsertionPoint: (position: Vec2) => Place.Place<K> | undefined;
@@ -58,7 +58,7 @@ export type OverlayDragOptions<K> = {
 
   /**
    * Called when drag ends (after drop or cancel), inside the FLIP callback.
-   * Use this for cleanup beyond what the primitive handles internally
+   * Use this for cleanup beyond what the controller handles internally
    * (e.g., clearing selection, logging).
    */
   onReset?: () => void;
@@ -124,7 +124,7 @@ export type OverlayDragOptions<K> = {
 
   /**
    * An accessor that changes whenever the visual display list changes
-   * (e.g., `dropzone.displayKeys()`). The primitive watches this and
+   * (e.g., `dropzone.displayKeys()`). The controller watches this and
    * triggers `flip.playFromFirst()` during drag so items animate to
    * their new positions when the gap moves.
    *
@@ -134,7 +134,7 @@ export type OverlayDragOptions<K> = {
   displayKeys?: Accessor<unknown>;
 };
 
-export type OverlayDrag<K> = {
+export type DragController<K> = {
   /** The underlying drag sensor. */
   sensor: DragSensor;
   /** The drag overlay (position, size, active). */
@@ -162,11 +162,11 @@ export type OverlayDrag<K> = {
 };
 
 // ============================================================================
-// MARK: createOverlayDrag
+// MARK: createDragController
 // ============================================================================
 
 /**
- * High-level primitive that orchestrates overlay-based drag-and-drop.
+ * High-level composite that orchestrates overlay-based drag-and-drop.
  *
  * Composes `createDragSensor`, `createDragOverlay`, and `createFlip` into a
  * single coherent flow with correct ordering:
@@ -179,7 +179,7 @@ export type OverlayDrag<K> = {
  * 4. **Drop**: apply reorder inside `flip.animate()` → reset.
  * 5. **Cancel**: reset inside `flip.animate()`.
  *
- * The primitive uses the **overlay center** (not the raw cursor position) for
+ * The controller uses the **overlay center** (not the raw cursor position) for
  * insertion point detection. This ensures the insertion zone matches the
  * visual position of the dragged item, regardless of where the user grabbed.
  *
@@ -195,7 +195,7 @@ export type OverlayDrag<K> = {
  * ## Usage
  *
  * ```tsx
- * const drag = createOverlayDrag({
+ * const drag = createDragController({
  *   elements: itemRefs,
  *   getInsertionPoint: (pos) => sortable.getInsertionPoint(pos),
  *   onBeforeDragStart: (id) => {
@@ -209,7 +209,7 @@ export type OverlayDrag<K> = {
  * });
  * ```
  */
-export function createOverlayDrag<K>(options: OverlayDragOptions<K>): OverlayDrag<K> {
+export function createDragController<K>(options: DragControllerOptions<K>): DragController<K> {
   // ── Internal state ──────────────────────────────────────────────────────
   const [draggedIds, setDraggedIds] = createSignal<K[]>([]);
   const [dropPlace, setDropPlace] = createSignal<Place.Place<K> | undefined>(undefined, {

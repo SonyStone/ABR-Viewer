@@ -24,6 +24,8 @@ export { applyGridRange, applyRange, applySet, applyToggle, getSelectionMode } f
 export type { SelectionMode } from './core/selectionModes';
 
 // Primitives
+export { createDragController } from './composites/createDragController';
+export type { DragController, DragControllerOptions } from './composites/createDragController';
 export { getGridIndicatorPosition, getGridInsertionPoint } from './core/gridInsertion';
 export { accepts, wouldCycle } from './core/tagConstraints';
 export { createDragOverlay } from './primitives/createDragOverlay';
@@ -42,8 +44,6 @@ export { createFlip } from './primitives/createFlip';
 export type { Flip, FlipAnimateEntry, FlipOptions } from './primitives/createFlip';
 export { createNestable } from './primitives/createNestable';
 export type { Nestable, NestableOptions } from './primitives/createNestable';
-export { createOverlayDrag } from './primitives/createOverlayDrag';
-export type { OverlayDrag, OverlayDragOptions } from './primitives/createOverlayDrag';
 export { createSelection } from './primitives/createSelection';
 export type { Selection, SelectionOptions } from './primitives/createSelection';
 export { createSortable } from './primitives/createSortable';
