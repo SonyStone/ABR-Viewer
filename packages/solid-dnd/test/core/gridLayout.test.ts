@@ -5,7 +5,6 @@ import {
   cellToIndex,
   gridRangeIndices,
   indexToCell,
-  normalizeGap,
   pointToCell,
   resolveGrid
 } from 'src/core/gridLayout';
@@ -258,19 +257,5 @@ describe('gridRangeIndices', () => {
     const b: GridCell = { row: 1, col: 2 };
     const indices = gridRangeIndices(a, b, 3, 6);
     expect(indices).toEqual([0, 1, 2, 3, 4, 5]);
-  });
-});
-
-// ============================================================================
-// MARK: normalizeGap
-// ============================================================================
-
-describe('normalizeGap', () => {
-  it('single number → [n, n]', () => {
-    expect(normalizeGap(8)).toEqual([8, 8]);
-  });
-
-  it('tuple passes through', () => {
-    expect(normalizeGap([12, 8])).toEqual([12, 8]);
   });
 });

@@ -1,6 +1,6 @@
-import type { NestableContainer } from '../primitives/createNestable';
 import type { Place } from './place';
 import type { Rect } from './rect';
+import type { NestableContainer } from './types';
 
 // ============================================================================
 // Tree — Pure utilities for tree-structured data
@@ -45,11 +45,11 @@ export type Tree<K extends string = string> = Record<K | 'root', K[]>;
 export function move<K extends string>(tree: Tree<K>, key: K, place: Place<K>): Tree<K> {
   const result = { ...tree };
 
-  // 1. Remove from all parent lists
-  for (const [parent, kids] of Object.entries(result) as [K, K[]][]) {
-    if (kids.includes(key)) {
-      result[parent] = kids.filter((k) => k !== key) as K[];
-    }
+  // 1. Remove from current parent (O(1) lookup via parentMap)
+  const parents = parentMap(tree);
+  const currentParent = parents.get(key);
+  if (currentParent !== undefined) {
+    result[currentParent] = (result[currentParent] as K[]).filter((k) => k !== key) as K[];
   }
 
   // 2. Insert at target position

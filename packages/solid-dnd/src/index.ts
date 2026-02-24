@@ -4,7 +4,7 @@
 
 // Core types
 export { createItemId } from './core/types';
-export type { GridConfig, ItemId, LayoutMode } from './core/types';
+export type { GridConfig, ItemId, LayoutMode, NestableContainer } from './core/types';
 
 // Core geometry & place modules
 // Use as namespace: Rect.of(), Place.label(), Tree.move(), Grid.resolveGrid()
@@ -18,6 +18,7 @@ export * as Vec2 from './core/vec2';
 // Core utilities
 export { GAP_KEY, computeDisplayKeys, computeTreeDisplayKeys } from './core/displayList';
 export type { GapKey } from './core/displayList';
+export { getListInsertionPoint } from './core/listInsertion';
 export { reorderItems } from './core/reorder';
 export { applyGridRange, applyRange, applySet, applyToggle, getSelectionMode } from './core/selectionModes';
 export type { SelectionMode } from './core/selectionModes';
@@ -40,7 +41,7 @@ export type { Dropzone, DropzoneOptions, TreeDropzone, TreeDropzoneOptions } fro
 export { createFlip } from './primitives/createFlip';
 export type { Flip, FlipAnimateEntry, FlipOptions } from './primitives/createFlip';
 export { createNestable } from './primitives/createNestable';
-export type { Nestable, NestableContainer, NestableOptions } from './primitives/createNestable';
+export type { Nestable, NestableOptions } from './primitives/createNestable';
 export { createSelection } from './primitives/createSelection';
 export type { Selection, SelectionOptions } from './primitives/createSelection';
 export { createSortable } from './primitives/createSortable';

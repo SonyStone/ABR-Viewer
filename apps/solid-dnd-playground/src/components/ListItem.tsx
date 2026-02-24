@@ -1,12 +1,11 @@
 import { Show, type JSX } from 'solid-js';
 import type { DemoItem } from '../data';
 import { CheckIcon, GripIcon } from './icons';
+import { GHOST_CLASS } from './styles';
 
 // ============================================================================
 // MARK: ListItem
 // ============================================================================
-
-const GHOST_CLASS = 'border-blue-500/30 bg-blue-500/10 opacity-40';
 
 export type ListItemProps = {
   item: DemoItem;
@@ -31,6 +30,9 @@ export function ListItem(props: ListItemProps): JSX.Element {
     <div
       ref={props.ref}
       onPointerDown={props.onPointerDown}
+      role="option"
+      aria-selected={props.isSelected}
+      aria-roledescription="sortable item"
       class={`flex cursor-grab touch-none items-center gap-3 rounded-lg border px-4 py-3 transition-all select-none ${stateClass()}`}
     >
       <Show when={props.isSelected} fallback={<GripIcon />}>

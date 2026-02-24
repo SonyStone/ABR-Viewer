@@ -15,7 +15,7 @@ import {
   Vec2,
   type FlipAnimateEntry
 } from 'solid-dnd';
-import { batch, createEffect, createMemo, createSignal, For, on, Show, type JSX } from 'solid-js';
+import { batch, createEffect, createMemo, createSignal, For, on, Show, type Accessor, type JSX } from 'solid-js';
 import EventLog, { createEventLogger } from '../components/EventLog';
 import { FlipDebugOverlay } from '../components/FlipDebugOverlay';
 import { GridControls } from '../components/GridControls';
@@ -77,7 +77,7 @@ export default function GridOverlayDemo(): JSX.Element {
     containerKey: 'grid',
     items: itemKeys,
     layout: 'grid',
-    gridConfig: gridConfig(),
+    gridConfig: gridConfig,
     draggedKeys: () => draggedIds(),
     getRect: (key) => Rect.fromElement(itemRefs.get(key)),
     getContainerRect: () => Rect.fromElement(containerRef)
@@ -128,6 +128,7 @@ export default function GridOverlayDemo(): JSX.Element {
     setDropPlace(undefined);
     setGapHeight(0);
     overlay.stop();
+    itemRefs.delete(GAP_KEY);
   }
 
   // ── Drag sensor ─────────────────────────────────────────────────────────
@@ -163,6 +164,9 @@ export default function GridOverlayDemo(): JSX.Element {
       logger.addLog(`▶ DRAG  [${ids.join(', ')}] at (${e.position.x.toFixed(0)}, ${e.position.y.toFixed(0)})`);
     },
     onDragMove: (e) => {
+      // Skip recalculation while FLIP is animating — mid-animation rects
+      // can give incorrect insertion points.
+      if (flip.isAnimating()) return;
       if (animEnabled()) flip.captureFirst();
       throttledSetDropPlace(e.position);
     },
@@ -194,8 +198,14 @@ export default function GridOverlayDemo(): JSX.Element {
     sensor.onPointerDown(ev);
   }
 
+  // ── Memoized item lookup (O(1) per key instead of O(n)) ─────────────────
+  const itemMap: Accessor<Map<string, DemoItem>> = createMemo(() => {
+    const map = new Map<string, DemoItem>();
+    for (const item of items()) map.set(item.id, item);
+    return map;
+  });
   function getItem(key: string): DemoItem | undefined {
-    return items().find((i) => i.id === key);
+    return itemMap().get(key);
   }
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -222,6 +232,8 @@ export default function GridOverlayDemo(): JSX.Element {
       {/* ── Grid container ─────────────────────────────────────────── */}
       <div
         ref={containerRef}
+        role="listbox"
+        aria-label="Sortable grid"
         class="relative rounded-xl border border-white/10 bg-white/2 p-3"
         style={{ display: 'grid', 'grid-template-columns': `repeat(${columns()}, 1fr)`, gap: '8px' }}
       >
@@ -266,7 +278,7 @@ export default function GridOverlayDemo(): JSX.Element {
       {/* ── Drag overlay ──────────────────────────────────────────── */}
       <Show when={overlay.active()}>
         <div
-          class="pointer-events-none fixed z-[10000]"
+          class="pointer-events-none fixed z-10000"
           style={{
             left: `${overlay.position().x}px`,
             top: `${overlay.position().y}px`,

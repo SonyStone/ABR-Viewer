@@ -14,7 +14,7 @@ import {
   Vec2,
   type FlipAnimateEntry
 } from 'solid-dnd';
-import { batch, createEffect, createMemo, createSignal, For, on, Show, type JSX } from 'solid-js';
+import { batch, createEffect, createMemo, createSignal, For, on, Show, type Accessor, type JSX } from 'solid-js';
 import { AnimationControls } from '../components/AnimationControls';
 import EventLog, { createEventLogger } from '../components/EventLog';
 import { FlipDebugOverlay } from '../components/FlipDebugOverlay';
@@ -116,6 +116,7 @@ export default function ListOverlayDemo(): JSX.Element {
     setDropPlace(undefined);
     setGapHeight(0);
     overlay.stop();
+    itemRefs.delete(GAP_KEY);
   }
 
   // ── Drag sensor ─────────────────────────────────────────────────────────
@@ -151,6 +152,9 @@ export default function ListOverlayDemo(): JSX.Element {
       logger.addLog(`▶ DRAG  [${ids.join(', ')}] at (${e.position.x.toFixed(0)}, ${e.position.y.toFixed(0)})`);
     },
     onDragMove: (e) => {
+      // Skip recalculation while FLIP is animating — mid-animation rects
+      // can give incorrect insertion points.
+      if (flip.isAnimating()) return;
       // Capture before place changes (so FLIP sees the old positions)
       if (animEnabled()) flip.captureFirst();
       throttledSetDropPlace(e.position);
@@ -185,9 +189,14 @@ export default function ListOverlayDemo(): JSX.Element {
     sensor.onPointerDown(ev);
   }
 
-  // ── Helper: look up item data by key ────────────────────────────────────
+  // ── Memoized item lookup (O(1) per key instead of O(n)) ─────────────────
+  const itemMap: Accessor<Map<string, DemoItem>> = createMemo(() => {
+    const map = new Map<string, DemoItem>();
+    for (const item of items()) map.set(item.id, item);
+    return map;
+  });
   function getItem(key: string): DemoItem | undefined {
-    return items().find((i) => i.id === key);
+    return itemMap().get(key);
   }
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -222,7 +231,12 @@ export default function ListOverlayDemo(): JSX.Element {
       <SelectionInfo selected={selection.selected()} items={items()} onClear={() => selection.clear()} />
 
       {/* ── Sortable list ──────────────────────────────────────────── */}
-      <div ref={containerRef} class="relative flex flex-col gap-2 rounded-xl border border-white/10 bg-white/2 p-3">
+      <div
+        ref={containerRef}
+        role="listbox"
+        aria-label="Sortable list"
+        class="relative flex flex-col gap-2 rounded-xl border border-white/10 bg-white/2 p-3"
+      >
         <For each={dropzone.displayKeys()}>
           {(key) => {
             if (key === GAP_KEY) {
@@ -251,7 +265,7 @@ export default function ListOverlayDemo(): JSX.Element {
       {/* ── Drag overlay ──────────────────────────────────────────── */}
       <Show when={overlay.active()}>
         <div
-          class="pointer-events-none fixed z-[10000]"
+          class="pointer-events-none fixed z-10000"
           style={{
             left: `${overlay.position().x}px`,
             top: `${overlay.position().y}px`,

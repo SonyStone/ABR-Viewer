@@ -105,7 +105,7 @@ export default function NestedOverlayDemo(): JSX.Element {
         // Access all display lists to trigger on any change
         const place = dropPlace();
         if (!place) return null;
-        return dropzone.getDisplayKeys(place.parent as any);
+        return dropzone.getDisplayKeys(place.parent);
       },
       () => {
         if (sensor.isDragging() && animEnabled()) {
@@ -123,6 +123,10 @@ export default function NestedOverlayDemo(): JSX.Element {
     setDropPlace(undefined);
     setGapHeight(0);
     overlay.stop();
+    // Clean up stale gap refs to prevent GC leaks of detached DOM nodes
+    for (const key of itemRefs.keys()) {
+      if (key.startsWith('__gap_')) itemRefs.delete(key);
+    }
   }
 
   function applyDrop(id: string, place: Place.Place<string>) {
@@ -160,6 +164,9 @@ export default function NestedOverlayDemo(): JSX.Element {
       });
     },
     onDragMove: (e) => {
+      // Skip recalculation while FLIP is animating — mid-animation rects
+      // give wrong container hit-testing in nested layouts, causing oscillation.
+      if (flip.isAnimating()) return;
       if (animEnabled()) flip.captureFirst();
       throttledSetDropPlace(e.position);
     },
@@ -194,10 +201,15 @@ export default function NestedOverlayDemo(): JSX.Element {
   // ── Recursive rendering using display keys ──────────────────────────────
 
   function NodeChildren(props: { parentId: string; depth: number }): JSX.Element {
-    const displayKeys = () => dropzone.getDisplayKeys(props.parentId as any);
+    const displayKeys = () => dropzone.getDisplayKeys(props.parentId);
 
     return (
-      <div ref={(el) => containerRefs.set(props.parentId, el)} class="relative flex flex-col gap-1.5">
+      <div
+        ref={(el) => containerRefs.set(props.parentId, el)}
+        role="listbox"
+        aria-label={`${props.parentId} contents`}
+        class="relative flex flex-col gap-1.5"
+      >
         <For each={displayKeys()}>
           {(key) => {
             if (key === GAP_KEY) {
@@ -242,7 +254,7 @@ export default function NestedOverlayDemo(): JSX.Element {
         </For>
 
         {/* Empty state */}
-        <Show when={displayKeys().filter((k) => k !== GAP_KEY).length === 0}>
+        <Show when={displayKeys().filter((k: string) => k !== GAP_KEY).length === 0}>
           <div class="py-3 text-center text-xs text-neutral-600 italic">Drop items here</div>
         </Show>
       </div>
@@ -283,7 +295,7 @@ export default function NestedOverlayDemo(): JSX.Element {
       {/* ── Drag overlay ──────────────────────────────────────────── */}
       <Show when={overlay.active()}>
         <div
-          class="pointer-events-none fixed z-[10000]"
+          class="pointer-events-none fixed z-10000"
           style={{
             left: `${overlay.position().x}px`,
             top: `${overlay.position().y}px`,

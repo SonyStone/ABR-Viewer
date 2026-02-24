@@ -1,12 +1,11 @@
 import type { JSX } from 'solid-js';
 import type { NodeData } from '../data';
 import { GripIcon } from './icons';
+import { GHOST_CLASS } from './styles';
 
 // ============================================================================
 // MARK: LeafItem
 // ============================================================================
-
-const GHOST_CLASS = 'border-blue-500/30 bg-blue-500/10 opacity-40';
 
 export type LeafItemProps = {
   id: string;
@@ -28,6 +27,8 @@ export function LeafItem(props: LeafItemProps): JSX.Element {
     <div
       ref={props.ref}
       onPointerDown={props.onPointerDown}
+      role="option"
+      aria-roledescription="sortable item"
       class={`flex cursor-grab touch-none items-center gap-3 rounded-lg border px-3 py-2.5 transition-all select-none ${stateClass()}`}
     >
       <GripIcon class="h-3.5 w-3.5 text-neutral-500" />

@@ -14,15 +14,20 @@ export type ElementSnapshot = Readonly<{
 }>;
 
 /**
- * The inverse translation needed to visually move an element from its
+ * The inverse transform needed to visually move an element from its
  * "Last" (new) position back to its "First" (old) position.
  *
- * Applied as `translate(dx, dy)` at animation start, then animated to
- * `translate(0, 0)` to smoothly arrive at the new position.
+ * Applied as `translate(dx, dy) scale(scaleX, scaleY)` at animation start,
+ * then animated to `translate(0, 0) scale(1, 1)` to smoothly arrive at
+ * the new position and size.
  */
 export type FlipDelta = Readonly<{
   dx: number;
   dy: number;
+  /** Horizontal scale factor (first.width / last.width). 1 = no change. */
+  scaleX: number;
+  /** Vertical scale factor (first.height / last.height). 1 = no change. */
+  scaleY: number;
 }>;
 
 // ============================================================================
@@ -93,11 +98,13 @@ export function calculateDeltas(
 
     const dx = firstSnap.x - lastSnap.x;
     const dy = firstSnap.y - lastSnap.y;
+    const scaleX = lastSnap.width > 0 ? firstSnap.width / lastSnap.width : 1;
+    const scaleY = lastSnap.height > 0 ? firstSnap.height / lastSnap.height : 1;
 
-    // Skip elements that didn't move (avoids unnecessary animations)
-    if (dx === 0 && dy === 0) continue;
+    // Skip elements that didn't move or change size (avoids unnecessary animations)
+    if (dx === 0 && dy === 0 && scaleX === 1 && scaleY === 1) continue;
 
-    deltas.set(key, { dx, dy });
+    deltas.set(key, { dx, dy, scaleX, scaleY });
   }
 
   return deltas;

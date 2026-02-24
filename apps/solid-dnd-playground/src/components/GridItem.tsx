@@ -1,11 +1,10 @@
 import type { JSX } from 'solid-js';
 import type { DemoItem } from '../data';
+import { GHOST_CLASS } from './styles';
 
 // ============================================================================
 // MARK: GridItem
 // ============================================================================
-
-const GHOST_CLASS = 'border-blue-500/30 bg-blue-500/10 opacity-40';
 
 export type GridItemProps = {
   item: DemoItem;
@@ -30,6 +29,9 @@ export function GridItem(props: GridItemProps): JSX.Element {
     <div
       ref={props.ref}
       onPointerDown={props.onPointerDown}
+      role="option"
+      aria-selected={props.isSelected}
+      aria-roledescription="sortable item"
       class={`flex cursor-grab touch-none flex-col items-center gap-2 rounded-lg border p-4 transition-all select-none active:cursor-grabbing ${stateClass()}`}
     >
       <div class="h-8 w-8 rounded" style={{ background: props.item.color }} />

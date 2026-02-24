@@ -1,6 +1,6 @@
 import Drawer from '@corvu/drawer';
 import { useLocation } from '@solidjs/router';
-import { createSignal, For, Show, type JSX } from 'solid-js';
+import { createSignal, For, type JSX } from 'solid-js';
 import { navSections } from '../nav';
 
 // ============================================================================
@@ -79,7 +79,7 @@ function MobileDrawer(): JSX.Element {
   const [open, setOpen] = createSignal(false);
 
   return (
-    <Show when={true}>
+    <>
       {/* Hamburger trigger — only on mobile */}
       <button
         class="fixed top-3 left-3 z-50 flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-neutral-900/80 backdrop-blur-sm md:hidden"
@@ -111,7 +111,7 @@ function MobileDrawer(): JSX.Element {
           </Drawer.Portal>
         )}
       </Drawer>
-    </Show>
+    </>
   );
 }
 

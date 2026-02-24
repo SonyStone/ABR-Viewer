@@ -127,7 +127,12 @@ export default function NestedDemo(): JSX.Element {
 
   function NodeChildren(props: { parentId: string; depth: number }): JSX.Element {
     return (
-      <div ref={(el) => containerRefs.set(props.parentId, el)} class="relative flex flex-col gap-1.5">
+      <div
+        ref={(el) => containerRefs.set(props.parentId, el)}
+        role="listbox"
+        aria-label={`${props.parentId} contents`}
+        class="relative flex flex-col gap-1.5"
+      >
         <For each={tree()[props.parentId] ?? []}>
           {(childId) => {
             const node = NODES[childId];

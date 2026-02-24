@@ -1,5 +1,4 @@
-import { makeEventListener } from '@solid-primitives/event-listener';
-import { type Accessor, createSignal, onCleanup } from 'solid-js';
+import { type Accessor, createEffect, createSignal, on, onCleanup } from 'solid-js';
 import { type Vec2, of as vec2, Zero as Vec2Zero } from '../core/vec2';
 
 // ============================================================================
@@ -134,14 +133,33 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
   let startPointerEvent: PointerEvent | null = null;
   let proxyElement: HTMLElement | null = null;
 
+  // ── Reactive tracking of active state (for scoped Escape listener) ────
+  const [isActive, setIsActive] = createSignal(false);
+
   // ── Escape key handler ────────────────────────────────────────────────
-  // Registered globally — we only act on it when tracking/dragging.
+  // Only registered when tracking or dragging to avoid firing on every
+  // keydown when multiple sensors exist.
   if (typeof document !== 'undefined') {
-    makeEventListener(document, 'keydown', ((ev: KeyboardEvent) => {
-      if (ev.key === 'Escape' && (tracking || dragging)) {
-        cancelDrag();
-      }
-    }) as EventListener);
+    let escapeCleanup: (() => void) | null = null;
+
+    createEffect(
+      on(isActive, (active) => {
+        if (active && !escapeCleanup) {
+          const handler = ((ev: KeyboardEvent) => {
+            if (ev.key === 'Escape') cancelDrag();
+          }) as EventListener;
+          document.addEventListener('keydown', handler);
+          escapeCleanup = () => {
+            document.removeEventListener('keydown', handler);
+            escapeCleanup = null;
+          };
+        } else if (!active && escapeCleanup) {
+          escapeCleanup();
+        }
+      })
+    );
+
+    onCleanup(() => escapeCleanup?.());
   }
 
   // ── Cleanup on component unmount ──────────────────────────────────────
@@ -165,11 +183,6 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
     const target = ev.currentTarget as HTMLElement;
     if (!target) return;
 
-    // Prevent browser default touch actions (scroll, pan, zoom) so the
-    // pointer isn't cancelled mid-drag. The element should also have
-    // CSS `touch-action: none` for this to work reliably.
-    ev.preventDefault();
-
     // Capture the pointer for reliable tracking
     target.setPointerCapture(ev.pointerId);
     capturedElement = target;
@@ -180,6 +193,7 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
     tracking = true;
     startPointerEvent = ev;
     setPointerType(ev.pointerType);
+    setIsActive(true);
 
     // Attach pointer events on the capturing element
     target.addEventListener('pointermove', onPointerMove);
@@ -205,6 +219,10 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
       // Threshold exceeded — transition to dragging
       tracking = false;
       dragging = true;
+
+      // Prevent browser defaults now that we know the user is dragging.
+      // This avoids blocking focus changes and form interactions on clicks.
+      ev.preventDefault();
 
       // Transfer pointer capture to an invisible proxy element so the
       // source element can be safely removed from the DOM during drag.
@@ -273,9 +291,11 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
       if (dragging) {
         options.onDragCancel?.();
       }
-      resetState();
       // Don't call releaseCapture — we already lost it.
+      // Must clean up listeners BEFORE resetState, because resetState
+      // nulls capturedElement and cleanupListeners needs the ref.
       cleanupListeners();
+      resetState();
     }
   }
 
@@ -374,6 +394,7 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
     setIsDragging(false);
     setPosition(null);
     setDelta(null);
+    setIsActive(false);
   }
 
   return {

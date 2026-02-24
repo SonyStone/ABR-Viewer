@@ -224,7 +224,8 @@ export function gridRangeIndices(cellA: GridCell, cellB: GridCell, columns: numb
 
 /**
  * Normalize the `gap` config into `[rowGap, colGap]`.
+ * @internal
  */
-export function normalizeGap(gap: number | [number, number]): [number, number] {
+function normalizeGap(gap: number | [number, number]): [number, number] {
   return Array.isArray(gap) ? gap : [gap, gap];
 }

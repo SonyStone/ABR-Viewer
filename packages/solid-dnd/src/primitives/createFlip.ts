@@ -129,6 +129,8 @@ export function createFlip(options: FlipOptions): Flip {
   // remaining time so the animation still completes on schedule.
   let lastTargets: Map<string, ElementSnapshot> | null = null;
   let animationStartTime = 0;
+  // Per-call duration override set by animate(), consumed by playFromFirst().
+  let animateDurationOverride: number | undefined;
 
   // ── First: capture current positions ──────────────────────────────────
   function captureFirst(): void {
@@ -156,7 +158,7 @@ export function createFlip(options: FlipOptions): Flip {
       return;
     }
 
-    const baseDur = options.duration ?? 200;
+    const baseDur = animateDurationOverride ?? options.duration ?? 200;
     const ease = options.easing ?? 'ease-out';
 
     // If targets haven't changed (same layout as previous animation),
@@ -196,10 +198,16 @@ export function createFlip(options: FlipOptions): Flip {
       const el = options.elements.get(key);
       if (!el || typeof el.animate !== 'function') continue;
 
-      const anim = el.animate(
-        [{ transform: `translate(${delta.dx}px, ${delta.dy}px)` }, { transform: 'translate(0, 0)' }],
-        { duration: dur, easing: ease }
-      );
+      const hasScale = delta.scaleX !== 1 || delta.scaleY !== 1;
+      const fromTransform = hasScale
+        ? `translate(${delta.dx}px, ${delta.dy}px) scale(${delta.scaleX}, ${delta.scaleY})`
+        : `translate(${delta.dx}px, ${delta.dy}px)`;
+      const toTransform = hasScale ? 'translate(0, 0) scale(1, 1)' : 'translate(0, 0)';
+
+      const anim = el.animate([{ transform: fromTransform }, { transform: toTransform }], {
+        duration: dur,
+        easing: ease
+      });
 
       animations.push(anim);
     }
@@ -228,24 +236,6 @@ export function createFlip(options: FlipOptions): Flip {
       });
   }
 
-  // ── Finish running animations (snap to end) ────────────────────────────
-  function finishActive(): void {
-    if (activeAnimations.length === 0) return;
-    for (const anim of activeAnimations) {
-      // finish() snaps to the final keyframe; fall back to cancel() in
-      // environments where finish() isn't available (e.g., jsdom mocks).
-      if (typeof anim.finish === 'function') {
-        anim.finish();
-      } else {
-        anim.cancel();
-      }
-    }
-    activeAnimations = [];
-    if (isAnimating()) {
-      setIsAnimating(false);
-    }
-  }
-
   // ── Cancel running animations ─────────────────────────────────────────
   function cancelActive(): void {
     for (const anim of activeAnimations) {
@@ -259,19 +249,16 @@ export function createFlip(options: FlipOptions): Flip {
 
   // ── Convenience: capture + mutate + play in one call ───────────────────
   function animate(fn: () => void, overrides?: { duration?: number }): void {
-    const prevDuration = options.duration;
-    if (overrides?.duration !== undefined) {
-      options.duration = overrides.duration;
-    }
     // animate() is a discrete operation (e.g., on dragEnd).
     // Reset animation tracking so playFromFirst() uses full duration.
     lastTargets = null;
     animationStartTime = 0;
+    // Use a local override instead of mutating the caller's options object.
+    animateDurationOverride = overrides?.duration;
     captureFirst();
     batch(() => fn());
     playFromFirst();
-    // Restore original duration so the options object isn't permanently mutated
-    options.duration = prevDuration;
+    animateDurationOverride = undefined;
   }
 
   return { captureFirst, playFromFirst, animate, isAnimating };

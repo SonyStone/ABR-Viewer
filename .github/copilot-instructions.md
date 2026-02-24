@@ -143,13 +143,7 @@ onPointerCancel = { handlePointerCancel };
 - ❌ Don't use `interface Props { ... }`
 - ✅ Use `type Props = { ... }`
 
-```tsx
-// ❌ Don't
-interface UserData {
-  name: string;
-  age: number;
-}
-
+```ts
 // ✅ Do
 type UserData = {
   name: string;
@@ -201,22 +195,18 @@ export function Component(props: ComponentProps): JSX.Element {
 
 Keep components small and single-purpose. Extract repeated patterns and complex JSX into separate components within the same file.
 
-### File Organization (Newspaper Style)
+### File Organization (Newspaper Style, The Stepdown Rule)
 
 **Organize files top-to-bottom by importance, like a newspaper article.**
 
 The most important content (main exports) should be at the top, with supporting details (sub-components, helpers) at the bottom. Readers should understand the file's purpose without scrolling.
 
 ```tsx
-// ============================================================================
 // MARK: Types (exported types first)
-// ============================================================================
 
 export type MyComponentProps = { ... };
 
-// ============================================================================
 // MARK: Main Component (the primary export)
-// ============================================================================
 
 export function MyComponent(props: MyComponentProps): JSX.Element {
   // Main component uses sub-components defined below
@@ -229,17 +219,13 @@ export function MyComponent(props: MyComponentProps): JSX.Element {
   );
 }
 
-// ============================================================================
 // MARK: Sub-Components (internal, used by main component)
-// ============================================================================
 
 function Header(): JSX.Element { ... }
 function Content(): JSX.Element { ... }
 function Footer(): JSX.Element { ... }
 
-// ============================================================================
 // MARK: Helper Functions (utilities at the bottom)
-// ============================================================================
 
 function formatDate(date: Date): string { ... }
 function calculateTotal(items: Item[]): number { ... }

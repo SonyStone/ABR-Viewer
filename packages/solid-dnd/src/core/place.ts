@@ -17,14 +17,6 @@ export type Place<K> = {
 };
 
 /**
- * Human-readable label for a Place, useful for debugging and display.
- *
- * @example
- *   label({ parent: 'list', before: 'b' }) // 'before "b"'
- *   label({ parent: 'list', before: null }) // 'append'
- *   label(undefined)                        // 'none'
- */
-/**
  * Structural equality check for two Place values.
  * Returns `true` if both are the same reference, both undefined, or have
  * identical `parent` and `before` fields.
@@ -41,6 +33,14 @@ export function equals<K>(a: Place<K> | undefined, b: Place<K> | undefined): boo
   return a.parent === b.parent && a.before === b.before;
 }
 
+/**
+ * Human-readable label for a Place, useful for debugging and display.
+ *
+ * @example
+ *   label({ parent: 'list', before: 'b' }) // 'before "b"'
+ *   label({ parent: 'list', before: null }) // 'append'
+ *   label(undefined)                        // 'none'
+ */
 export function label<K>(place: Place<K> | undefined): string {
   if (!place) return 'none';
   return place.before !== null ? `before "${place.before}"` : 'append';

@@ -1,6 +1,7 @@
 import { createMemo, type Accessor } from 'solid-js';
 import { getGridIndicatorPosition } from '../core/gridInsertion';
 import { cellToIndex, pointToCell, resolveGrid, type ResolvedGrid } from '../core/gridLayout';
+import { getListInsertionPoint } from '../core/listInsertion';
 import type { Place } from '../core/place';
 import type { Rect } from '../core/rect';
 import type { GridConfig } from '../core/types';
@@ -29,8 +30,11 @@ export type SortableOptions<K> = {
   /**
    * Grid configuration. Required when `layout` is `'grid'`.
    * Defines columns, row height, and gap.
+   *
+   * Accepts either a static `GridConfig` object or an `Accessor<GridConfig>`
+   * for reactive updates (e.g., when the user changes column count).
    */
-  gridConfig?: GridConfig;
+  gridConfig?: GridConfig | Accessor<GridConfig>;
   /**
    * Spacing between items in pixels. Used as a hint for indicator placement
    * in list mode. Does not affect grid mode (use gridConfig.gap instead).
@@ -143,21 +147,30 @@ export type Sortable<K> = {
 export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
   const isGrid = () => options.layout === 'grid';
 
+  // Unwrap gridConfig: supports both static GridConfig and Accessor<GridConfig>
+  const getGridConfig = (): GridConfig | undefined => {
+    const cfg = options.gridConfig;
+    return typeof cfg === 'function' ? cfg() : cfg;
+  };
+
   // ── Resolved grid (memoized, undefined for list layout) ────────────────
   const resolvedGrid = createMemo<ResolvedGrid | undefined>(() => {
-    if (!isGrid() || !options.gridConfig) return undefined;
+    const gc = getGridConfig();
+    if (!isGrid() || !gc) return undefined;
     const containerRect = options.getContainerRect();
     const keys = activeItems();
     // Measure first item height for 'auto' rowHeight
     const firstRect = keys.length > 0 ? options.getRect(keys[0]) : undefined;
-    return resolveGrid(options.gridConfig, keys.length, containerRect?.width, firstRect?.height);
+    return resolveGrid(gc, keys.length, containerRect?.width, firstRect?.height);
   });
 
   // ── Active items (excluding dragged) ───────────────────────────────────
   function activeItems(): K[] {
     const dKeys = options.draggedKeys?.();
     const allKeys = options.items();
-    return dKeys && dKeys.length > 0 ? allKeys.filter((k) => !dKeys.includes(k)) : allKeys;
+    if (!dKeys || dKeys.length === 0) return allKeys;
+    const dragSet = new Set(dKeys);
+    return allKeys.filter((k) => !dragSet.has(k));
   }
 
   // ── Derived: all valid insertion points ────────────────────────────────
@@ -189,10 +202,18 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
     // always appears at the cell the pointer is over. Left/right halving
     // would cause the gap to jump to the next row when hovering the right
     // side of the last column, which feels wrong.
-    if (isGrid() && options.gridConfig) {
+    if (isGrid()) {
+      const gc = getGridConfig();
+      if (!gc) return undefined;
       const allKeys = options.items();
       const dKeys = options.draggedKeys?.() ?? [];
-      const visibleKeys = dKeys.length > 0 ? allKeys.filter((k) => !dKeys.includes(k)) : allKeys;
+      const visibleKeys =
+        dKeys.length > 0
+          ? (() => {
+              const s = new Set(dKeys);
+              return allKeys.filter((k) => !s.has(k));
+            })()
+          : allKeys;
 
       // Measure row height from the first visible (non-dragged) item
       let measuredHeight: number | undefined;
@@ -202,7 +223,7 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
       }
 
       // Resolve grid using FULL item count for stable cell dimensions
-      const fullGrid = resolveGrid(options.gridConfig, allKeys.length, containerRect.width, measuredHeight);
+      const fullGrid = resolveGrid(gc, allKeys.length, containerRect.width, measuredHeight);
 
       // Reject pointer outside container
       if (
@@ -243,25 +264,8 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
       return undefined;
     }
 
-    // Empty list (or all items are being dragged) → only valid position is append
-    if (keys.length === 0) {
-      return { parent: containerKey, before: null };
-    }
-
-    // Vertical list: find the first item whose vertical center is below the pointer.
-    // The pointer is "above" that item → insert before it.
-    for (let i = 0; i < keys.length; i++) {
-      const rect = options.getRect(keys[i]);
-      if (!rect) continue;
-
-      const centerY = rect.y + rect.height / 2;
-      if (position.y < centerY) {
-        return { parent: containerKey, before: keys[i] };
-      }
-    }
-
-    // Below all items → append at end
-    return { parent: containerKey, before: null };
+    // Delegate to shared vertical center-line algorithm
+    return getListInsertionPoint(keys, containerKey, position, options.getRect);
   }
 
   // ── Indicator offset for a given place (list layout) ───────────────────

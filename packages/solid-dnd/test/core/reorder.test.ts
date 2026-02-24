@@ -103,4 +103,26 @@ describe('reorderItems', () => {
       expect(result.map((i) => i.n)).toEqual([3, 1, 2]);
     });
   });
+
+  describe('Set API', () => {
+    it('accepts a Set<K> for movedKeys', () => {
+      const result = reorderItems(items, new Set(['c']), { parent: 'list', before: 'a' }, getKey);
+      expect(ids(result)).toEqual(['c', 'a', 'b', 'd', 'e']);
+    });
+
+    it('accepts a Set<K> for multiple moved items', () => {
+      const result = reorderItems(items, new Set(['a', 'c']), { parent: 'list', before: 'e' }, getKey);
+      expect(ids(result)).toEqual(['b', 'd', 'a', 'c', 'e']);
+    });
+
+    it('accepts a Set<K> for append', () => {
+      const result = reorderItems(items, new Set(['a', 'b']), { parent: 'list', before: null }, getKey);
+      expect(ids(result)).toEqual(['c', 'd', 'e', 'a', 'b']);
+    });
+
+    it('returns original array when Set is empty', () => {
+      const result = reorderItems(items, new Set<string>(), { parent: 'list', before: 'b' }, getKey);
+      expect(ids(result)).toEqual(['a', 'b', 'c', 'd', 'e']);
+    });
+  });
 });

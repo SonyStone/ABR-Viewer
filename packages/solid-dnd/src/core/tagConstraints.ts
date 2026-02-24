@@ -31,9 +31,12 @@ export function accepts(containerAccepts: string[] | undefined, dragTags: string
  */
 export function wouldCycle<K>(movedKey: K, targetKey: K, getParent: (key: K) => K | undefined): boolean {
   // Walk up from targetKey. If we ever reach movedKey, it's a cycle.
+  const visited = new Set<K>();
   let current: K | undefined = targetKey;
   while (current !== undefined) {
     if (current === movedKey) return true;
+    if (visited.has(current)) return false; // malformed parent chain — break
+    visited.add(current);
     current = getParent(current);
   }
   return false;

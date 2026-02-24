@@ -26,7 +26,12 @@ export function GroupNode(props: GroupNodeProps): JSX.Element {
   const draggedClass = () => (props.isDragged ? (props.draggedClass ?? GHOST_CLASS) : '');
 
   return (
-    <div ref={props.ref} class={`rounded-lg border border-dashed bg-white/3 ${borderClass()} ${draggedClass()}`}>
+    <div
+      ref={props.ref}
+      role="option"
+      aria-roledescription="sortable group"
+      class={`rounded-lg border border-dashed bg-white/3 ${borderClass()} ${draggedClass()}`}
+    >
       {/* Draggable group header */}
       <div
         onPointerDown={props.onPointerDown}

@@ -1,15 +1,18 @@
 /* @refresh reload */
 import { Route, Router } from '@solidjs/router';
+import { lazy } from 'solid-js';
 import { render } from 'solid-js/web';
 import App from './App';
-import GridDemo from './demos/GridDemo';
-import GridOverlayDemo from './demos/GridOverlayDemo';
-import ListDemo from './demos/ListDemo';
-import ListOverlayDemo from './demos/ListOverlayDemo';
-import NestedDemo from './demos/NestedDemo';
-import NestedOverlayDemo from './demos/NestedOverlayDemo';
-import SensorDemo from './demos/SensorDemo';
 import './styles.css';
+
+// Lazy-loaded demo routes for code-splitting
+const SensorDemo = lazy(() => import('./demos/SensorDemo'));
+const ListDemo = lazy(() => import('./demos/ListDemo'));
+const GridDemo = lazy(() => import('./demos/GridDemo'));
+const ListOverlayDemo = lazy(() => import('./demos/ListOverlayDemo'));
+const GridOverlayDemo = lazy(() => import('./demos/GridOverlayDemo'));
+const NestedDemo = lazy(() => import('./demos/NestedDemo'));
+const NestedOverlayDemo = lazy(() => import('./demos/NestedOverlayDemo'));
 
 const root = document.getElementById('app');
 if (!root) throw new Error('Root element not found');

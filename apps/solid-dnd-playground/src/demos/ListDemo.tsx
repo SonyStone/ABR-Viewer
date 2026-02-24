@@ -158,7 +158,12 @@ export default function ListDemo(): JSX.Element {
       <SelectionInfo selected={selection.selected()} items={items()} onClear={() => selection.clear()} />
 
       {/* ── Sortable list ──────────────────────────────────────────── */}
-      <div ref={containerRef} class="relative flex flex-col gap-2 rounded-xl border border-white/10 bg-white/2 p-3">
+      <div
+        ref={containerRef}
+        role="listbox"
+        aria-label="Sortable list"
+        class="relative flex flex-col gap-2 rounded-xl border border-white/10 bg-white/2 p-3"
+      >
         <For each={items()}>
           {(item) => (
             <ListItem

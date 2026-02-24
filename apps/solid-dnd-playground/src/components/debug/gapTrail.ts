@@ -1,0 +1,139 @@
+import { createEffect, createSignal, on, onCleanup, type Accessor } from 'solid-js';
+
+// ============================================================================
+// MARK: Types
+// ============================================================================
+
+export type Point = { x: number; y: number };
+
+export type CycleMarker = {
+  /** Cycle number (1-based). */
+  number: number;
+  /** Position of gap center when this FLIP cycle fired. */
+  position: Point;
+};
+
+// ============================================================================
+// MARK: Helpers
+// ============================================================================
+
+export function getCenter(el: HTMLElement): Point {
+  const r = el.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}
+
+/**
+ * Find the gap element in the elements map.
+ * Handles both flat demos (`__dnd_gap__`) and nested demos (`__gap_root__`, etc.).
+ */
+export function findGapElement(elements: Map<string, HTMLElement>): HTMLElement | null {
+  const direct = elements.get('__dnd_gap__');
+  if (direct?.isConnected) return direct;
+  for (const [key, el] of elements) {
+    if (key.startsWith('__gap_') && el.isConnected) return el;
+  }
+  return null;
+}
+
+export function pointsToSvg(pts: Point[]): string {
+  return pts.map((p) => `${p.x},${p.y}`).join(' ');
+}
+
+export function roundPt(p: Point): { x: number; y: number } {
+  return { x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 };
+}
+
+// ============================================================================
+// MARK: useGapTrail
+// ============================================================================
+
+/**
+ * RAF-based gap element position sampling across an entire drag session.
+ *
+ * Starts sampling when `isDragging` becomes true, stops when it becomes false.
+ * Returns a reactive signal of the sampled trail points and cycle markers.
+ */
+export function useGapTrail(opts: {
+  elements: Map<string, HTMLElement>;
+  isDragging: Accessor<boolean>;
+  enabled: Accessor<boolean>;
+}) {
+  const [gapTrail, setGapTrail] = createSignal<Point[]>([]);
+  const [cycleMarkers, setCycleMarkers] = createSignal<CycleMarker[]>([]);
+  let cycleCounter = 0;
+
+  let gapRafId: number | null = null;
+  let gapSampling = false;
+
+  function startGapSampling() {
+    if (gapSampling) return;
+    gapSampling = true;
+
+    function sample() {
+      if (!gapSampling) return;
+
+      const gapEl = findGapElement(opts.elements);
+      if (gapEl) {
+        const center = getCenter(gapEl);
+        setGapTrail((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && Math.abs(last.x - center.x) < 0.5 && Math.abs(last.y - center.y) < 0.5) {
+            return prev;
+          }
+          return [...prev, center];
+        });
+      }
+
+      gapRafId = requestAnimationFrame(sample);
+    }
+
+    gapRafId = requestAnimationFrame(sample);
+  }
+
+  function stopGapSampling() {
+    gapSampling = false;
+    if (gapRafId !== null) {
+      cancelAnimationFrame(gapRafId);
+      gapRafId = null;
+    }
+  }
+
+  createEffect(
+    on(
+      () => opts.isDragging(),
+      (dragging) => {
+        if (!opts.enabled()) return;
+
+        if (dragging) {
+          setGapTrail([]);
+          setCycleMarkers([]);
+          cycleCounter = 0;
+          startGapSampling();
+        } else {
+          const gapEl = findGapElement(opts.elements);
+          if (gapEl) {
+            const center = getCenter(gapEl);
+            setGapTrail((prev) => [...prev, center]);
+          }
+          stopGapSampling();
+        }
+      }
+    )
+  );
+
+  onCleanup(() => stopGapSampling());
+
+  /** Add a cycle marker at the current gap position. Returns the cycle number. */
+  function addCycleMarker(): number {
+    cycleCounter++;
+    const current = cycleCounter;
+    const gapEl = findGapElement(opts.elements);
+    if (gapEl) {
+      const center = getCenter(gapEl);
+      setCycleMarkers((prev) => [...prev, { number: current, position: center }]);
+    }
+    return current;
+  }
+
+  return { gapTrail, cycleMarkers, addCycleMarker };
+}

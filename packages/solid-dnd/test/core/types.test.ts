@@ -69,5 +69,41 @@ describe('core types', () => {
     it('labels undefined as "none"', () => {
       expect(Place.label(undefined)).toBe('none');
     });
+
+    describe('equals', () => {
+      it('returns true for identical places', () => {
+        const place = { parent: 'list', before: 'b' };
+        expect(Place.equals(place, place)).toBe(true);
+      });
+
+      it('returns true for structurally equal places', () => {
+        expect(Place.equals({ parent: 'list', before: 'b' }, { parent: 'list', before: 'b' })).toBe(true);
+      });
+
+      it('returns true for two append places in the same parent', () => {
+        expect(Place.equals({ parent: 'list', before: null }, { parent: 'list', before: null })).toBe(true);
+      });
+
+      it('returns true when both are undefined', () => {
+        expect(Place.equals(undefined, undefined)).toBe(true);
+      });
+
+      it('returns false when parent differs', () => {
+        expect(Place.equals({ parent: 'a', before: 'x' }, { parent: 'b', before: 'x' })).toBe(false);
+      });
+
+      it('returns false when before differs', () => {
+        expect(Place.equals({ parent: 'list', before: 'a' }, { parent: 'list', before: 'b' })).toBe(false);
+      });
+
+      it('returns false when one is append and other is before', () => {
+        expect(Place.equals({ parent: 'list', before: null }, { parent: 'list', before: 'b' })).toBe(false);
+      });
+
+      it('returns false when one is undefined', () => {
+        expect(Place.equals({ parent: 'list', before: 'b' }, undefined)).toBe(false);
+        expect(Place.equals(undefined, { parent: 'list', before: 'b' })).toBe(false);
+      });
+    });
   });
 });

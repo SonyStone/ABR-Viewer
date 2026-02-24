@@ -8,11 +8,20 @@ export type AnimationControlsProps = {
   isAnimating: boolean;
   debugEnabled?: boolean;
   setDebugEnabled?: (v: boolean) => void;
+  /**
+   * When true, renders only the inner controls without the wrapper div.
+   * Useful for composing inside another container (e.g., GridControls).
+   */
+  bare?: boolean;
 };
 
+// ============================================================================
+// MARK: AnimationControls
+// ============================================================================
+
 export function AnimationControls(props: AnimationControlsProps): JSX.Element {
-  return (
-    <div class="flex flex-wrap items-center gap-4 rounded-lg border border-white/10 bg-white/5 px-4 py-3">
+  const inner = (
+    <>
       <Show when={props.setEnabled !== undefined}>
         <label class="flex cursor-pointer items-center gap-2 text-xs text-neutral-400">
           <input
@@ -55,6 +64,12 @@ export function AnimationControls(props: AnimationControlsProps): JSX.Element {
       <Show when={props.isAnimating}>
         <span class="text-xs text-blue-400">⟳ animating…</span>
       </Show>
-    </div>
+    </>
+  );
+
+  if (props.bare) return inner;
+
+  return (
+    <div class="flex flex-wrap items-center gap-4 rounded-lg border border-white/10 bg-white/5 px-4 py-3">{inner}</div>
   );
 }

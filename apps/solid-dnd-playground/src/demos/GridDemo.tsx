@@ -66,7 +66,7 @@ export default function GridDemo(): JSX.Element {
     containerKey: 'grid',
     items: itemKeys,
     layout: 'grid',
-    gridConfig: gridConfig(),
+    gridConfig: gridConfig,
     draggedKeys: () => draggedIds(),
     getRect: (key) => Rect.fromElement(itemRefs.get(key)),
     getContainerRect: () => Rect.fromElement(containerRef)
@@ -180,6 +180,8 @@ export default function GridDemo(): JSX.Element {
       {/* ── Grid container ─────────────────────────────────────────── */}
       <div
         ref={containerRef}
+        role="listbox"
+        aria-label="Sortable grid"
         class="relative rounded-xl border border-white/10 bg-white/2 p-3"
         style={{ display: 'grid', 'grid-template-columns': `repeat(${columns()}, 1fr)`, gap: '8px' }}
       >

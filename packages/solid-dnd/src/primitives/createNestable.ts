@@ -1,25 +1,17 @@
 import { type Accessor, createMemo } from 'solid-js';
+import { getListInsertionPoint } from '../core/listInsertion';
 import type { Place } from '../core/place';
 import type { Rect } from '../core/rect';
 import { accepts, wouldCycle } from '../core/tagConstraints';
+import type { NestableContainer } from '../core/types';
 import type { Vec2 } from '../core/vec2';
+
+// Re-export so existing consumers importing from this module still work.
+export type { NestableContainer } from '../core/types';
 
 // ============================================================================
 // MARK: Types
 // ============================================================================
-
-export type NestableContainer<K> = {
-  /** Unique key for this container. */
-  key: K;
-  /** Ordered list of child item keys in this container. */
-  items: Accessor<K[]>;
-  /** Tags this container accepts. `undefined` = accept everything. */
-  acceptTags?: string[];
-  /** Returns the bounding rect for an item by its key. */
-  getRect: (key: K) => Rect | undefined;
-  /** Returns the bounding rect for the container element. */
-  getContainerRect: () => Rect | undefined;
-};
 
 export type NestableOptions<K> = {
   /** All containers in the tree. Order determines priority for same-depth overlaps. */
@@ -176,31 +168,15 @@ export function createNestable<K>(options: NestableOptions<K>): Nestable<K> {
     const all = container.items();
     const dKeys = options.draggedKeys?.();
     if (!dKeys || dKeys.length === 0) return all;
-    return all.filter((k) => !dKeys.includes(k));
+    const dragSet = new Set(dKeys);
+    return all.filter((k) => !dragSet.has(k));
   }
 
   // ── Insertion point within a single container ──────────────────────────
   function getInsertionPointInContainer(container: NestableContainer<K>, position: Vec2): Place<K> {
     const keys = activeItems(container);
-
-    // Empty container (or all items are being dragged) → append
-    if (keys.length === 0) {
-      return { parent: container.key, before: null };
-    }
-
-    // Vertical list: find the first item whose center is below the pointer
-    for (let i = 0; i < keys.length; i++) {
-      const rect = container.getRect(keys[i]);
-      if (!rect) continue;
-
-      const centerY = rect.y + rect.height / 2;
-      if (position.y < centerY) {
-        return { parent: container.key, before: keys[i] };
-      }
-    }
-
-    // Below all items → append
-    return { parent: container.key, before: null };
+    // Delegate to shared vertical center-line algorithm
+    return getListInsertionPoint(keys, container.key, position, container.getRect);
   }
 
   // ── Indicator offset ──────────────────────────────────────────────────

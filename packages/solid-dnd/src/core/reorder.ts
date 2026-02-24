@@ -12,7 +12,7 @@ import type { Place } from './place';
  * The relative order of moved items is preserved (their original order in the array).
  *
  * @param items    The current ordered array.
- * @param movedKeys  Keys of the items to move.
+ * @param movedKeys  Keys of the items to move — accepts an array or a `Set`.
  * @param place    Where to insert — `{ before: key }` or `{ before: null }` (append).
  * @param getKey   Extracts the key from an item.
  * @returns A new array with items reordered.
@@ -22,10 +22,18 @@ import type { Place } from './place';
  * const items = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }];
  * const result = reorderItems(items, ['c'], { parent: 'list', before: 'a' }, i => i.id);
  * // → [{ id: 'c' }, { id: 'a' }, { id: 'b' }, { id: 'd' }]
+ *
+ * // Also accepts a Set:
+ * const result2 = reorderItems(items, new Set(['c']), { parent: 'list', before: 'a' }, i => i.id);
  * ```
  */
-export function reorderItems<K, T>(items: T[], movedKeys: K[], place: Place<K>, getKey: (item: T) => K): T[] {
-  const movedSet = new Set(movedKeys);
+export function reorderItems<K, T>(
+  items: T[],
+  movedKeys: K[] | ReadonlySet<K>,
+  place: Place<K>,
+  getKey: (item: T) => K
+): T[] {
+  const movedSet = movedKeys instanceof Set ? movedKeys : new Set(movedKeys);
 
   // Preserve the original order of moved items
   const moved = items.filter((item) => movedSet.has(getKey(item)));
