@@ -215,6 +215,224 @@ Manage JSX element references. `mergeRefs` composes multiple ref callbacks (esse
 
 ## Utilities
 
+### `@solid-primitives/utils`
+
+Foundational utility types, functions, and constants used across the `@solid-primitives` ecosystem. Many other packages depend on this. Has three entry points: main (`@solid-primitives/utils`), immutable submodule (`@solid-primitives/utils/immutable`), and string transforms (exported from main).
+
+#### Types
+
+**Accessor wrappers:**
+
+- `MaybeAccessor<T>` — `T | Accessor<T>`. Accept either a plain value or a reactive accessor.
+- `MaybeAccessorValue<T extends MaybeAccessor<any>>` — Unwraps a `MaybeAccessor<T>` to its inner value type.
+- `OnAccessEffectFunction<S, Prev, Next>` — Effect function type for use with `on()` and `MaybeAccessor` deps.
+- `AccessReturnTypes<S>` — Maps a tuple of `MaybeAccessor`s to their resolved value types.
+
+**Collection types:**
+
+- `Many<T>` — `T | T[]`. Accept single or array.
+- `ItemsOf<T>` — Infer element type of `T` when `T` is an array.
+- `ItemsOfMany<T>` — Infer element type of `Many<T>`.
+- `Values<O>` — `O[keyof O]`. Union of all value types of an object.
+
+**Function types:**
+
+- `Noop` — `(...a: any[]) => void`.
+- `AnyFunction` — `(...args: any[]) => any`.
+- `AnyClass` — `new (...args: any[]) => any`.
+- `Directive<P>` — Type for SolidJS `use:` directives. `(el: Element, props: Accessor<P>) => void`.
+- `SetterParam<T>` — Parameter type of a `Setter<T>` (either `T` or `(prev: T) => T`).
+
+**Object types:**
+
+- `AnyObject` — `Record<string, any>`. Loose constraint for any object shape.
+- `AnyStatic` — `Record<string, any>` for static stores.
+- `Modify<T, R>` — Shallow overwrite of `T`'s properties with `R`'s properties.
+- `ModifyDeep<T, R>` — Deep/recursive version of `Modify`.
+- `DeepPartialAny<T>` — Deeply makes all properties optional with `any` value.
+
+**Boolean narrowing:**
+
+- `FalsyValue` — `false | 0 | "" | null | undefined`.
+- `Truthy<T>` — Excludes `FalsyValue` from `T`.
+- `Falsy<T>` — Extracts `FalsyValue` from `T`.
+- `PrimitiveValue` — `string | number | boolean | symbol | bigint`.
+
+**Advanced type utilities:**
+
+- `NonIterable<T>` — Remove iterable/iterator interfaces from `T`.
+- `RequiredKeys<T>` — Extract the keys of `T` that are required (non-optional).
+- `Tail<T>` — All elements of a tuple except the first.
+- `UnionToIntersection<U>` — Convert a union type to an intersection.
+- `ExtractIfPossible<T, U>` — `Extract<T, U>` that falls back to `U` if the result is `never`.
+- `Simplify<T>` — Flatten/simplify an intersection type into a plain object type.
+- `UnboxLazy<T>` — If `T` is `() => infer V`, returns `V`, else returns `T`.
+- `Narrow<T>` — Narrow a type to its literal type (prevents widening).
+- `NoInfer<T>` — Prevent TypeScript from inferring a type parameter from this position.
+
+**Geometry:**
+
+- `Position` — `{ x: number; y: number }`.
+- `Size` — `{ width: number; height: number }`.
+
+**Reactive option types:**
+
+- `EffectOptions` — Options for `createEffect` (`{ name?: string }`).
+- `OnOptions` — Options for `on()` (`{ defer?: boolean }`).
+
+**Resolved JSX (re-exported from solid-js):**
+
+- `ResolvedJSXElement` — The resolved type of a JSX element (DOM node, string, array, etc.).
+- `ResolvedChildren` — Resolved children type from `resolveChildren()`.
+
+#### Constants
+
+- `isServer` / `isClient` — `true` on server / client side respectively.
+- `isDev` / `isProd` — `true` in development / production mode.
+- `noop` — No-op function: `() => void`.
+- `trueFn` / `falseFn` — Constant boolean accessors: `() => true` / `() => false`.
+- `EQUALS_FALSE_OPTIONS` — `{ equals: false }` signal options (forces update on every set).
+- `INTERNAL_OPTIONS` — `{ internal: true }` for internal solid-js primitives.
+
+#### Value Access
+
+- `access(v)` — Unwrap a `MaybeAccessor<T>` to `T`. Calls `v()` if function, returns `v` otherwise.
+- `accessWith(v, ...args)` — Like `access` but passes extra arguments if `v` is a function. Useful for accessor callbacks that take parameters.
+- `accessArray(list)` — `access` each item in an array of `MaybeAccessor`s, returning resolved values.
+- `withAccess(v, fn)` — Run `fn(value)` only if `access(v)` is non-nullish. Returns `undefined` otherwise.
+- `asAccessor(v)` — Normalize a `MaybeAccessor<T>` into an `Accessor<T>`. Wraps plain values in `() => v`.
+- `asArray(v)` — Normalize a `Many<T>` (single value or array) to always be an array.
+
+#### General Helpers
+
+- `isObject(v)` — Check if value is a non-null object or function. Type guard for `object`.
+- `isNonNullable(v)` — Type guard excluding `null` and `undefined`.
+- `filterNonNullable(arr)` — Filter out `null`/`undefined` from arrays. Returns `NonNullable<T>[]`.
+- `ofClass(v, c)` — `instanceof` check that also handles constructor identity (`v.constructor === c`).
+- `compare(a, b)` — Generic comparator returning `-1`, `0`, or `1`.
+- `clamp(n, min, max)` — Clamp a number between `min` and `max`.
+- `arrayEquals(a, b)` — Shallow array equality (length + `===` per element).
+
+#### Function Composition
+
+- `chain(callbacks)` — Compose an iterable of functions into a single function that calls all in order. Skips non-function items.
+- `reverseChain(callbacks)` — Same as `chain` but calls in reverse order.
+- `createCallbackStack()` — Push/execute/clear pattern for callback lists. Returns `{ push, execute, clear }`.
+- `createMicrotask(fn)` — Deduplicated microtask scheduling. Calls `fn` at most once per microtask, no matter how many times the returned trigger is called.
+
+#### Reactive Helpers
+
+- `tryOnCleanup(fn)` — `onCleanup` that silently no-ops outside a reactive owner context (no warning).
+- `defer(deps, fn, options?)` — Shorthand for `on(deps, fn, { defer: true })`. Skips the initial run, only fires on subsequent changes. Overloads accept a single dep or an array.
+- `createHydratableSignal(serverValue, options?)` — Creates a signal that uses `serverValue` during SSR/hydration, then falls back to normal `createSignal` on the client. Useful for signals that need different initial values server vs client.
+- `handleDiffArray(current, prev, handlers)` — Diff two arrays and call `onAdded(item)` / `onRemoved(item)` for items present only in one. Linear-time algorithm using `Map` for counting occurrences.
+
+#### Object/Key Helpers
+
+- `entries(obj)` — Typed `Object.entries`. Returns `[key, value][]` with proper key types.
+- `keys(obj)` — Typed `Object.keys`. Returns `(keyof T)[]`.
+
+#### String Transforms
+
+String transform functions that convert string inputs into parsed values. Designed for composition with `pipe`.
+
+- `json` — Parse JSON string to object: `JSON.parse(string)`.
+- `ndjson` — Parse newline-delimited JSON. Splits by newline, filters empties, parses each line.
+- `lines` — Split string by newlines into `string[]`.
+- `number` — Parse string to number via `Number()`.
+- `safe(transform)` — Wrap a transform to catch errors — returns `undefined` on failure instead of throwing.
+- `pipe(...transforms)` — Compose transforms left-to-right. `pipe(json, safe)` first parses JSON, then wraps in error handling.
+
+```ts
+import { json, safe, pipe, lines } from '@solid-primitives/utils';
+
+const safeJson = pipe(json, safe); // string → object | undefined
+const parseLines = lines; // string → string[]
+```
+
+#### Immutable Submodule (`@solid-primitives/utils/immutable`)
+
+Pure, non-mutating helpers for working with arrays, objects, and numbers. Each function returns a new value without modifying the original. Import from `@solid-primitives/utils/immutable`.
+
+```ts
+import { pick, push, withArrayCopy } from '@solid-primitives/utils/immutable';
+```
+
+**Immutable types:**
+
+- `Predicate<T>` — `(item: T) => boolean`. Filter/test predicate.
+- `MappingFn<T, U>` — `(item: T, index: number) => U`. Mapping function.
+- `FlattenArray<T>` — Recursively flatten array type.
+- `ModifyValue<T, K, V>` — Modify a specific key's type in an object.
+- `UpdateSetter<T>` — `T | ((prev: T) => T)`. Value or updater function for `update`.
+
+**Copying:**
+
+- `shallowArrayCopy(array)` — `array.slice()`. Shallow copy an array.
+- `shallowObjectCopy(object)` — `Object.assign({}, object)`. Shallow copy an object.
+- `shallowCopy(target)` — Dispatches to `shallowArrayCopy` or `shallowObjectCopy` based on type.
+- `withArrayCopy(array, mutate)` — Copy array, apply mutation to the copy, return the copy.
+- `withObjectCopy(object, mutate)` — Copy object, apply mutation to the copy, return the copy.
+- `withCopy(target, mutate)` — Dispatches to `withArrayCopy` or `withObjectCopy` based on type.
+
+```ts
+const next = withArrayCopy(items, (draft) => {
+  draft.splice(1, 1); // mutate the copy freely
+  draft.push(newItem);
+});
+// items is unchanged, next is the modified copy
+```
+
+**Array operations:**
+
+All return new arrays without mutating the original.
+
+- `push(array, ...items)` — Append items.
+- `drop(array, n?)` — Remove first `n` items (default 1).
+- `dropRight(array, n?)` — Remove last `n` items (default 1).
+- `filterOut(array, item)` — Remove all occurrences of `item` (by `===`).
+- `filter(array, predicate)` — Immutable `Array.filter`.
+- `sort(array, compareFn?)` — Immutable `Array.sort`.
+- `sortBy(array, mapFn, compareFn?)` — Sort by a mapped value (Schwartzian transform).
+- `map(array, mapFn)` — Immutable `Array.map`.
+- `slice(array, start?, end?)` — Immutable `Array.slice`.
+- `splice(array, start, deleteCount?, ...items)` — Immutable `Array.splice`.
+- `fill(array, value, start?, end?)` — Immutable `Array.fill`.
+- `concat(array, ...items)` — Immutable `Array.concat`.
+- `remove(array, item)` — Remove the first occurrence of `item`.
+- `removeItems(array, items)` — Remove all items in the `items` array.
+- `flatten(array)` — Recursively flatten nested arrays.
+- `filterInstance(array, class)` — Keep only instances of the given class.
+- `filterOutInstance(array, class)` — Remove all instances of the given class.
+
+**Object operations:**
+
+- `omit(object, ...keys)` — Return a copy with specified keys removed.
+- `pick(object, ...keys)` — Return a copy with only specified keys.
+- `get(object, key)` — Type-safe property access. `object[key]`.
+- `split(object, ...keys)` — Split into two objects: one with the specified keys, one with the rest. Returns `[picked, rest]`.
+- `merge(...objects)` — Shallow merge multiple objects (`Object.assign` into new object).
+
+**Object/Array update:**
+
+- `update(target, key, setter)` — Immutably update a property/index. `setter` can be a value or `(prev) => next` function.
+
+```ts
+const next = update(user, 'name', 'Alice');
+const next2 = update(scores, 0, (prev) => prev + 1);
+```
+
+**Number operations:**
+
+All are binary functions `(a: number, b: number) => number`, useful as reducers.
+
+- `add(a, b)` — `a + b`.
+- `substract(a, b)` — `a - b`.
+- `multiply(a, b)` — `a * b`.
+- `divide(a, b)` — `a / b`.
+- `power(a, b)` — `a ** b`.
+- `clamp(n, min, max)` — Clamp between min and max (same as main export).
+
 ### `@solid-primitives/controlled-props`
 
 Create controlled/uncontrolled prop patterns. `createControlledProp` — like React's controlled vs uncontrolled input pattern for SolidJS components.

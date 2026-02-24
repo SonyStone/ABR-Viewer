@@ -42,6 +42,8 @@ export { createFlip } from './primitives/createFlip';
 export type { Flip, FlipAnimateEntry, FlipOptions } from './primitives/createFlip';
 export { createNestable } from './primitives/createNestable';
 export type { Nestable, NestableOptions } from './primitives/createNestable';
+export { createOverlayDrag } from './primitives/createOverlayDrag';
+export type { OverlayDrag, OverlayDragOptions } from './primitives/createOverlayDrag';
 export { createSelection } from './primitives/createSelection';
 export type { Selection, SelectionOptions } from './primitives/createSelection';
 export { createSortable } from './primitives/createSortable';

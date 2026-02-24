@@ -214,6 +214,9 @@ importers:
       '@solid-primitives/scheduled':
         specifier: ^1.5.3
         version: 1.5.3(solid-js@1.9.11)
+      '@solid-primitives/utils':
+        specifier: ^6.3.2
+        version: 6.3.2(solid-js@1.9.11)
       solid-js:
         specifier: ^1.9.0
         version: 1.9.11
