@@ -2,6 +2,8 @@
 // Grid Layout — Pure math for CSS-grid-like layouts
 // ============================================================================
 
+import { clamp } from '@solid-primitives/utils';
+
 import type { Rect } from './rect';
 import type { GridConfig } from './types';
 
@@ -172,8 +174,8 @@ export function pointToCell(
   const row = cellStepY > 0 ? Math.floor(relY / cellStepY) : 0;
 
   return {
-    row: Math.max(0, Math.min(row, grid.rows - 1)),
-    col: Math.max(0, Math.min(col, grid.columns - 1))
+    row: clamp(row, 0, grid.rows - 1),
+    col: clamp(col, 0, grid.columns - 1)
   };
 }
 

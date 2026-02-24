@@ -1,5 +1,5 @@
-import { type MaybeAccessor, access } from '@solid-primitives/utils';
-import { type Accessor, batch, createEffect, createSignal, on } from 'solid-js';
+import { type MaybeAccessor, access, defer } from '@solid-primitives/utils';
+import { type Accessor, batch, createEffect, createSignal } from 'solid-js';
 import * as Place from '../core/place';
 import { fromElement } from '../core/rect';
 import { type Vec2, of as vec2, Zero as Vec2Zero } from '../core/vec2';
@@ -343,21 +343,17 @@ export function createOverlayDrag<K>(options: OverlayDragOptions<K>): OverlayDra
   // ── Animate display key changes during drag ──────────────────────────
   if (options.displayKeys) {
     createEffect(
-      on(
-        options.displayKeys,
-        () => {
-          if (sensor.isDragging() && isAnimEnabled()) {
-            flip.playFromFirst();
-          }
-        },
-        { defer: true }
-      )
+      defer(options.displayKeys, () => {
+        if (sensor.isDragging() && isAnimEnabled()) {
+          flip.playFromFirst();
+        }
+      })
     );
   }
 
   // ── Re-evaluate insertion when FLIP ends (swallowed moves) ──────────────
   createEffect(
-    on(
+    defer(
       () => flip.isAnimating(),
       (animating) => {
         if (!animating && moveSwallowed && sensor.isDragging()) {
@@ -368,8 +364,7 @@ export function createOverlayDrag<K>(options: OverlayDragOptions<K>): OverlayDra
             setDropPlace(options.getInsertionPoint(pos));
           }
         }
-      },
-      { defer: true }
+      }
     )
   );
 

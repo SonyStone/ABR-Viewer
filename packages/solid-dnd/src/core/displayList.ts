@@ -1,3 +1,5 @@
+import { keys } from '@solid-primitives/utils';
+
 import type { Place } from './place';
 
 // ============================================================================
@@ -106,7 +108,7 @@ export function computeTreeDisplayKeys<K extends string>(
 ): Record<string, (K | GapKey)[]> {
   const result: Record<string, (K | GapKey)[]> = {};
 
-  for (const containerKey of Object.keys(tree) as (K | 'root')[]) {
+  for (const containerKey of keys(tree)) {
     const kids = tree[containerKey] ?? [];
     result[containerKey as string] = computeDisplayKeys(kids, draggedKeys, place, containerKey);
   }

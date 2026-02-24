@@ -1,3 +1,4 @@
+import { isClient } from '@solid-primitives/utils';
 import { type Accessor, createEffect, createSignal, on, onCleanup } from 'solid-js';
 import { type Vec2, of as vec2, Zero as Vec2Zero } from '../core/vec2';
 
@@ -139,7 +140,7 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
   // ── Escape key handler ────────────────────────────────────────────────
   // Only registered when tracking or dragging to avoid firing on every
   // keydown when multiple sensors exist.
-  if (typeof document !== 'undefined') {
+  if (isClient) {
     let escapeCleanup: (() => void) | null = null;
 
     createEffect(
@@ -307,7 +308,7 @@ export function createDragSensor(options: DragSensorOptions = {}): DragSensor {
    * It persists for the lifetime of the sensor and is cleaned up on disposal.
    */
   function getOrCreateProxy(): HTMLElement {
-    if (!proxyElement && typeof document !== 'undefined') {
+    if (!proxyElement && isClient) {
       proxyElement = document.createElement('div');
       proxyElement.style.cssText =
         'position:fixed;top:0;left:0;width:0;height:0;opacity:0;overflow:hidden;pointer-events:none;';

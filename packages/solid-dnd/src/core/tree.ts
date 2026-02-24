@@ -1,3 +1,5 @@
+import { entries } from '@solid-primitives/utils';
+
 import type { Place } from './place';
 import type { Rect } from './rect';
 import type { NestableContainer } from './types';
@@ -91,7 +93,7 @@ export function move<K extends string>(tree: Tree<K>, key: K, place: Place<K>): 
  */
 export function parentMap<K extends string>(tree: Tree<K>): Map<K, K> {
   const map = new Map<K, K>();
-  for (const [parent, kids] of Object.entries(tree) as [K, K[]][]) {
+  for (const [parent, kids] of entries(tree)) {
     for (const kid of kids) {
       map.set(kid, parent);
     }
