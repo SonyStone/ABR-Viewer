@@ -205,7 +205,7 @@ test/primitives/createSortable.test.ts
 type FlipOptions = {
   /** Duration of the animation in milliseconds. Default: 200 */
   duration?: number;
-  /** Easing function. Default: 'ease-out' */
+  /** Easing function. */
   easing?: string;
   /** Map of item keys to their DOM elements. */
   elements: Map<string, HTMLElement>;

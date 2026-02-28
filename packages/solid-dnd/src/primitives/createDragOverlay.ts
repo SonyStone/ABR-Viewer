@@ -84,11 +84,14 @@ export function createDragOverlay(options: {
     setCapturedRect(undefined);
   }
 
-  // ── Current overlay position = pointer - grab offset ──────────────────
   const position = createMemo<Vec2>(() => {
-    if (!isActive()) return Vec2Zero;
+    if (!isActive()) {
+      return Vec2Zero;
+    }
     const pos = options.currentPosition();
-    if (!pos) return Vec2Zero;
+    if (!pos) {
+      return Vec2Zero;
+    }
     const offset = grabOffset();
     return vec2(pos.x - offset.x, pos.y - offset.y);
   });

@@ -1,3 +1,4 @@
+import { createLazyMemo } from '@solid-primitives/memo';
 import { type MaybeAccessor, access, defer } from '@solid-primitives/utils';
 import { type Accessor, batch, createEffect, createSignal } from 'solid-js';
 import * as Place from '../core/place';
@@ -5,7 +6,7 @@ import { fromElement } from '../core/rect';
 import { type Vec2, of as vec2, Zero as Vec2Zero } from '../core/vec2';
 import { createDragOverlay } from '../primitives/createDragOverlay';
 import { createDragSensor } from '../primitives/createDragSensor';
-import { type FlipAnimateEntry, type FlipOptions, createFlip } from '../primitives/createFlip';
+import { type FlipAnimateEntry, createFlip } from '../primitives/createFlip';
 
 export type DragControllerOptions<K> = Parameters<typeof createDragController<K>>[0];
 export type DragController<K> = ReturnType<typeof createDragController<K>>;
@@ -148,7 +149,7 @@ export function createDragController<K>(options: {
 
   /**
    * FLIP easing function.
-   * @default 'ease-out'
+   * @default 'linear'
    */
   easing?: MaybeAccessor<string>;
 
@@ -163,7 +164,7 @@ export function createDragController<K>(options: {
    * Called with FLIP animation entries when they play.
    * Useful for debug overlays.
    */
-  onFlipAnimate?: (entries: FlipAnimateEntry[]) => void;
+  onFlipAnimate?: (entries: FlipAnimateEntry<K>[]) => void;
 
   /**
    * An accessor that changes whenever the visual display list changes
@@ -176,7 +177,6 @@ export function createDragController<K>(options: {
    */
   displayKeys?: Accessor<unknown>;
 }) {
-  // ── Internal state ──────────────────────────────────────────────────────
   const [draggedIds, setDraggedIds] = createSignal<K[]>([]);
   const [dropPlace, setDropPlace] = createSignal<Place.Place<K> | undefined>(undefined, {
     equals: Place.equals
@@ -185,17 +185,17 @@ export function createDragController<K>(options: {
   let pendingDragId: K | null = null;
   let moveSwallowed = false;
 
-  const getDuration = (): number => access(options.duration) ?? 300;
+  const duration = createLazyMemo(() => (isAnimEnabled() ? (access(options.duration) ?? 300) : 0));
+
   const isAnimEnabled = (): boolean => access(options.animEnabled) ?? true;
 
-  const flipOptions: FlipOptions = {
-    elements: options.elements as unknown as Map<string, HTMLElement>,
-    easing: access(options.easing) ?? 'ease-out'
-  };
-  if (options.onFlipAnimate) {
-    flipOptions.onAnimate = options.onFlipAnimate;
-  }
-  const flip = createFlip(flipOptions);
+  const flip = createFlip({
+    elements: options.elements,
+    // easing: options.easing,
+    easing: 'linear',
+    onAnimate: options.onFlipAnimate,
+    duration: duration
+  });
 
   const overlay = createDragOverlay({
     currentPosition: () => sensor.position() ?? Vec2Zero
@@ -211,7 +211,7 @@ export function createDragController<K>(options: {
     return sensor.position() ?? undefined;
   }
 
-  // ── Shared cleanup ──────────────────────────────────────────────────────
+  // Shared cleanup
   function resetDragState(): void {
     pendingDragId = null;
     moveSwallowed = false;
@@ -251,7 +251,9 @@ export function createDragController<K>(options: {
       const ids = options.onBeforeDragStart?.(id) ?? [id];
 
       // 3. Capture FLIP positions before DOM changes
-      if (isAnimEnabled()) flip.captureFirst();
+      if (isAnimEnabled()) {
+        flip.captureFirst();
+      }
 
       // 4. Set drag state (batched so displayKeys computes once)
       batch(() => {
@@ -268,9 +270,13 @@ export function createDragController<K>(options: {
         return;
       }
       moveSwallowed = false;
-      if (isAnimEnabled()) flip.captureFirst();
+      if (isAnimEnabled()) {
+        flip.captureFirst();
+      }
       const pos = insertionPos();
-      if (pos) setDropPlace(options.getInsertionPoint(pos));
+      if (pos) {
+        setDropPlace(options.getInsertionPoint(pos));
+      }
     },
 
     onDragEnd: () => {
@@ -278,31 +284,28 @@ export function createDragController<K>(options: {
       if (moveSwallowed) {
         moveSwallowed = false;
         const pos = insertionPos();
-        if (pos) setDropPlace(options.getInsertionPoint(pos));
+        if (pos) {
+          setDropPlace(options.getInsertionPoint(pos));
+        }
       }
 
       const place = dropPlace();
       const ids = draggedIds();
-      const dur = isAnimEnabled() ? getDuration() : 0;
 
       if (place && ids.length > 0) {
-        flip.animate(
-          () => {
-            options.onDrop(ids, place);
-            options.onDropLog?.(ids, place);
-            resetDragState();
-          },
-          { duration: dur }
-        );
+        flip.animate(() => {
+          options.onDrop(ids, place);
+          options.onDropLog?.(ids, place);
+          resetDragState();
+        });
       } else {
-        flip.animate(() => resetDragState(), { duration: dur });
+        flip.animate(() => resetDragState());
       }
     },
 
     onDragCancel: () => {
-      const dur = isAnimEnabled() ? getDuration() : 0;
       options.onCancelLog?.();
-      flip.animate(() => resetDragState(), { duration: dur });
+      flip.animate(() => resetDragState());
     }
   });
 

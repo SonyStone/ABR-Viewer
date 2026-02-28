@@ -1,30 +1,10 @@
+import { access, MaybeAccessor } from '@solid-primitives/utils';
 import { batch, createSignal } from 'solid-js';
-import { calculateDeltas, measureElements, snapshotsEqual, type ElementSnapshot, type FlipDelta } from './flipUtils';
-
-// ============================================================================
-// MARK: Types
-// ============================================================================
+import { type Rect } from 'src/core/rect';
+import { calculateDeltas, measureElements, snapshotsEqual, type FlipDelta } from './flipUtils';
 
 export type FlipOptions = Parameters<typeof createFlip>[0];
 export type Flip = ReturnType<typeof createFlip>;
-
-/**
- * Describes a single element's FLIP animation for debug/visualization.
- */
-export type FlipAnimateEntry = {
-  /** The item key. */
-  key: string;
-  /** Center position before the DOM change (viewport coords). */
-  from: { x: number; y: number };
-  /** Center position after the DOM change (viewport coords). */
-  to: { x: number; y: number };
-  /** The inverse delta applied at animation start. */
-  delta: FlipDelta;
-};
-
-// ============================================================================
-// MARK: createFlip
-// ============================================================================
 
 /**
  * A primitive that animates layout transitions using the FLIP technique.
@@ -58,52 +38,53 @@ export type FlipAnimateEntry = {
  * }
  * ```
  */
-export function createFlip(options: {
+export function createFlip<K>(options: {
   /**
    * Duration of the FLIP animation in milliseconds.
    * Read each time `playFromFirst` is called, so it can be dynamic.
    * @default 200
    */
-  duration?: number;
+  duration?: MaybeAccessor<number>;
   /**
    * CSS easing string for the animation.
    * Read each time `playFromFirst` is called, so it can be dynamic.
-   * @default 'ease-out'
+   * @default 'linear'
    */
-  easing?: string;
+  easing?: MaybeAccessor<string>;
   /**
    * Map of item keys → DOM elements. Mutated externally as items mount/unmount.
    * The flip primitive reads from this map when measuring positions.
    */
-  elements: Map<string, HTMLElement>;
+  elements: Map<K, HTMLElement>;
   /**
    * Called when a FLIP animation cycle starts. Receives an array of entries
    * describing each element's motion. Useful for debug visualization.
    */
-  onAnimate?: (entries: FlipAnimateEntry[]) => void;
+  onAnimate?: (entries: FlipAnimateEntry<K>[]) => void;
 }) {
   const [isAnimating, setIsAnimating] = createSignal(false);
 
-  let firstSnapshot: Map<string, ElementSnapshot> | null = null;
+  let firstSnapshot: Map<K, Rect> | null = null;
   let activeAnimations: Animation[] = [];
 
   // Track the target positions and start time of the current animation cycle.
   // When playFromFirst() is called redundantly (same targets), we use the
   // remaining time so the animation still completes on schedule.
-  let lastTargets: Map<string, ElementSnapshot> | null = null;
+  let lastTargets: Map<K, Rect> | null = null;
   let animationStartTime = 0;
   // Per-call duration override set by animate(), consumed by playFromFirst().
   let animateDurationOverride: number | undefined;
 
-  // ── First: capture current positions ──────────────────────────────────
+  // First: capture current positions
   function captureFirst(): void {
     // Simply measure current visual positions. getBoundingClientRect()
     // includes Web Animation API transforms, so this captures where
     // elements truly are on screen — even mid-animation.
+
     firstSnapshot = measureElements(options.elements);
   }
 
-  // ── Last + Invert + Play ──────────────────────────────────────────────
+  // Last + Invert + Play
   function playFromFirst(): void {
     if (!firstSnapshot) return;
     const first = firstSnapshot;
@@ -121,13 +102,14 @@ export function createFlip(options: {
       return;
     }
 
-    const baseDur = animateDurationOverride ?? options.duration ?? 200;
-    const ease = options.easing ?? 'ease-out';
+    const baseDur = animateDurationOverride ?? access(options.duration) ?? 200;
+    const ease = access(options.easing) ?? 'linear';
 
     // If targets haven't changed (same layout as previous animation),
     // use remaining time so the overall animation finishes on schedule
     // instead of restarting a full-duration animation every call.
     const targetsUnchanged = lastTargets !== null && snapshotsEqual(lastTargets, lastSnapshot);
+
     let dur: number;
     if (targetsUnchanged && animationStartTime > 0) {
       const elapsed = performance.now() - animationStartTime;
@@ -140,10 +122,12 @@ export function createFlip(options: {
 
     // Fire debug callback with animation entries
     if (options.onAnimate) {
-      const entries: FlipAnimateEntry[] = [];
+      const entries: FlipAnimateEntry<K>[] = [];
       for (const [key, delta] of deltas) {
         const snap = lastSnapshot.get(key);
-        if (!snap) continue;
+        if (!snap) {
+          continue;
+        }
         entries.push({
           key,
           from: { x: snap.x + snap.width / 2 + delta.dx, y: snap.y + snap.height / 2 + delta.dy },
@@ -159,7 +143,9 @@ export function createFlip(options: {
 
     for (const [key, delta] of deltas) {
       const el = options.elements.get(key);
-      if (!el || typeof el.animate !== 'function') continue;
+      if (!el || typeof el.animate !== 'function') {
+        continue;
+      }
 
       const hasScale = delta.scaleX !== 1 || delta.scaleY !== 1;
       const fromTransform = hasScale
@@ -204,7 +190,7 @@ export function createFlip(options: {
       });
   }
 
-  // ── Cancel running animations ─────────────────────────────────────────
+  // Cancel running animations
   function cancelActive(): void {
     for (const anim of activeAnimations) {
       anim.cancel();
@@ -213,20 +199,6 @@ export function createFlip(options: {
     if (isAnimating()) {
       setIsAnimating(false);
     }
-  }
-
-  // ── Convenience: capture + mutate + play in one call ───────────────────
-  function animate(fn: () => void, overrides?: { duration?: number }): void {
-    // animate() is a discrete operation (e.g., on dragEnd).
-    // Reset animation tracking so playFromFirst() uses full duration.
-    lastTargets = null;
-    animationStartTime = 0;
-    // Use a local override instead of mutating the caller's options object.
-    animateDurationOverride = overrides?.duration;
-    captureFirst();
-    batch(() => fn());
-    playFromFirst();
-    animateDurationOverride = undefined;
   }
 
   return {
@@ -259,7 +231,19 @@ export function createFlip(options: {
      *
      * Accepts an optional per-call duration override.
      */
-    animate,
+    animate(fn: () => void, overrides?: { duration?: number }): void {
+      // animate() is a discrete operation (e.g., on dragEnd).
+      // Reset animation tracking so playFromFirst() uses full duration.
+      lastTargets = null;
+      animationStartTime = 0;
+      // Use a local override instead of mutating the caller's options object.
+      console.log(`1. animate animateDurationOverride`, overrides?.duration);
+      animateDurationOverride = overrides?.duration;
+      captureFirst();
+      batch(() => fn());
+      playFromFirst();
+      animateDurationOverride = undefined;
+    },
     /**
      * Whether a FLIP animation is currently in progress.
      * Useful for disabling pointer events or other interactions during animation.
@@ -267,3 +251,17 @@ export function createFlip(options: {
     isAnimating
   };
 }
+
+/**
+ * Describes a single element's FLIP animation for debug/visualization.
+ */
+export type FlipAnimateEntry<K> = {
+  /** The item key. */
+  key: K;
+  /** Center position before the DOM change (viewport coords). */
+  from: { x: number; y: number };
+  /** Center position after the DOM change (viewport coords). */
+  to: { x: number; y: number };
+  /** The inverse delta applied at animation start. */
+  delta: FlipDelta;
+};

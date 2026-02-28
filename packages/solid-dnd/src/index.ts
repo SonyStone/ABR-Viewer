@@ -49,7 +49,7 @@ export type { Selection, SelectionOptions } from './primitives/createSelection';
 export { createSortable } from './primitives/createSortable';
 export type { Sortable, SortableOptions } from './primitives/createSortable';
 export { calculateDeltas, measureElements } from './primitives/flipUtils';
-export type { ElementSnapshot, FlipDelta } from './primitives/flipUtils';
+export type { Rect as ElementSnapshot, FlipDelta } from './primitives/flipUtils';
 // export { createAutoScroll } from './primitives/createAutoScroll';
 
 // Utilities types re-export

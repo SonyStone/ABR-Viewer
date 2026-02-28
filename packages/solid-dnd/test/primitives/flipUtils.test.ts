@@ -1,4 +1,4 @@
-import { calculateDeltas, measureElements, snapshotsEqual, type ElementSnapshot } from 'src/primitives/flipUtils';
+import { calculateDeltas, measureElements, snapshotsEqual, type Rect } from 'src/primitives/flipUtils';
 import { describe, expect, it, vi } from 'vitest';
 
 // ============================================================================
@@ -90,8 +90,8 @@ describe('measureElements', () => {
 
 describe('calculateDeltas', () => {
   it('element moved down → negative dy', () => {
-    const first = new Map<string, ElementSnapshot>([['a', { x: 0, y: 0, width: 100, height: 40 }]]);
-    const last = new Map<string, ElementSnapshot>([['a', { x: 0, y: 100, width: 100, height: 40 }]]);
+    const first = new Map<string, Rect>([['a', { x: 0, y: 0, width: 100, height: 40 }]]);
+    const last = new Map<string, Rect>([['a', { x: 0, y: 100, width: 100, height: 40 }]]);
 
     const deltas = calculateDeltas(first, last);
 
@@ -99,8 +99,8 @@ describe('calculateDeltas', () => {
   });
 
   it('element moved up → positive dy', () => {
-    const first = new Map<string, ElementSnapshot>([['a', { x: 0, y: 100, width: 100, height: 40 }]]);
-    const last = new Map<string, ElementSnapshot>([['a', { x: 0, y: 0, width: 100, height: 40 }]]);
+    const first = new Map<string, Rect>([['a', { x: 0, y: 100, width: 100, height: 40 }]]);
+    const last = new Map<string, Rect>([['a', { x: 0, y: 0, width: 100, height: 40 }]]);
 
     const deltas = calculateDeltas(first, last);
 
@@ -108,8 +108,8 @@ describe('calculateDeltas', () => {
   });
 
   it('element moved right → negative dx', () => {
-    const first = new Map<string, ElementSnapshot>([['a', { x: 0, y: 0, width: 100, height: 40 }]]);
-    const last = new Map<string, ElementSnapshot>([['a', { x: 50, y: 0, width: 100, height: 40 }]]);
+    const first = new Map<string, Rect>([['a', { x: 0, y: 0, width: 100, height: 40 }]]);
+    const last = new Map<string, Rect>([['a', { x: 50, y: 0, width: 100, height: 40 }]]);
 
     const deltas = calculateDeltas(first, last);
 
@@ -117,8 +117,8 @@ describe('calculateDeltas', () => {
   });
 
   it('element moved diagonally → both dx and dy', () => {
-    const first = new Map<string, ElementSnapshot>([['a', { x: 10, y: 20, width: 100, height: 40 }]]);
-    const last = new Map<string, ElementSnapshot>([['a', { x: 60, y: 120, width: 100, height: 40 }]]);
+    const first = new Map<string, Rect>([['a', { x: 10, y: 20, width: 100, height: 40 }]]);
+    const last = new Map<string, Rect>([['a', { x: 60, y: 120, width: 100, height: 40 }]]);
 
     const deltas = calculateDeltas(first, last);
 
@@ -126,8 +126,8 @@ describe('calculateDeltas', () => {
   });
 
   it('element did not move → excluded from result', () => {
-    const first = new Map<string, ElementSnapshot>([['a', { x: 0, y: 50, width: 100, height: 40 }]]);
-    const last = new Map<string, ElementSnapshot>([['a', { x: 0, y: 50, width: 100, height: 40 }]]);
+    const first = new Map<string, Rect>([['a', { x: 0, y: 50, width: 100, height: 40 }]]);
+    const last = new Map<string, Rect>([['a', { x: 0, y: 50, width: 100, height: 40 }]]);
 
     const deltas = calculateDeltas(first, last);
 
@@ -135,8 +135,8 @@ describe('calculateDeltas', () => {
   });
 
   it('new element (only in last) → excluded', () => {
-    const first = new Map<string, ElementSnapshot>();
-    const last = new Map<string, ElementSnapshot>([['new', { x: 0, y: 0, width: 100, height: 40 }]]);
+    const first = new Map<string, Rect>();
+    const last = new Map<string, Rect>([['new', { x: 0, y: 0, width: 100, height: 40 }]]);
 
     const deltas = calculateDeltas(first, last);
 
@@ -145,8 +145,8 @@ describe('calculateDeltas', () => {
   });
 
   it('removed element (only in first) → excluded', () => {
-    const first = new Map<string, ElementSnapshot>([['gone', { x: 0, y: 0, width: 100, height: 40 }]]);
-    const last = new Map<string, ElementSnapshot>();
+    const first = new Map<string, Rect>([['gone', { x: 0, y: 0, width: 100, height: 40 }]]);
+    const last = new Map<string, Rect>();
 
     const deltas = calculateDeltas(first, last);
 
@@ -154,13 +154,13 @@ describe('calculateDeltas', () => {
   });
 
   it('multiple elements — only moved ones included', () => {
-    const first = new Map<string, ElementSnapshot>([
+    const first = new Map<string, Rect>([
       ['a', { x: 0, y: 0, width: 100, height: 40 }],
       ['b', { x: 0, y: 50, width: 100, height: 40 }],
       ['c', { x: 0, y: 100, width: 100, height: 40 }]
     ]);
     // Swap a and c — b stays in place
-    const last = new Map<string, ElementSnapshot>([
+    const last = new Map<string, Rect>([
       ['c', { x: 0, y: 0, width: 100, height: 40 }],
       ['b', { x: 0, y: 50, width: 100, height: 40 }],
       ['a', { x: 0, y: 100, width: 100, height: 40 }]
@@ -181,12 +181,12 @@ describe('calculateDeltas', () => {
 
   it('typical 3-item reorder: move first to last', () => {
     // A, B, C → B, C, A (each item 40px tall with 10px gap)
-    const first = new Map<string, ElementSnapshot>([
+    const first = new Map<string, Rect>([
       ['a', { x: 0, y: 0, width: 200, height: 40 }],
       ['b', { x: 0, y: 50, width: 200, height: 40 }],
       ['c', { x: 0, y: 100, width: 200, height: 40 }]
     ]);
-    const last = new Map<string, ElementSnapshot>([
+    const last = new Map<string, Rect>([
       ['b', { x: 0, y: 0, width: 200, height: 40 }],
       ['c', { x: 0, y: 50, width: 200, height: 40 }],
       ['a', { x: 0, y: 100, width: 200, height: 40 }]
@@ -203,8 +203,8 @@ describe('calculateDeltas', () => {
   });
 
   it('element changed width → scaleX factor computed', () => {
-    const first = new Map<string, ElementSnapshot>([['a', { x: 0, y: 0, width: 200, height: 40 }]]);
-    const last = new Map<string, ElementSnapshot>([['a', { x: 0, y: 0, width: 100, height: 40 }]]);
+    const first = new Map<string, Rect>([['a', { x: 0, y: 0, width: 200, height: 40 }]]);
+    const last = new Map<string, Rect>([['a', { x: 0, y: 0, width: 100, height: 40 }]]);
 
     const deltas = calculateDeltas(first, last);
 
@@ -212,8 +212,8 @@ describe('calculateDeltas', () => {
   });
 
   it('element changed height → scaleY factor computed', () => {
-    const first = new Map<string, ElementSnapshot>([['a', { x: 0, y: 0, width: 100, height: 80 }]]);
-    const last = new Map<string, ElementSnapshot>([['a', { x: 0, y: 0, width: 100, height: 40 }]]);
+    const first = new Map<string, Rect>([['a', { x: 0, y: 0, width: 100, height: 80 }]]);
+    const last = new Map<string, Rect>([['a', { x: 0, y: 0, width: 100, height: 40 }]]);
 
     const deltas = calculateDeltas(first, last);
 
@@ -221,8 +221,8 @@ describe('calculateDeltas', () => {
   });
 
   it('element moved and changed size → all fields computed', () => {
-    const first = new Map<string, ElementSnapshot>([['a', { x: 0, y: 0, width: 200, height: 60 }]]);
-    const last = new Map<string, ElementSnapshot>([['a', { x: 50, y: 100, width: 100, height: 40 }]]);
+    const first = new Map<string, Rect>([['a', { x: 0, y: 0, width: 200, height: 60 }]]);
+    const last = new Map<string, Rect>([['a', { x: 50, y: 100, width: 100, height: 40 }]]);
 
     const deltas = calculateDeltas(first, last);
 
@@ -230,8 +230,8 @@ describe('calculateDeltas', () => {
   });
 
   it('element with zero last width → scaleX defaults to 1', () => {
-    const first = new Map<string, ElementSnapshot>([['a', { x: 0, y: 0, width: 100, height: 40 }]]);
-    const last = new Map<string, ElementSnapshot>([['a', { x: 0, y: 50, width: 0, height: 40 }]]);
+    const first = new Map<string, Rect>([['a', { x: 0, y: 0, width: 100, height: 40 }]]);
+    const last = new Map<string, Rect>([['a', { x: 0, y: 50, width: 0, height: 40 }]]);
 
     const deltas = calculateDeltas(first, last);
 
@@ -249,11 +249,11 @@ describe('snapshotsEqual', () => {
   });
 
   it('returns true for identical snapshots', () => {
-    const a = new Map<string, ElementSnapshot>([
+    const a = new Map<string, Rect>([
       ['x', { x: 0, y: 10, width: 100, height: 40 }],
       ['y', { x: 0, y: 60, width: 100, height: 40 }]
     ]);
-    const b = new Map<string, ElementSnapshot>([
+    const b = new Map<string, Rect>([
       ['x', { x: 0, y: 10, width: 100, height: 40 }],
       ['y', { x: 0, y: 60, width: 100, height: 40 }]
     ]);
@@ -261,8 +261,8 @@ describe('snapshotsEqual', () => {
   });
 
   it('returns false when sizes differ', () => {
-    const a = new Map<string, ElementSnapshot>([['x', { x: 0, y: 0, width: 100, height: 40 }]]);
-    const b = new Map<string, ElementSnapshot>([
+    const a = new Map<string, Rect>([['x', { x: 0, y: 0, width: 100, height: 40 }]]);
+    const b = new Map<string, Rect>([
       ['x', { x: 0, y: 0, width: 100, height: 40 }],
       ['y', { x: 0, y: 50, width: 100, height: 40 }]
     ]);
@@ -270,35 +270,35 @@ describe('snapshotsEqual', () => {
   });
 
   it('returns false when a key is missing from b', () => {
-    const a = new Map<string, ElementSnapshot>([
+    const a = new Map<string, Rect>([
       ['x', { x: 0, y: 0, width: 100, height: 40 }],
       ['y', { x: 0, y: 50, width: 100, height: 40 }]
     ]);
-    const b = new Map<string, ElementSnapshot>([['x', { x: 0, y: 0, width: 100, height: 40 }]]);
+    const b = new Map<string, Rect>([['x', { x: 0, y: 0, width: 100, height: 40 }]]);
     expect(snapshotsEqual(a, b)).toBe(false);
   });
 
   it('returns false when x differs', () => {
-    const a = new Map<string, ElementSnapshot>([['x', { x: 0, y: 0, width: 100, height: 40 }]]);
-    const b = new Map<string, ElementSnapshot>([['x', { x: 5, y: 0, width: 100, height: 40 }]]);
+    const a = new Map<string, Rect>([['x', { x: 0, y: 0, width: 100, height: 40 }]]);
+    const b = new Map<string, Rect>([['x', { x: 5, y: 0, width: 100, height: 40 }]]);
     expect(snapshotsEqual(a, b)).toBe(false);
   });
 
   it('returns false when y differs', () => {
-    const a = new Map<string, ElementSnapshot>([['x', { x: 0, y: 0, width: 100, height: 40 }]]);
-    const b = new Map<string, ElementSnapshot>([['x', { x: 0, y: 1, width: 100, height: 40 }]]);
+    const a = new Map<string, Rect>([['x', { x: 0, y: 0, width: 100, height: 40 }]]);
+    const b = new Map<string, Rect>([['x', { x: 0, y: 1, width: 100, height: 40 }]]);
     expect(snapshotsEqual(a, b)).toBe(false);
   });
 
   it('returns false when width differs', () => {
-    const a = new Map<string, ElementSnapshot>([['x', { x: 0, y: 0, width: 100, height: 40 }]]);
-    const b = new Map<string, ElementSnapshot>([['x', { x: 0, y: 0, width: 200, height: 40 }]]);
+    const a = new Map<string, Rect>([['x', { x: 0, y: 0, width: 100, height: 40 }]]);
+    const b = new Map<string, Rect>([['x', { x: 0, y: 0, width: 200, height: 40 }]]);
     expect(snapshotsEqual(a, b)).toBe(false);
   });
 
   it('returns false when height differs', () => {
-    const a = new Map<string, ElementSnapshot>([['x', { x: 0, y: 0, width: 100, height: 40 }]]);
-    const b = new Map<string, ElementSnapshot>([['x', { x: 0, y: 0, width: 100, height: 50 }]]);
+    const a = new Map<string, Rect>([['x', { x: 0, y: 0, width: 100, height: 40 }]]);
+    const b = new Map<string, Rect>([['x', { x: 0, y: 0, width: 100, height: 50 }]]);
     expect(snapshotsEqual(a, b)).toBe(false);
   });
 });

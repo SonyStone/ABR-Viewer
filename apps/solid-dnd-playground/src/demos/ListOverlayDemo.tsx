@@ -41,7 +41,7 @@ function useListOverlayDemo(props: {
   const itemRefs = new Map<string, HTMLDivElement>();
   const [containerRef, setContainerRef] = createSignal<HTMLDivElement | undefined>(undefined);
 
-  const [flipEntries, setFlipEntries] = createSignal<FlipAnimateEntry[]>([]);
+  const [flipEntries, setFlipEntries] = createSignal<FlipAnimateEntry<string>[]>([]);
 
   const selection = createSelection<string>({
     items: itemKeys,
@@ -56,7 +56,7 @@ function useListOverlayDemo(props: {
     getContainerRect: () => Rect.fromElement(containerRef())
   });
 
-  // ── Drag controller (sensor + overlay + FLIP) ──────────────────────────
+  // MARK: Drag controller (sensor + overlay + FLIP)
   const drag: DragController<string> = createDragController<string>({
     elements: itemRefs as Map<string, HTMLElement>,
     getInsertionPoint: (pos) => sortable.getInsertionPoint(pos),
