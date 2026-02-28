@@ -110,6 +110,8 @@ function useGridOverlayDemo(props: {
     return itemMap().get(key);
   }
 
+  createBodyCursor(() => (drag.sensor.isDragging() ? 'grabbing' : null));
+
   return {
     items,
     setItems,
@@ -156,8 +158,6 @@ export default function GridOverlayDemo(): JSX.Element {
       if (keys.length > 0) logger.addLog(`☑ SELECT  [${keys.join(', ')}]`);
     }
   });
-
-  createBodyCursor(() => (dnd.isDragging() ? 'grabbing' : null));
 
   return (
     <div class="flex flex-col gap-6">

@@ -109,6 +109,8 @@ function useListOverlayDemo(props: {
     return itemMap().get(key);
   }
 
+  createBodyCursor(() => (drag.sensor.isDragging() ? 'grabbing' : null));
+
   return {
     items,
     selection,
@@ -144,8 +146,6 @@ export default function ListOverlayDemo(): JSX.Element {
     },
     onCancelLog: () => logger.addLog('✕ CANCEL')
   });
-
-  createBodyCursor(() => (dnd.isDragging() ? 'grabbing' : null));
 
   return (
     <div class="flex flex-col gap-6">
