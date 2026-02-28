@@ -2,57 +2,8 @@ import { type Accessor, createMemo, createSignal } from 'solid-js';
 import { fromElement, type Rect } from '../core/rect';
 import { type Vec2, of as vec2, Zero as Vec2Zero } from '../core/vec2';
 
-// ============================================================================
-// MARK: Types
-// ============================================================================
-
-export type DragOverlayOptions = {
-  /**
-   * Current pointer position (page coordinates) during drag.
-   * Updated every pointer move. Comes from `createDragSensor`.
-   */
-  currentPosition: Accessor<Vec2 | null>;
-};
-
-export type DragOverlay = {
-  /**
-   * Top-left position for the overlay (page coordinates).
-   * Use with `position: fixed; left: ...; top: ...;` on the overlay element.
-   *
-   * Returns `Vec2.Zero` when not active.
-   */
-  position: Accessor<Vec2>;
-  /**
-   * Width and height of the source element at drag start.
-   * Use to size the overlay to match the original item.
-   *
-   * Returns `Vec2.Zero` when not active.
-   */
-  size: Accessor<Vec2>;
-  /**
-   * The source element's bounding rect captured at drag start.
-   * Useful for creating a clone or snapshot.
-   *
-   * Returns `undefined` when not active.
-   */
-  sourceRect: Accessor<Rect | undefined>;
-  /**
-   * Whether the overlay should be visible.
-   */
-  active: Accessor<boolean>;
-  /**
-   * Activate the overlay. Call in `onDragStart` with the source element
-   * and the pointer position at that moment.
-   *
-   * Captures the element's bounding rect and computes the grab offset
-   * (pointer position relative to element's top-left corner).
-   */
-  start: (element: HTMLElement, pointerPosition: Vec2) => void;
-  /**
-   * Deactivate the overlay. Call when drag ends or cancels.
-   */
-  stop: () => void;
-};
+export type DragOverlayOptions = Parameters<typeof createDragOverlay>[0];
+export type DragOverlay = ReturnType<typeof createDragOverlay>;
 
 // ============================================================================
 // MARK: createDragOverlay
@@ -100,7 +51,13 @@ export type DragOverlay = {
  * </Show>
  * ```
  */
-export function createDragOverlay(options: DragOverlayOptions): DragOverlay {
+export function createDragOverlay(options: {
+  /**
+   * Current pointer position (page coordinates) during drag.
+   * Updated every pointer move. Comes from `createDragSensor`.
+   */
+  currentPosition: Accessor<Vec2 | null>;
+}) {
   const [isActive, setIsActive] = createSignal(false);
   const [grabOffset, setGrabOffset] = createSignal<Vec2>(Vec2Zero);
   const [capturedSize, setCapturedSize] = createSignal<Vec2>(Vec2Zero);
@@ -137,11 +94,38 @@ export function createDragOverlay(options: DragOverlayOptions): DragOverlay {
   });
 
   return {
+    /**
+     * Top-left position for the overlay (page coordinates).
+     * Use with `position: fixed; left: ...; top: ...;` on the overlay element.
+     *
+     * Returns `Vec2.Zero` when not active.
+     */
     position,
+    /**
+     * Width and height of the source element at drag start.
+     * Use to size the overlay to match the original item.
+     *
+     * Returns `Vec2.Zero` when not active.
+     */
     size: capturedSize,
+    /**
+     * The source element's bounding rect captured at drag start.
+     * Useful for creating a clone or snapshot.
+     *
+     * Returns `undefined` when not active.
+     */
     sourceRect: capturedRect,
+    /** Whether the overlay should be visible. */
     active: isActive,
+    /**
+     * Activate the overlay. Call in `onDragStart` with the source element
+     * and the pointer position at that moment.
+     *
+     * Captures the element's bounding rect and computes the grab offset
+     * (pointer position relative to element's top-left corner).
+     */
     start,
+    /** Deactivate the overlay. Call when drag ends or cancels. */
     stop
   };
 }

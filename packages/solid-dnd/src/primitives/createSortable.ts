@@ -11,124 +11,8 @@ import type { Vec2 } from '../core/vec2';
 // MARK: Types
 // ============================================================================
 
-export type SortableOptions<K> = {
-  /** The key of the container these items belong to. */
-  containerKey: K;
-  /** Accessor returning the ordered list of item keys. */
-  items: Accessor<K[]>;
-  /** Returns the bounding rect for an item by its key. */
-  getRect: (key: K) => Rect | undefined;
-  /** Returns the bounding rect for the container element. */
-  getContainerRect: () => Rect | undefined;
-  /**
-   * Returns the bounding rect for the container used only for hit-testing
-   * (pointer-inside check). When provided, `getContainerRect` is still
-   * used for grid resolution, but this rect decides if the pointer is
-   * "inside" the sortable area.
-   *
-   * Useful when the dropzone container has different bounds than the
-   * measurement container (e.g., a wrapper that should accept drops in
-   * a larger area).
-   */
-  getHitRect?: () => Rect | undefined;
-  /**
-   * Layout mode for insertion point calculation.
-   * - `'list'` — vertical list (default)
-   * - `'grid'` — CSS grid / flex-wrap layout (requires `gridConfig`)
-   * @default 'list'
-   */
-  layout?: 'list' | 'grid';
-  /**
-   * Grid configuration. Required when `layout` is `'grid'`.
-   * Defines columns, row height, and gap.
-   *
-   * Accepts either a static `GridConfig` object or an `Accessor<GridConfig>`
-   * for reactive updates (e.g., when the user changes column count).
-   */
-  gridConfig?: GridConfig | Accessor<GridConfig>;
-  /**
-   * Spacing between items in pixels. Used as a hint for indicator placement
-   * in list mode. Does not affect grid mode (use gridConfig.gap instead).
-   * @default 0
-   */
-  spacing?: number;
-  /**
-   * Keys currently being dragged. These are excluded from insertion point
-   * calculations so the dragged item's own rect doesn't interfere.
-   */
-  draggedKeys?: Accessor<K[]>;
-};
-
-export type Sortable<K> = {
-  /**
-   * Given a pointer position (in the same coordinate space as the rects),
-   * returns the best insertion point, or `undefined` if the pointer is
-   * outside the container bounds.
-   *
-   * For a vertical list, the boundary between "before item[i]" and
-   * "before item[i+1]" is at the vertical center of item[i]'s rect.
-   *
-   * For a grid, uses 2D cell detection with left/right half logic.
-   */
-  getInsertionPoint: (position: Vec2) => Place<K> | undefined;
-  /**
-   * Returns the Y offset (relative to the container's top) where a drop
-   * indicator should be drawn for the given insertion `place`.
-   *
-   * - `before: key` → top edge of that item's rect, relative to container.
-   * - `before: null` (append) → bottom edge of the last item, relative to container.
-   * - Returns `undefined` if the place is undefined, the container has no rect,
-   *   or the referenced item has no rect.
-   *
-   * For grid layouts, use `getGridIndicator` instead.
-   */
-  getIndicatorOffset: (place: Place<K> | undefined) => number | undefined;
-  /**
-   * Grid-specific indicator positioning. Returns `{ x, y, height }` relative
-   * to the container, for a vertical insertion bar.
-   *
-   * Returns `undefined` for non-grid layouts or invalid places.
-   */
-  getGridIndicator: (place: Place<K> | undefined) => { x: number; y: number; height: number } | undefined;
-  /**
-   * All valid insertion points for the current item list.
-   * For N items, returns N+1 places: before each item + append at end.
-   * Useful for rendering drop indicators at every possible position.
-   */
-  insertionPoints: Accessor<Place<K>[]>;
-  /**
-   * The resolved grid dimensions, or `undefined` if layout is not 'grid'.
-   * Useful for rendering and computing cell positions.
-   */
-  resolvedGrid: Accessor<ResolvedGrid | undefined>;
-  /**
-   * Snapshot the current bounding rects of all items for stable insertion
-   * calculation during drag.
-   *
-   * Once captured, `getInsertionPoint` uses these fixed rects instead of
-   * live DOM measurements. This prevents the gap placeholder from
-   * displacing items and shifting their center-lines, which would make
-   * insertion zones feel unresponsive during drag.
-   *
-   * When `excludeKeys` is provided (typically the dragged item keys), the
-   * snapshot computes "compact" positions: items below the excluded keys
-   * are shifted up as if the excluded items were removed from the layout.
-   * This ensures the insertion zones match the visual positions of the
-   * remaining items.
-   *
-   * Call this at drag start (before the gap is inserted into the DOM).
-   *
-   * @param excludeKeys  Keys to exclude (e.g., the dragged item keys).
-   */
-  snapshotRects: (excludeKeys?: K[]) => void;
-  /**
-   * Clear the rect snapshot so `getInsertionPoint` reverts to live
-   * DOM measurements.
-   *
-   * Call this at drag end / cancel.
-   */
-  clearSnapshot: () => void;
-};
+export type SortableOptions<K> = Parameters<typeof createSortable<K>>[0];
+export type Sortable<K> = ReturnType<typeof createSortable<K>>;
 
 // ============================================================================
 // MARK: createSortable
@@ -182,7 +66,53 @@ export type Sortable<K> = {
  * // → { parent: 'list', before: 'b' }
  * ```
  */
-export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
+export function createSortable<K>(options: {
+  /** The key of the container these items belong to. */
+  containerKey: K;
+  /** Accessor returning the ordered list of item keys. */
+  items: Accessor<K[]>;
+  /** Returns the bounding rect for an item by its key. */
+  getRect: (key: K) => Rect | undefined;
+  /** Returns the bounding rect for the container element. */
+  getContainerRect: () => Rect | undefined;
+  /**
+   * Returns the bounding rect for the container used only for hit-testing
+   * (pointer-inside check). When provided, `getContainerRect` is still
+   * used for grid resolution, but this rect decides if the pointer is
+   * "inside" the sortable area.
+   *
+   * Useful when the dropzone container has different bounds than the
+   * measurement container (e.g., a wrapper that should accept drops in
+   * a larger area).
+   */
+  getHitRect?: () => Rect | undefined;
+  /**
+   * Layout mode for insertion point calculation.
+   * - `'list'` — vertical list (default)
+   * - `'grid'` — CSS grid / flex-wrap layout (requires `gridConfig`)
+   * @default 'list'
+   */
+  layout?: 'list' | 'grid';
+  /**
+   * Grid configuration. Required when `layout` is `'grid'`.
+   * Defines columns, row height, and gap.
+   *
+   * Accepts either a static `GridConfig` object or an `Accessor<GridConfig>`
+   * for reactive updates (e.g., when the user changes column count).
+   */
+  gridConfig?: GridConfig | Accessor<GridConfig>;
+  /**
+   * Spacing between items in pixels. Used as a hint for indicator placement
+   * in list mode. Does not affect grid mode (use gridConfig.gap instead).
+   * @default 0
+   */
+  spacing?: number;
+  /**
+   * Keys currently being dragged. These are excluded from insertion point
+   * calculations so the dragged item's own rect doesn't interfere.
+   */
+  draggedKeys?: Accessor<K[]>;
+}) {
   const isGrid = () => options.layout === 'grid';
 
   // Unwrap gridConfig: supports both static GridConfig and Accessor<GridConfig>
@@ -192,11 +122,16 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
   };
 
   // ── Resolved grid (memoized, undefined for list layout) ────────────────
+  // Uses options.items() (all items) rather than activeItems() (dragged
+  // items excluded). The grid cell dimensions don't change based on which
+  // items are being dragged, and using options.items() avoids an eager
+  // dependency on draggedKeys() during construction — which would require
+  // the consumer to declare their drag controller before createSortable.
   const resolvedGrid = createMemo<ResolvedGrid | undefined>(() => {
     const gc = getGridConfig();
     if (!isGrid() || !gc) return undefined;
     const containerRect = options.getContainerRect();
-    const keys = activeItems();
+    const keys = options.items();
     // Measure first item height for 'auto' rowHeight
     const firstRect = keys.length > 0 ? options.getRect(keys[0]) : undefined;
     return resolveGrid(gc, keys.length, containerRect?.width, firstRect?.height);
@@ -421,12 +356,73 @@ export function createSortable<K>(options: SortableOptions<K>): Sortable<K> {
   }
 
   return {
+    /**
+     * Given a pointer position (in the same coordinate space as the rects),
+     * returns the best insertion point, or `undefined` if the pointer is
+     * outside the container bounds.
+     *
+     * For a vertical list, the boundary between "before item[i]" and
+     * "before item[i+1]" is at the vertical center of item[i]'s rect.
+     *
+     * For a grid, uses 2D cell detection with left/right half logic.
+     */
     getInsertionPoint,
+    /**
+     * Returns the Y offset (relative to the container's top) where a drop
+     * indicator should be drawn for the given insertion `place`.
+     *
+     * - `before: key` → top edge of that item's rect, relative to container.
+     * - `before: null` (append) → bottom edge of the last item, relative to container.
+     * - Returns `undefined` if the place is undefined, the container has no rect,
+     *   or the referenced item has no rect.
+     *
+     * For grid layouts, use `getGridIndicator` instead.
+     */
     getIndicatorOffset,
+    /**
+     * Grid-specific indicator positioning. Returns `{ x, y, height }` relative
+     * to the container, for a vertical insertion bar.
+     *
+     * Returns `undefined` for non-grid layouts or invalid places.
+     */
     getGridIndicator,
+    /**
+     * All valid insertion points for the current item list.
+     * For N items, returns N+1 places: before each item + append at end.
+     * Useful for rendering drop indicators at every possible position.
+     */
     insertionPoints,
+    /**
+     * The resolved grid dimensions, or `undefined` if layout is not 'grid'.
+     * Useful for rendering and computing cell positions.
+     */
     resolvedGrid,
+    /**
+     * Snapshot the current bounding rects of all items for stable insertion
+     * calculation during drag.
+     *
+     * Once captured, `getInsertionPoint` uses these fixed rects instead of
+     * live DOM measurements. This prevents the gap placeholder from
+     * displacing items and shifting their center-lines, which would make
+     * insertion zones feel unresponsive during drag.
+     *
+     * When `excludeKeys` is provided (typically the dragged item keys), the
+     * snapshot computes "compact" positions: items below the excluded keys
+     * are shifted up as if the excluded items were removed from the layout.
+     * This ensures the insertion zones match the visual positions of the
+     * remaining items.
+     *
+     * Call this at drag start (before the gap is inserted into the DOM).
+     *
+     * @param excludeKeys  Keys to exclude (e.g., the dragged item keys).
+     */
     snapshotRects,
+    /**
+     * Clear the rect snapshot so `getInsertionPoint` reverts to live
+     * DOM measurements.
+     *
+     * Call this at drag end / cancel.
+     */
     clearSnapshot
   };
 }

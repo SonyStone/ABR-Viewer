@@ -12,53 +12,8 @@ import {
 // MARK: Types
 // ============================================================================
 
-export type SelectionOptions<K> = {
-  /** The ordered list of selectable items. */
-  items: Accessor<K[]>;
-  /**
-   * Whether multi-selection (toggle / range) is enabled.
-   * When `false`, modifier keys are ignored and clicks always use set mode.
-   * @default true
-   */
-  multiselect?: boolean;
-  /**
-   * Grid columns for rectangular range selection.
-   * When set, Shift+click selects a rectangular region instead of a linear range.
-   * When `undefined`, Shift+click selects a linear range (default list behavior).
-   */
-  gridColumns?: Accessor<number | undefined>;
-  /** Called whenever the selection changes. */
-  onSelectionChange?: (keys: K[]) => void;
-};
-
-export type Selection<K> = {
-  /** The currently selected keys, in selection order. */
-  selected: Accessor<K[]>;
-  /** Reactive lookup — whether a specific key is currently selected. */
-  isSelected: (key: K) => boolean;
-  /**
-   * Handle a click/tap on an item. Reads modifier keys to determine mode.
-   *
-   * Use this for the `onClick` / `onPointerUp` after a non-drag gesture.
-   * For already-selected items, this is the "commit" action that was
-   * deferred from `handlePointerDown` to allow drag disambiguation.
-   */
-  handleClick: (key: K, ev: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => void;
-  /**
-   * Select specific keys programmatically (replaces current selection).
-   * The anchor is set to the first key.
-   */
-  select: (keys: K[]) => void;
-  /** Clear the entire selection. */
-  clear: () => void;
-  /**
-   * Get the selection mode that would be used for a given event.
-   * Useful for UI indicators ("Shift = range", "Ctrl = toggle").
-   */
-  getMode: (ev: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => SelectionMode;
-  /** The current range anchor key, or `null` if no anchor is set. */
-  anchor: Accessor<K | null>;
-};
+export type SelectionOptions<K> = Parameters<typeof createSelection<K>>[0];
+export type Selection<K> = ReturnType<typeof createSelection<K>>;
 
 // ============================================================================
 // MARK: createSelection
@@ -101,7 +56,24 @@ export type Selection<K> = {
  * </For>
  * ```
  */
-export function createSelection<K>(options: SelectionOptions<K>): Selection<K> {
+export function createSelection<K>(options: {
+  /** The ordered list of selectable items. */
+  items: Accessor<K[]>;
+  /**
+   * Whether multi-selection (toggle / range) is enabled.
+   * When `false`, modifier keys are ignored and clicks always use set mode.
+   * @default true
+   */
+  multiselect?: boolean;
+  /**
+   * Grid columns for rectangular range selection.
+   * When set, Shift+click selects a rectangular region instead of a linear range.
+   * When `undefined`, Shift+click selects a linear range (default list behavior).
+   */
+  gridColumns?: Accessor<number | undefined>;
+  /** Called whenever the selection changes. */
+  onSelectionChange?: (keys: K[]) => void;
+}) {
   const [selected, setSelected] = createSignal<K[]>([]);
   const [anchor, setAnchor] = createSignal<K | null>(null) as [Accessor<K | null>, (v: K | null) => void];
 
@@ -167,12 +139,31 @@ export function createSelection<K>(options: SelectionOptions<K>): Selection<K> {
   }
 
   return {
+    /** The currently selected keys, in selection order. */
     selected,
+    /** Reactive lookup — whether a specific key is currently selected. */
     isSelected,
+    /**
+     * Handle a click/tap on an item. Reads modifier keys to determine mode.
+     *
+     * Use this for the `onClick` / `onPointerUp` after a non-drag gesture.
+     * For already-selected items, this is the "commit" action that was
+     * deferred from `handlePointerDown` to allow drag disambiguation.
+     */
     handleClick,
+    /**
+     * Select specific keys programmatically (replaces current selection).
+     * The anchor is set to the first key.
+     */
     select,
+    /** Clear the entire selection. */
     clear,
+    /**
+     * Get the selection mode that would be used for a given event.
+     * Useful for UI indicators ("Shift = range", "Ctrl = toggle").
+     */
     getMode,
+    /** The current range anchor key, or `null` if no anchor is set. */
     anchor
   };
 }

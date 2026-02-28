@@ -1,7 +1,14 @@
 import { createBodyCursor } from '@solid-primitives/cursor';
-import { throttle } from '@solid-primitives/scheduled';
-import { createDragSensor, createFlip, createSelection, createSortable, Place, Rect, reorderItems } from 'solid-dnd';
-import { batch, createMemo, createSignal, For, Show, type JSX } from 'solid-js';
+import {
+  createDragController,
+  createSelection,
+  createSortable,
+  Place,
+  Rect,
+  reorderItems,
+  type DragController
+} from 'solid-dnd';
+import { createMemo, createSignal, For, Show, type JSX } from 'solid-js';
 import { AnimationControls } from '../components/AnimationControls';
 import { DropIndicator } from '../components/DropIndicator';
 import EventLog, { createEventLogger } from '../components/EventLog';
@@ -21,13 +28,6 @@ export default function ListDemo(): JSX.Element {
   // ── Item state ──────────────────────────────────────────────────────────
   const [items, setItems] = createSignal(createDemoItems());
   const itemKeys = createMemo(() => items().map((i) => i.id));
-
-  // ── Drag state ──────────────────────────────────────────────────────────
-  const [draggedIds, setDraggedIds] = createSignal<string[]>([]);
-  const [dropPlace, setDropPlace] = createSignal<Place.Place<string> | undefined>(undefined, {
-    equals: Place.equals
-  });
-  let pendingDragId: string | null = null;
 
   // ── Element refs ────────────────────────────────────────────────────────
   const itemRefs = new Map<string, HTMLDivElement>();
@@ -51,83 +51,40 @@ export default function ListDemo(): JSX.Element {
   const sortable = createSortable<string>({
     containerKey: 'list',
     items: itemKeys,
-    draggedKeys: () => draggedIds(),
+    draggedKeys: () => drag.draggedIds(),
     getRect: (key) => Rect.fromElement(itemRefs.get(key)),
     getContainerRect: () => Rect.fromElement(containerRef)
   });
 
-  // ── FLIP animation primitive ────────────────────────────────────────────
-  const flip = createFlip({ elements: itemRefs as Map<string, HTMLElement> });
-
-  // ── Throttled drop-place update (~60fps) ─────────────────────────────────
-  const throttledSetDropPlace = throttle((pos: { x: number; y: number }) => {
-    setDropPlace(sortable.getInsertionPoint(pos));
-  }, 16);
-
-  // ── Shared cleanup ──────────────────────────────────────────────────────
-  function resetDragState() {
-    throttledSetDropPlace.clear();
-    pendingDragId = null;
-    setDraggedIds([]);
-    setDropPlace(undefined);
-  }
-
-  // ── Drag sensor ─────────────────────────────────────────────────────────
-  const sensor = createDragSensor({
-    threshold: 5,
-    onClick: (ev) => {
-      // Threshold not exceeded — this was a click, delegate to selection
-      if (pendingDragId) {
-        selection.handleClick(pendingDragId, ev);
-        pendingDragId = null;
-      }
+  // ── Drag controller (sensor + overlay + FLIP) ──────────────────────────
+  const drag: DragController<string> = createDragController<string>({
+    elements: itemRefs as Map<string, HTMLElement>,
+    getInsertionPoint: (pos) => sortable.getInsertionPoint(pos),
+    onBeforeDragStart: (id) => {
+      return selection.isSelected(id) ? selection.selected() : [id];
     },
-    onDragStart: (e) => {
-      const id = pendingDragId;
-      // If dragging a selected item, drag the whole selection; otherwise just the one
-      const ids = id && selection.isSelected(id) ? selection.selected() : id ? [id] : [];
-      batch(() => {
-        setDraggedIds(ids);
-        logger.addLog(LOGS.DRAG(ids, id, e));
-        setDropPlace(sortable.getInsertionPoint(e.position));
-      });
+    onClick: (ev, id) => selection.handleClick(id, ev),
+    onDrop: (keys, place) => {
+      setItems((prev) => reorderItems(prev, keys, place, (i) => i.id));
     },
-    onDragMove: (e) => {
-      throttledSetDropPlace(e.position);
+    onDragStart: (keys, pos) => {
+      logger.addLog(LOGS.DRAG(keys, keys[0] ?? '', { position: pos }));
     },
-    onDragEnd: () => {
-      const place = dropPlace();
-      const ids = draggedIds();
-      if (place && ids.length > 0) {
-        const doReorder = () => setItems((prev) => reorderItems(prev, ids, place, (i) => i.id));
-        if (animEnabled()) {
-          flip.animate(doReorder, { duration: animDuration() });
-        } else {
-          doReorder();
-        }
-        logger.addLog(LOGS.DROP(ids, place));
-      }
-      resetDragState();
+    onDropLog: (keys, place) => {
+      logger.addLog(LOGS.DROP(keys, place));
     },
-    onDragCancel: () => {
-      logger.addLog(LOGS.CANCEL());
-      resetDragState();
-    }
+    onCancelLog: () => logger.addLog(LOGS.CANCEL()),
+    duration: () => animDuration(),
+    animEnabled: () => animEnabled()
   });
 
   // ── Reactive cursor: grabbing while dragging ────────────────────────────
-  createBodyCursor(() => (sensor.isDragging() ? 'grabbing' : null));
-
-  // ── Per-item pointer down ───────────────────────────────────────────────
-  function handleItemPointerDown(id: string, ev: PointerEvent) {
-    pendingDragId = id;
-    sensor.onPointerDown(ev);
-  }
+  createBodyCursor(() => (drag.sensor.isDragging() ? 'grabbing' : null));
 
   // ── Drop indicator Y position (relative to container) ─────────────────
   function indicatorY(): number | undefined {
-    if (!sensor.isDragging()) return undefined;
-    return sortable.getIndicatorOffset(dropPlace());
+    if (!drag.sensor.isDragging()) return undefined;
+    return sortable.getIndicatorOffset(drag.dropPlace());
   }
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -138,9 +95,8 @@ export default function ListDemo(): JSX.Element {
         <h2 class="mb-1 text-sm font-semibold text-neutral-300">Sortable List</h2>
         <p class="mb-4 text-xs text-neutral-500">
           Drag items to reorder. Click to select, Ctrl+click to toggle, Shift+click for range. Combines{' '}
-          <code class="rounded bg-white/10 px-1">createDragSensor</code> +{' '}
+          <code class="rounded bg-white/10 px-1">createDragController</code> +{' '}
           <code class="rounded bg-white/10 px-1">createSortable</code> +{' '}
-          <code class="rounded bg-white/10 px-1">createFlip</code> +{' '}
           <code class="rounded bg-white/10 px-1">createSelection</code>.
         </p>
       </div>
@@ -151,7 +107,7 @@ export default function ListDemo(): JSX.Element {
         setEnabled={setAnimEnabled}
         duration={animDuration()}
         setDuration={setAnimDuration}
-        isAnimating={flip.isAnimating()}
+        isAnimating={drag.flip.isAnimating()}
       />
 
       {/* ── Selection info ─────────────────────────────────────────── */}
@@ -168,9 +124,9 @@ export default function ListDemo(): JSX.Element {
           {(item) => (
             <ListItem
               item={item}
-              isDragged={draggedIds().includes(item.id) && sensor.isDragging()}
+              isDragged={drag.draggedIds().includes(item.id) && drag.sensor.isDragging()}
               isSelected={selection.isSelected(item.id)}
-              onPointerDown={(ev) => handleItemPointerDown(item.id, ev)}
+              onPointerDown={(ev) => drag.onPointerDown(item.id, ev)}
               ref={(el) => itemRefs.set(item.id, el)}
             />
           )}
@@ -187,13 +143,17 @@ export default function ListDemo(): JSX.Element {
 
       {/* ── State readout ─────────────────────────────────────────── */}
       <div class="grid grid-cols-4 gap-3">
-        <StateCard label="isDragging" value={sensor.isDragging() ? 'true' : 'false'} active={sensor.isDragging()} />
+        <StateCard
+          label="isDragging"
+          value={drag.sensor.isDragging() ? 'true' : 'false'}
+          active={drag.sensor.isDragging()}
+        />
         <StateCard
           label="dragging"
-          value={draggedIds().length > 0 ? draggedIds().join(', ') : 'none'}
-          active={draggedIds().length > 0}
+          value={drag.draggedIds().length > 0 ? drag.draggedIds().join(', ') : 'none'}
+          active={drag.draggedIds().length > 0}
         />
-        <StateCard label="dropPlace" value={Place.label(dropPlace())} active={dropPlace() !== undefined} />
+        <StateCard label="dropPlace" value={Place.label(drag.dropPlace())} active={drag.dropPlace() !== undefined} />
         <StateCard
           label="selected"
           value={selection.selected().length > 0 ? `${selection.selected().length} items` : 'none'}

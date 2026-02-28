@@ -1,8 +1,15 @@
 import { createBodyCursor } from '@solid-primitives/cursor';
-import { throttle } from '@solid-primitives/scheduled';
 import type { GridConfig } from 'solid-dnd';
-import { createDragSensor, createFlip, createSelection, createSortable, Place, Rect, reorderItems } from 'solid-dnd';
-import { batch, createMemo, createSignal, For, Show, type JSX } from 'solid-js';
+import {
+  createDragController,
+  createSelection,
+  createSortable,
+  Place,
+  Rect,
+  reorderItems,
+  type DragController
+} from 'solid-dnd';
+import { createMemo, createSignal, For, Show, type JSX } from 'solid-js';
 import EventLog, { createEventLogger } from '../components/EventLog';
 import { GridControls } from '../components/GridControls';
 import { GridDropIndicator } from '../components/GridDropIndicator';
@@ -17,8 +24,8 @@ import { createGridItems } from '../data';
 // ============================================================================
 
 /**
- * Interactive grid demo combining createDragSensor + createSortable (grid mode)
- * + createFlip + createSelection (with grid range selection).
+ * Interactive grid demo combining createDragController + createSortable (grid mode)
+ * + createSelection (with grid range selection).
  */
 export default function GridDemo(): JSX.Element {
   const logger = createEventLogger();
@@ -34,13 +41,6 @@ export default function GridDemo(): JSX.Element {
     gap: 8,
     rowHeight: 'auto'
   }));
-
-  // ── Drag state ──────────────────────────────────────────────────────────
-  const [draggedIds, setDraggedIds] = createSignal<string[]>([]);
-  const [dropPlace, setDropPlace] = createSignal<Place.Place<string> | undefined>(undefined, {
-    equals: Place.equals
-  });
-  let pendingDragId: string | null = null;
 
   // ── Element refs ────────────────────────────────────────────────────────
   const itemRefs = new Map<string, HTMLDivElement>();
@@ -67,81 +67,47 @@ export default function GridDemo(): JSX.Element {
     items: itemKeys,
     layout: 'grid',
     gridConfig: gridConfig,
-    draggedKeys: () => draggedIds(),
+    draggedKeys: () => drag.draggedIds(),
     getRect: (key) => Rect.fromElement(itemRefs.get(key)),
     getContainerRect: () => Rect.fromElement(containerRef)
   });
 
-  // ── FLIP animation primitive ────────────────────────────────────────────
-  const flip = createFlip({ elements: itemRefs as Map<string, HTMLElement> });
+  // ── Drag controller (sensor + overlay + FLIP) ──────────────────────────
+  const drag: DragController<string> = createDragController<string>({
+    elements: itemRefs as Map<string, HTMLElement>,
+    getInsertionPoint: (pos) => sortable.getInsertionPoint(pos),
 
-  // ── Throttled drop-place update (~60fps) ─────────────────────────────────
-  const throttledSetDropPlace = throttle((pos: { x: number; y: number }) => {
-    setDropPlace(sortable.getInsertionPoint(pos));
-  }, 16);
+    onBeforeDragStart: (id) => {
+      return selection.isSelected(id) ? selection.selected() : [id];
+    },
 
-  // ── Shared cleanup ──────────────────────────────────────────────────────
-  function resetDragState() {
-    throttledSetDropPlace.clear();
-    pendingDragId = null;
-    setDraggedIds([]);
-    setDropPlace(undefined);
-  }
+    onClick: (ev, id) => selection.handleClick(id, ev),
 
-  // ── Drag sensor ─────────────────────────────────────────────────────────
-  const sensor = createDragSensor({
-    threshold: 5,
-    onClick: (ev) => {
-      if (pendingDragId) {
-        selection.handleClick(pendingDragId, ev);
-        pendingDragId = null;
-      }
+    onDrop: (keys, place) => {
+      setItems((prev) => reorderItems(prev, keys, place, (i) => i.id));
     },
-    onDragStart: (e) => {
-      const id = pendingDragId;
-      const ids = id && selection.isSelected(id) ? selection.selected() : id ? [id] : [];
-      batch(() => {
-        setDraggedIds(ids);
-        logger.addLog(`▶ DRAG  [${ids.join(', ')}] at (${e.position.x.toFixed(0)}, ${e.position.y.toFixed(0)})`);
-        setDropPlace(sortable.getInsertionPoint(e.position));
-      });
+
+    onDragStart: (keys, pos) => {
+      logger.addLog(`▶ DRAG  [${keys.join(', ')}] at (${pos.x.toFixed(0)}, ${pos.y.toFixed(0)})`);
     },
-    onDragMove: (e) => {
-      throttledSetDropPlace(e.position);
+
+    onDropLog: (keys, place) => {
+      logger.addLog(`■ DROP  [${keys.join(', ')}] → ${Place.label(place)}`);
     },
-    onDragEnd: () => {
-      const place = dropPlace();
-      const ids = draggedIds();
-      if (place && ids.length > 0) {
-        const doReorder = () => setItems((prev) => reorderItems(prev, ids, place, (i) => i.id));
-        if (animEnabled()) {
-          flip.animate(doReorder, { duration: animDuration() });
-        } else {
-          doReorder();
-        }
-        logger.addLog(`■ DROP  [${ids.join(', ')}] → ${Place.label(place)}`);
-      }
-      resetDragState();
-    },
-    onDragCancel: () => {
-      logger.addLog('✕ CANCEL');
-      resetDragState();
-    }
+
+    onCancelLog: () => logger.addLog('✕ CANCEL'),
+
+    duration: () => animDuration(),
+    animEnabled: () => animEnabled()
   });
 
   // ── Reactive cursor ─────────────────────────────────────────────────────
-  createBodyCursor(() => (sensor.isDragging() ? 'grabbing' : null));
-
-  // ── Per-item pointer down ───────────────────────────────────────────────
-  function handleItemPointerDown(id: string, ev: PointerEvent) {
-    pendingDragId = id;
-    sensor.onPointerDown(ev);
-  }
+  createBodyCursor(() => (drag.sensor.isDragging() ? 'grabbing' : null));
 
   // ── Grid indicator position ─────────────────────────────────────────────
   function indicatorPos() {
-    if (!sensor.isDragging()) return undefined;
-    return sortable.getGridIndicator(dropPlace());
+    if (!drag.sensor.isDragging()) return undefined;
+    return sortable.getGridIndicator(drag.dropPlace());
   }
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -152,9 +118,9 @@ export default function GridDemo(): JSX.Element {
         <h2 class="mb-1 text-sm font-semibold text-neutral-300">Sortable Grid</h2>
         <p class="mb-4 text-xs text-neutral-500">
           Drag items to reorder in a grid. Click to select, Ctrl+click to toggle, Shift+click for rectangular range.
-          Combines <code class="rounded bg-white/10 px-1">createSortable</code> (grid mode) +{' '}
-          <code class="rounded bg-white/10 px-1">createSelection</code> (grid range) +{' '}
-          <code class="rounded bg-white/10 px-1">createFlip</code>.
+          Combines <code class="rounded bg-white/10 px-1">createDragController</code> +{' '}
+          <code class="rounded bg-white/10 px-1">createSortable</code> (grid mode) +{' '}
+          <code class="rounded bg-white/10 px-1">createSelection</code> (grid range).
         </p>
       </div>
 
@@ -166,7 +132,7 @@ export default function GridDemo(): JSX.Element {
         setAnimEnabled={setAnimEnabled}
         animDuration={animDuration()}
         setAnimDuration={setAnimDuration}
-        isAnimating={flip.isAnimating()}
+        isAnimating={drag.flip.isAnimating()}
       />
 
       {/* ── Selection info ─────────────────────────────────────────── */}
@@ -189,9 +155,9 @@ export default function GridDemo(): JSX.Element {
           {(item) => (
             <GridItem
               item={item}
-              isDragged={draggedIds().includes(item.id) && sensor.isDragging()}
+              isDragged={drag.draggedIds().includes(item.id) && drag.sensor.isDragging()}
               isSelected={selection.isSelected(item.id)}
-              onPointerDown={(ev) => handleItemPointerDown(item.id, ev)}
+              onPointerDown={(ev) => drag.onPointerDown(item.id, ev)}
               ref={(el) => itemRefs.set(item.id, el)}
             />
           )}
@@ -208,13 +174,17 @@ export default function GridDemo(): JSX.Element {
 
       {/* ── State readout ─────────────────────────────────────────── */}
       <div class="grid grid-cols-4 gap-3">
-        <StateCard label="isDragging" value={sensor.isDragging() ? 'true' : 'false'} active={sensor.isDragging()} />
+        <StateCard
+          label="isDragging"
+          value={drag.sensor.isDragging() ? 'true' : 'false'}
+          active={drag.sensor.isDragging()}
+        />
         <StateCard
           label="dragging"
-          value={draggedIds().length > 0 ? draggedIds().join(', ') : 'none'}
-          active={draggedIds().length > 0}
+          value={drag.draggedIds().length > 0 ? drag.draggedIds().join(', ') : 'none'}
+          active={drag.draggedIds().length > 0}
         />
-        <StateCard label="dropPlace" value={Place.label(dropPlace())} active={dropPlace() !== undefined} />
+        <StateCard label="dropPlace" value={Place.label(drag.dropPlace())} active={drag.dropPlace() !== undefined} />
         <StateCard
           label="selected"
           value={selection.selected().length > 0 ? `${selection.selected().length} items` : 'none'}

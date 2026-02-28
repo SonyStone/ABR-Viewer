@@ -51,3 +51,6 @@ export type { Sortable, SortableOptions } from './primitives/createSortable';
 export { calculateDeltas, measureElements } from './primitives/flipUtils';
 export type { ElementSnapshot, FlipDelta } from './primitives/flipUtils';
 // export { createAutoScroll } from './primitives/createAutoScroll';
+
+// Utilities types re-export
+export type { MaybeAccessor } from '@solid-primitives/utils';

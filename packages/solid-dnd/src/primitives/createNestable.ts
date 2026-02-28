@@ -13,49 +13,8 @@ export type { NestableContainer } from '../core/types';
 // MARK: Types
 // ============================================================================
 
-export type NestableOptions<K> = {
-  /** All containers in the tree. Order determines priority for same-depth overlaps. */
-  containers: Accessor<NestableContainer<K>[]>;
-  /** Tags of the currently dragged items. Used for accept/reject. */
-  dragTags?: Accessor<string[] | undefined>;
-  /**
-   * Keys of items currently being dragged.
-   * Used for cycle prevention: can't drop a container into itself or its descendants.
-   */
-  draggedKeys?: Accessor<K[]>;
-  /**
-   * Returns the parent container key for a given key, or `undefined` for root-level containers.
-   * Required for cycle detection.
-   */
-  getParent?: (key: K) => K | undefined;
-};
-
-export type Nestable<K> = {
-  /**
-   * Given a pointer position, returns the best insertion point across ALL containers.
-   *
-   * Resolution strategy:
-   * 1. Find all containers whose bounding rect contains the pointer.
-   * 2. Filter by tag constraints (container must accept the drag tags).
-   * 3. Filter by cycle prevention (can't drop into own descendants).
-   * 4. Among remaining, pick the deepest (smallest area = most specific) container.
-   * 5. Within that container, compute the vertical insertion point.
-   *
-   * Returns `undefined` if no valid container contains the pointer.
-   */
-  getInsertionPoint: (position: Vec2) => Place<K> | undefined;
-  /**
-   * Returns the Y offset (relative to the matched container's top) where a drop
-   * indicator should be drawn for the given insertion `place`.
-   * Also returns the container key so the consumer knows which container to position
-   * the indicator in.
-   */
-  getIndicatorOffset: (place: Place<K> | undefined) => { containerKey: K; offset: number } | undefined;
-  /**
-   * All containers, for iteration in rendering.
-   */
-  containers: Accessor<NestableContainer<K>[]>;
-};
+export type NestableOptions<K> = Parameters<typeof createNestable<K>>[0];
+export type Nestable<K> = ReturnType<typeof createNestable<K>>;
 
 // ============================================================================
 // MARK: createNestable
@@ -105,7 +64,22 @@ export type Nestable<K> = {
  * // → { parent: 'groupA', before: 'item-2' }
  * ```
  */
-export function createNestable<K>(options: NestableOptions<K>): Nestable<K> {
+export function createNestable<K>(options: {
+  /** All containers in the tree. Order determines priority for same-depth overlaps. */
+  containers: Accessor<NestableContainer<K>[]>;
+  /** Tags of the currently dragged items. Used for accept/reject. */
+  dragTags?: Accessor<string[] | undefined>;
+  /**
+   * Keys of items currently being dragged.
+   * Used for cycle prevention: can't drop a container into itself or its descendants.
+   */
+  draggedKeys?: Accessor<K[]>;
+  /**
+   * Returns the parent container key for a given key, or `undefined` for root-level containers.
+   * Required for cycle detection.
+   */
+  getParent?: (key: K) => K | undefined;
+}) {
   // ── Container lookup (memoized) ─────────────────────────────────────────
   const containerMap = createMemo(() => {
     const map = new Map<K, NestableContainer<K>>();
@@ -205,8 +179,27 @@ export function createNestable<K>(options: NestableOptions<K>): Nestable<K> {
   }
 
   return {
+    /**
+     * Given a pointer position, returns the best insertion point across ALL containers.
+     *
+     * Resolution strategy:
+     * 1. Find all containers whose bounding rect contains the pointer.
+     * 2. Filter by tag constraints (container must accept the drag tags).
+     * 3. Filter by cycle prevention (can't drop into own descendants).
+     * 4. Among remaining, pick the deepest (smallest area = most specific) container.
+     * 5. Within that container, compute the vertical insertion point.
+     *
+     * Returns `undefined` if no valid container contains the pointer.
+     */
     getInsertionPoint,
+    /**
+     * Returns the Y offset (relative to the matched container's top) where a drop
+     * indicator should be drawn for the given insertion `place`.
+     * Also returns the container key so the consumer knows which container to position
+     * the indicator in.
+     */
     getIndicatorOffset,
+    /** All containers, for iteration in rendering. */
     containers: options.containers
   };
 }

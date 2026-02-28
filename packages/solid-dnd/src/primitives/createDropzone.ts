@@ -6,29 +6,8 @@ import type { Place } from '../core/place';
 // MARK: Types — Flat list
 // ============================================================================
 
-export type DropzoneOptions<K> = {
-  /** Ordered item keys. */
-  keys: Accessor<K[]>;
-  /** Keys currently being dragged. */
-  draggedKeys: Accessor<K[]>;
-  /** Current insertion point (where the gap should appear), or `undefined`. */
-  place: Accessor<Place<K> | undefined>;
-  /** The container key to match against `place.parent`. */
-  containerKey: K | string;
-};
-
-export type Dropzone<K> = {
-  /**
-   * Display key list: non-dragged item keys in order, with a gap key inserted
-   * at the drop position. Dragged items are removed from the list.
-   *
-   * Use with `<For each={displayKeys()}>` and `createDragSensor({ proxyCapture: true })`
-   * so the source element's removal from the DOM doesn't cancel the drag.
-   */
-  displayKeys: Accessor<(K | GapKey)[]>;
-  /** Whether the given key is currently being dragged. */
-  isDragged: (key: K) => boolean;
-};
+export type DropzoneOptions<K> = Parameters<typeof createDropzone<K>>[0];
+export type Dropzone<K> = ReturnType<typeof createDropzone<K>>;
 
 // ============================================================================
 // MARK: createDropzone (flat list)
@@ -60,7 +39,16 @@ export type Dropzone<K> = {
  * </For>
  * ```
  */
-export function createDropzone<K>(options: DropzoneOptions<K>): Dropzone<K> {
+export function createDropzone<K>(options: {
+  /** Ordered item keys. */
+  keys: Accessor<K[]>;
+  /** Keys currently being dragged. */
+  draggedKeys: Accessor<K[]>;
+  /** Current insertion point (where the gap should appear), or `undefined`. */
+  place: Accessor<Place<K> | undefined>;
+  /** The container key to match against `place.parent`. */
+  containerKey: K | string;
+}) {
   const draggedSet = createMemo(() => new Set(options.draggedKeys()));
 
   const displayKeys = createMemo(() =>
@@ -71,28 +59,26 @@ export function createDropzone<K>(options: DropzoneOptions<K>): Dropzone<K> {
     return draggedSet().has(key);
   }
 
-  return { displayKeys, isDragged };
+  return {
+    /**
+     * Display key list: non-dragged item keys in order, with a gap key inserted
+     * at the drop position. Dragged items are removed from the list.
+     *
+     * Use with `<For each={displayKeys()}>` and `createDragSensor({ proxyCapture: true })`
+     * so the source element's removal from the DOM doesn't cancel the drag.
+     */
+    displayKeys,
+    /** Whether the given key is currently being dragged. */
+    isDragged
+  };
 }
 
 // ============================================================================
 // MARK: Types — Tree
 // ============================================================================
 
-export type TreeDropzoneOptions<K extends string> = {
-  /** Tree structure: containerKey → ordered child keys. */
-  tree: Accessor<Record<K | 'root', K[]>>;
-  /** Keys currently being dragged. */
-  draggedKeys: Accessor<K[]>;
-  /** Current insertion point (where the gap should appear), or `undefined`. */
-  place: Accessor<Place<K> | undefined>;
-};
-
-export type TreeDropzone<K extends string> = {
-  /** Get the display keys for a specific container. */
-  getDisplayKeys: (containerKey: K | 'root') => (K | GapKey)[];
-  /** Whether the given key is currently being dragged. */
-  isDragged: (key: K) => boolean;
-};
+export type TreeDropzoneOptions<K extends string> = Parameters<typeof createTreeDropzone<K>>[0];
+export type TreeDropzone<K extends string> = ReturnType<typeof createTreeDropzone<K>>;
 
 // ============================================================================
 // MARK: createTreeDropzone
@@ -125,7 +111,14 @@ export type TreeDropzone<K extends string> = {
  * }
  * ```
  */
-export function createTreeDropzone<K extends string>(options: TreeDropzoneOptions<K>): TreeDropzone<K> {
+export function createTreeDropzone<K extends string>(options: {
+  /** Tree structure: containerKey → ordered child keys. */
+  tree: Accessor<Record<K | 'root', K[]>>;
+  /** Keys currently being dragged. */
+  draggedKeys: Accessor<K[]>;
+  /** Current insertion point (where the gap should appear), or `undefined`. */
+  place: Accessor<Place<K> | undefined>;
+}) {
   const draggedSet = createMemo(() => new Set(options.draggedKeys()));
 
   const allDisplayKeys = createMemo(() => computeTreeDisplayKeys(options.tree(), draggedSet(), options.place()));
@@ -138,5 +131,10 @@ export function createTreeDropzone<K extends string>(options: TreeDropzoneOption
     return draggedSet().has(key);
   }
 
-  return { getDisplayKeys, isDragged };
+  return {
+    /** Get the display keys for a specific container. */
+    getDisplayKeys,
+    /** Whether the given key is currently being dragged. */
+    isDragged
+  };
 }

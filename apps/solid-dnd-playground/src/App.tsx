@@ -35,11 +35,18 @@ export default function App(props: { children?: JSX.Element }): JSX.Element {
 // MARK: Error Fallback
 
 function DemoError(props: { error: Error; reset: () => void }): JSX.Element {
+  console.error('Demo error:', props.error);
   return (
     <div class="flex flex-col items-center gap-4 rounded-xl border border-red-500/30 bg-red-500/5 p-8">
       <div class="text-lg font-bold text-red-400">Something went wrong</div>
       <pre class="max-w-full overflow-x-auto rounded-lg bg-black/30 p-4 text-xs text-red-300">
         {props.error.message}
+        {props.error.stack && (
+          <>
+            {'\n\n'}
+            {props.error.stack}
+          </>
+        )}
       </pre>
       <button class="rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-300 hover:bg-red-500/30" onClick={props.reset}>
         Try again

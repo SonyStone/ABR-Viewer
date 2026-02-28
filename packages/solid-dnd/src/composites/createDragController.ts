@@ -3,15 +3,58 @@ import { type Accessor, batch, createEffect, createSignal } from 'solid-js';
 import * as Place from '../core/place';
 import { fromElement } from '../core/rect';
 import { type Vec2, of as vec2, Zero as Vec2Zero } from '../core/vec2';
-import { type DragOverlay, createDragOverlay } from '../primitives/createDragOverlay';
-import { type DragSensor, createDragSensor } from '../primitives/createDragSensor';
-import { type Flip, type FlipAnimateEntry, type FlipOptions, createFlip } from '../primitives/createFlip';
+import { createDragOverlay } from '../primitives/createDragOverlay';
+import { createDragSensor } from '../primitives/createDragSensor';
+import { type FlipAnimateEntry, type FlipOptions, createFlip } from '../primitives/createFlip';
 
-// ============================================================================
-// MARK: Types
-// ============================================================================
+export type DragControllerOptions<K> = Parameters<typeof createDragController<K>>[0];
+export type DragController<K> = ReturnType<typeof createDragController<K>>;
 
-export type DragControllerOptions<K> = {
+/**
+ * High-level composite that orchestrates overlay-based drag-and-drop.
+ *
+ * Composes `createDragSensor`, `createDragOverlay`, and `createFlip` into a
+ * single coherent flow with correct ordering:
+ *
+ * 1. **Drag start**: measure source → call `onBeforeDragStart` → snapshot →
+ *    capture FLIP → set state → overlay appears, gap opens.
+ * 2. **Drag move**: skip if FLIP animating → capture FLIP → update insertion
+ *    point using overlay center (not raw cursor).
+ * 3. **FLIP ends**: re-evaluate any swallowed move.
+ * 4. **Drop**: apply reorder inside `flip.animate()` → reset.
+ * 5. **Cancel**: reset inside `flip.animate()`.
+ *
+ * The controller uses the **overlay center** (not the raw cursor position) for
+ * insertion point detection. This ensures the insertion zone matches the
+ * visual position of the dragged item, regardless of where the user grabbed.
+ *
+ * ## What the consumer still owns
+ *
+ * - Item state (`items` signal, `setItems`)
+ * - Element refs (`itemRefs` map, ref callbacks in JSX)
+ * - `createSortable` / `createNestable` (provides `getInsertionPoint`)
+ * - `createDropzone` (renders display keys with gap)
+ * - Overlay JSX (`<Show when={drag.overlay.active()}>...`)
+ * - Selection state (optional, wired via `onBeforeDragStart` + `onClick`)
+ *
+ * ## Usage
+ *
+ * ```tsx
+ * const drag = createDragController({
+ *   elements: itemRefs,
+ *   getInsertionPoint: (pos) => sortable.getInsertionPoint(pos),
+ *   onBeforeDragStart: (id) => {
+ *     sortable.snapshotRects([id]);
+ *     return [id];
+ *   },
+ *   onDrop: (keys, place) => {
+ *     setItems(prev => reorderItems(prev, keys, place, i => i.id));
+ *   },
+ *   onReset: () => sortable.clearSnapshot(),
+ * });
+ * ```
+ */
+export function createDragController<K>(options: {
   /**
    * Element ref map shared between the drag controller and the consumer's
    * `<For>` loop. The consumer must populate this with item `ref` callbacks
@@ -132,84 +175,7 @@ export type DragControllerOptions<K> = {
    * manually.
    */
   displayKeys?: Accessor<unknown>;
-};
-
-export type DragController<K> = {
-  /** The underlying drag sensor. */
-  sensor: DragSensor;
-  /** The drag overlay (position, size, active). */
-  overlay: DragOverlay;
-  /** The FLIP animation controller. */
-  flip: Flip;
-
-  /** Keys currently being dragged. Empty when idle. */
-  draggedIds: Accessor<K[]>;
-  /** Current insertion point, or `undefined` when idle or outside bounds. */
-  dropPlace: Accessor<Place.Place<K> | undefined>;
-  /** Height of the source element at drag start. Use for gap placeholder sizing. */
-  gapHeight: Accessor<number>;
-
-  /**
-   * Bind this to `onPointerDown` on each draggable item.
-   * Pass the item's key and the PointerEvent.
-   *
-   * @example
-   * ```tsx
-   * <div onPointerDown={(ev) => drag.onPointerDown(item.id, ev)}>
-   * ```
-   */
-  onPointerDown: (id: K, ev: PointerEvent) => void;
-};
-
-// ============================================================================
-// MARK: createDragController
-// ============================================================================
-
-/**
- * High-level composite that orchestrates overlay-based drag-and-drop.
- *
- * Composes `createDragSensor`, `createDragOverlay`, and `createFlip` into a
- * single coherent flow with correct ordering:
- *
- * 1. **Drag start**: measure source → call `onBeforeDragStart` → snapshot →
- *    capture FLIP → set state → overlay appears, gap opens.
- * 2. **Drag move**: skip if FLIP animating → capture FLIP → update insertion
- *    point using overlay center (not raw cursor).
- * 3. **FLIP ends**: re-evaluate any swallowed move.
- * 4. **Drop**: apply reorder inside `flip.animate()` → reset.
- * 5. **Cancel**: reset inside `flip.animate()`.
- *
- * The controller uses the **overlay center** (not the raw cursor position) for
- * insertion point detection. This ensures the insertion zone matches the
- * visual position of the dragged item, regardless of where the user grabbed.
- *
- * ## What the consumer still owns
- *
- * - Item state (`items` signal, `setItems`)
- * - Element refs (`itemRefs` map, ref callbacks in JSX)
- * - `createSortable` / `createNestable` (provides `getInsertionPoint`)
- * - `createDropzone` (renders display keys with gap)
- * - Overlay JSX (`<Show when={drag.overlay.active()}>...`)
- * - Selection state (optional, wired via `onBeforeDragStart` + `onClick`)
- *
- * ## Usage
- *
- * ```tsx
- * const drag = createDragController({
- *   elements: itemRefs,
- *   getInsertionPoint: (pos) => sortable.getInsertionPoint(pos),
- *   onBeforeDragStart: (id) => {
- *     sortable.snapshotRects([id]);
- *     return [id];
- *   },
- *   onDrop: (keys, place) => {
- *     setItems(prev => reorderItems(prev, keys, place, i => i.id));
- *   },
- *   onReset: () => sortable.clearSnapshot(),
- * });
- * ```
- */
-export function createDragController<K>(options: DragControllerOptions<K>): DragController<K> {
+}) {
   // ── Internal state ──────────────────────────────────────────────────────
   const [draggedIds, setDraggedIds] = createSignal<K[]>([]);
   const [dropPlace, setDropPlace] = createSignal<Place.Place<K> | undefined>(undefined, {
@@ -375,12 +341,29 @@ export function createDragController<K>(options: DragControllerOptions<K>): Drag
   }
 
   return {
+    /** The underlying drag sensor. */
     sensor,
+    /** The drag overlay (position, size, active). */
     overlay,
+    /** The FLIP animation controller. */
     flip,
+
+    /** Keys currently being dragged. Empty when idle. */
     draggedIds,
+    /** Current insertion point, or `undefined` when idle or outside bounds. */
     dropPlace,
+    /** Height of the source element at drag start. Use for gap placeholder sizing. */
     gapHeight,
+
+    /**
+     * Bind this to `onPointerDown` on each draggable item.
+     * Pass the item's key and the PointerEvent.
+     *
+     * @example
+     * ```tsx
+     * <div onPointerDown={(ev) => drag.onPointerDown(item.id, ev)}>
+     * ```
+     */
     onPointerDown
   };
 }

@@ -1,9 +1,12 @@
-import { batch, createSignal, type Accessor } from 'solid-js';
+import { batch, createSignal } from 'solid-js';
 import { calculateDeltas, measureElements, snapshotsEqual, type ElementSnapshot, type FlipDelta } from './flipUtils';
 
 // ============================================================================
 // MARK: Types
 // ============================================================================
+
+export type FlipOptions = Parameters<typeof createFlip>[0];
+export type Flip = ReturnType<typeof createFlip>;
 
 /**
  * Describes a single element's FLIP animation for debug/visualization.
@@ -17,69 +20,6 @@ export type FlipAnimateEntry = {
   to: { x: number; y: number };
   /** The inverse delta applied at animation start. */
   delta: FlipDelta;
-};
-
-export type FlipOptions = {
-  /**
-   * Duration of the FLIP animation in milliseconds.
-   * Read each time `playFromFirst` is called, so it can be dynamic.
-   * @default 200
-   */
-  duration?: number;
-  /**
-   * CSS easing string for the animation.
-   * Read each time `playFromFirst` is called, so it can be dynamic.
-   * @default 'ease-out'
-   */
-  easing?: string;
-  /**
-   * Map of item keys → DOM elements. Mutated externally as items mount/unmount.
-   * The flip primitive reads from this map when measuring positions.
-   */
-  elements: Map<string, HTMLElement>;
-  /**
-   * Called when a FLIP animation cycle starts. Receives an array of entries
-   * describing each element's motion. Useful for debug visualization.
-   */
-  onAnimate?: (entries: FlipAnimateEntry[]) => void;
-};
-
-export type Flip = {
-  /**
-   * Capture the current position of all elements ("First" snapshot).
-   * Call this **before** the DOM change (e.g., before reordering items).
-   */
-  captureFirst: () => void;
-  /**
-   * Capture new positions ("Last"), compute inverse transforms ("Invert"),
-   * and play the animation ("Play").
-   *
-   * Call this **after** the DOM has been updated. In SolidJS, signal writes
-   * cause synchronous DOM updates, so you can call this immediately after
-   * `setItems(newOrder)`.
-   *
-   * If `captureFirst` was not called beforehand, this is a no-op.
-   */
-  playFromFirst: () => void;
-  /**
-   * Convenience wrapper: captures first, runs `fn` (which should mutate the DOM),
-   * then plays the animation.
-   *
-   * Equivalent to:
-   * ```ts
-   * flip.captureFirst();
-   * fn();
-   * flip.playFromFirst();
-   * ```
-   *
-   * Accepts an optional per-call duration override.
-   */
-  animate: (fn: () => void, overrides?: { duration?: number }) => void;
-  /**
-   * Whether a FLIP animation is currently in progress.
-   * Useful for disabling pointer events or other interactions during animation.
-   */
-  isAnimating: Accessor<boolean>;
 };
 
 // ============================================================================
@@ -118,7 +58,30 @@ export type Flip = {
  * }
  * ```
  */
-export function createFlip(options: FlipOptions): Flip {
+export function createFlip(options: {
+  /**
+   * Duration of the FLIP animation in milliseconds.
+   * Read each time `playFromFirst` is called, so it can be dynamic.
+   * @default 200
+   */
+  duration?: number;
+  /**
+   * CSS easing string for the animation.
+   * Read each time `playFromFirst` is called, so it can be dynamic.
+   * @default 'ease-out'
+   */
+  easing?: string;
+  /**
+   * Map of item keys → DOM elements. Mutated externally as items mount/unmount.
+   * The flip primitive reads from this map when measuring positions.
+   */
+  elements: Map<string, HTMLElement>;
+  /**
+   * Called when a FLIP animation cycle starts. Receives an array of entries
+   * describing each element's motion. Useful for debug visualization.
+   */
+  onAnimate?: (entries: FlipAnimateEntry[]) => void;
+}) {
   const [isAnimating, setIsAnimating] = createSignal(false);
 
   let firstSnapshot: Map<string, ElementSnapshot> | null = null;
@@ -266,5 +229,41 @@ export function createFlip(options: FlipOptions): Flip {
     animateDurationOverride = undefined;
   }
 
-  return { captureFirst, playFromFirst, animate, isAnimating };
+  return {
+    /**
+     * Capture the current position of all elements ("First" snapshot).
+     * Call this **before** the DOM change (e.g., before reordering items).
+     */
+    captureFirst,
+    /**
+     * Capture new positions ("Last"), compute inverse transforms ("Invert"),
+     * and play the animation ("Play").
+     *
+     * Call this **after** the DOM has been updated. In SolidJS, signal writes
+     * cause synchronous DOM updates, so you can call this immediately after
+     * `setItems(newOrder)`.
+     *
+     * If `captureFirst` was not called beforehand, this is a no-op.
+     */
+    playFromFirst,
+    /**
+     * Convenience wrapper: captures first, runs `fn` (which should mutate the DOM),
+     * then plays the animation.
+     *
+     * Equivalent to:
+     * ```ts
+     * flip.captureFirst();
+     * fn();
+     * flip.playFromFirst();
+     * ```
+     *
+     * Accepts an optional per-call duration override.
+     */
+    animate,
+    /**
+     * Whether a FLIP animation is currently in progress.
+     * Useful for disabling pointer events or other interactions during animation.
+     */
+    isAnimating
+  };
 }
