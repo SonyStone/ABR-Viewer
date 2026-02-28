@@ -1,9 +1,5 @@
 import type { Place } from './place';
 
-// ============================================================================
-// MARK: reorderItems
-// ============================================================================
-
 /**
  * Pure utility that moves one or more items to a new position in an array.
  *
@@ -29,7 +25,7 @@ import type { Place } from './place';
  */
 export function reorderItems<K, T>(
   items: T[],
-  movedKeys: K[] | ReadonlySet<K>,
+  movedKeys: ReadonlyArray<K> | ReadonlySet<K>,
   place: Place<K>,
   getKey: (item: T) => K
 ): T[] {
@@ -37,7 +33,9 @@ export function reorderItems<K, T>(
 
   // Preserve the original order of moved items
   const moved = items.filter((item) => movedSet.has(getKey(item)));
-  if (moved.length === 0) return items;
+  if (moved.length === 0) {
+    return items;
+  }
 
   const without = items.filter((item) => !movedSet.has(getKey(item)));
 
@@ -46,7 +44,9 @@ export function reorderItems<K, T>(
   }
 
   const idx = without.findIndex((item) => getKey(item) === place.before);
-  if (idx === -1) return [...without, ...moved];
+  if (idx === -1) {
+    return [...without, ...moved];
+  }
 
   return [...without.slice(0, idx), ...moved, ...without.slice(idx)];
 }

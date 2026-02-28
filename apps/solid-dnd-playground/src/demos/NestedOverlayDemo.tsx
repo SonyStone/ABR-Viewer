@@ -5,8 +5,10 @@ import {
   createDragSensor,
   createFlip,
   createNestable,
-  createTreeDropzone,
+  createTreeDisplayList,
   GAP_KEY,
+  GapKey,
+  isGapKey,
   Place,
   Rect,
   Tree,
@@ -24,10 +26,6 @@ import { StateCard } from '../components/StateCard';
 import { TreeDisplay } from '../components/TreeDisplay';
 import { createInitialTree, NODES } from '../data';
 
-// ============================================================================
-// MARK: Nested Overlay Demo
-// ============================================================================
-
 export default function NestedOverlayDemo(): JSX.Element {
   const logger = createEventLogger();
 
@@ -41,7 +39,7 @@ export default function NestedOverlayDemo(): JSX.Element {
   const [animEnabled, setAnimEnabled] = createSignal(true);
   const [animDuration, setAnimDuration] = createSignal(200);
   const [debugEnabled, setDebugEnabled] = createSignal(false);
-  const [flipEntries, setFlipEntries] = createSignal<FlipAnimateEntry[]>([]);
+  const [flipEntries, setFlipEntries] = createSignal<FlipAnimateEntry<string | GapKey>[]>([]);
   let pendingDragId: string | null = null;
 
   // ── Element refs ────────────────────────────────────────────────────────
@@ -72,8 +70,8 @@ export default function NestedOverlayDemo(): JSX.Element {
     getParent
   });
 
-  // ── Tree dropzone (live gap) ────────────────────────────────────────────
-  const dropzone = createTreeDropzone<string>({
+  // ── Tree display list (live gap) ─────────────────────────────────────────
+  const display = createTreeDisplayList<string>({
     tree,
     draggedKeys: () => {
       const id = draggedId();
@@ -105,7 +103,7 @@ export default function NestedOverlayDemo(): JSX.Element {
         // Access all display lists to trigger on any change
         const place = dropPlace();
         if (!place) return null;
-        return dropzone.getDisplayKeys(place.parent);
+        return display.getDisplayKeys(place.parent);
       },
       () => {
         if (sensor.isDragging() && animEnabled()) {
@@ -201,7 +199,7 @@ export default function NestedOverlayDemo(): JSX.Element {
   // ── Recursive rendering using display keys ──────────────────────────────
 
   function NodeChildren(props: { parentId: string; depth: number }): JSX.Element {
-    const displayKeys = () => dropzone.getDisplayKeys(props.parentId);
+    const displayKeys = () => display.getDisplayKeys(props.parentId);
 
     return (
       <div
@@ -224,7 +222,7 @@ export default function NestedOverlayDemo(): JSX.Element {
 
             const node = NODES[key];
             if (!node) return null;
-            const isDragged = () => dropzone.isDragged(key) && sensor.isDragging();
+            const isDragged = () => display.isDragged(key) && sensor.isDragging();
 
             if (node.isGroup) {
               return (
@@ -254,7 +252,7 @@ export default function NestedOverlayDemo(): JSX.Element {
         </For>
 
         {/* Empty state */}
-        <Show when={displayKeys().filter((k: string) => k !== GAP_KEY).length === 0}>
+        <Show when={displayKeys().filter((k) => !isGapKey(k)).length === 0}>
           <div class="py-3 text-center text-xs text-neutral-600 italic">Drop items here</div>
         </Show>
       </div>
@@ -269,7 +267,7 @@ export default function NestedOverlayDemo(): JSX.Element {
         <h2 class="mb-1 text-sm font-semibold text-neutral-300">Nested Containers — Drag Overlay</h2>
         <p class="mb-4 text-xs text-neutral-500">
           Items pop out as a floating overlay. A gap opens at the drop position across all containers. Combines{' '}
-          <code class="rounded bg-white/10 px-1">createTreeDropzone</code> +{' '}
+          <code class="rounded bg-white/10 px-1">createTreeDisplayList</code> +{' '}
           <code class="rounded bg-white/10 px-1">createDragOverlay</code> +{' '}
           <code class="rounded bg-white/10 px-1">createNestable</code> +{' '}
           <code class="rounded bg-white/10 px-1">createFlip</code>.

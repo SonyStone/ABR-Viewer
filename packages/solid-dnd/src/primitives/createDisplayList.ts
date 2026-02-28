@@ -2,16 +2,10 @@ import { type Accessor, createMemo } from 'solid-js';
 import { computeDisplayKeys, computeTreeDisplayKeys, type GapKey } from '../core/displayList';
 import type { Place } from '../core/place';
 
-// ============================================================================
-// MARK: Types — Flat list
-// ============================================================================
+export type DisplayListOptions<K> = Parameters<typeof createDisplayList<K>>[0];
+export type DisplayList<K> = ReturnType<typeof createDisplayList<K>>;
 
-export type DropzoneOptions<K> = Parameters<typeof createDropzone<K>>[0];
-export type Dropzone<K> = ReturnType<typeof createDropzone<K>>;
-
-// ============================================================================
-// MARK: createDropzone (flat list)
-// ============================================================================
+// MARK: createDisplayList (flat list)
 
 /**
  * Manages a display key list for a flat sortable container with live gap support.
@@ -23,27 +17,27 @@ export type Dropzone<K> = ReturnType<typeof createDropzone<K>>;
  *
  * @example
  * ```tsx
- * const dropzone = createDropzone<string>({
+ * const display = createDisplayList<string>({
  *   keys: () => items().map(i => i.id),
  *   draggedKeys: () => draggedIds(),
  *   place: () => dropPlace(),
  *   containerKey: 'list',
  * });
  *
- * <For each={dropzone.displayKeys()}>
+ * <For each={display.displayKeys()}>
  *   {(key) => {
  *     if (key === GAP_KEY) return <GapPlaceholder />;
  *     const item = () => items().find(i => i.id === key)!;
- *     return <ItemComponent item={item()} isDragged={dropzone.isDragged(key)} />;
+ *     return <ItemComponent item={item()} isDragged={display.isDragged(key)} />;
  *   }}
  * </For>
  * ```
  */
-export function createDropzone<K>(options: {
+export function createDisplayList<K>(options: {
   /** Ordered item keys. */
-  keys: Accessor<K[]>;
+  keys: Accessor<ReadonlyArray<K>>;
   /** Keys currently being dragged. */
-  draggedKeys: Accessor<K[]>;
+  draggedKeys: Accessor<ReadonlyArray<Exclude<K, GapKey>>>;
   /** Current insertion point (where the gap should appear), or `undefined`. */
   place: Accessor<Place<K> | undefined>;
   /** The container key to match against `place.parent`. */
@@ -55,7 +49,7 @@ export function createDropzone<K>(options: {
     computeDisplayKeys(options.keys(), draggedSet(), options.place(), options.containerKey)
   );
 
-  function isDragged(key: K): boolean {
+  function isDragged(key: Exclude<K, GapKey>): boolean {
     return draggedSet().has(key);
   }
 
@@ -73,27 +67,21 @@ export function createDropzone<K>(options: {
   };
 }
 
-// ============================================================================
-// MARK: Types — Tree
-// ============================================================================
+export type TreeDisplayListOptions<K extends string> = Parameters<typeof createTreeDisplayList<K>>[0];
+export type TreeDisplayList<K extends string> = ReturnType<typeof createTreeDisplayList<K>>;
 
-export type TreeDropzoneOptions<K extends string> = Parameters<typeof createTreeDropzone<K>>[0];
-export type TreeDropzone<K extends string> = ReturnType<typeof createTreeDropzone<K>>;
-
-// ============================================================================
-// MARK: createTreeDropzone
-// ============================================================================
+// MARK: createTreeDisplayList
 
 /**
  * Manages display key lists for all containers in a tree with live gap support.
  *
- * This is the tree/nested equivalent of {@link createDropzone}. Instead of
+ * This is the tree/nested equivalent of {@link createDisplayList}. Instead of
  * a single display key list, it provides per-container lists via
  * `getDisplayKeys(containerKey)`.
  *
  * @example
  * ```tsx
- * const dropzone = createTreeDropzone<string>({
+ * const display = createTreeDisplayList<string>({
  *   tree: () => tree(),
  *   draggedKeys: () => draggedId() ? [draggedId()!] : [],
  *   place: () => dropPlace(),
@@ -101,21 +89,21 @@ export type TreeDropzone<K extends string> = ReturnType<typeof createTreeDropzon
  *
  * function renderContainer(parentKey: string) {
  *   return (
- *     <For each={dropzone.getDisplayKeys(parentKey)}>
+ *     <For each={display.getDisplayKeys(parentKey)}>
  *       {(key) => {
  *         if (key === GAP_KEY) return <GapPlaceholder />;
- *         return <NodeComponent id={key} isDragged={dropzone.isDragged(key)} />;
+ *         return <NodeComponent id={key} isDragged={display.isDragged(key)} />;
  *       }}
  *     </For>
  *   );
  * }
  * ```
  */
-export function createTreeDropzone<K extends string>(options: {
+export function createTreeDisplayList<K extends string>(options: {
   /** Tree structure: containerKey → ordered child keys. */
   tree: Accessor<Record<K | 'root', K[]>>;
   /** Keys currently being dragged. */
-  draggedKeys: Accessor<K[]>;
+  draggedKeys: Accessor<ReadonlyArray<Exclude<K, GapKey>>>;
   /** Current insertion point (where the gap should appear), or `undefined`. */
   place: Accessor<Place<K> | undefined>;
 }) {

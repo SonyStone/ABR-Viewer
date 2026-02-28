@@ -18,10 +18,6 @@ import { SelectionInfo } from '../components/SelectionInfo';
 import { StateCard } from '../components/StateCard';
 import { createDemoItems } from '../data';
 
-// ============================================================================
-// MARK: List Demo
-// ============================================================================
-
 export default function ListDemo(): JSX.Element {
   const logger = createEventLogger();
 
@@ -66,14 +62,12 @@ export default function ListDemo(): JSX.Element {
     onClick: (ev, id) => selection.handleClick(id, ev),
     onDrop: (keys, place) => {
       setItems((prev) => reorderItems(prev, keys, place, (i) => i.id));
+      logger.addLog(LOGS.DROP(keys, place));
     },
     onDragStart: (keys, pos) => {
       logger.addLog(LOGS.DRAG(keys, keys[0] ?? '', { position: pos }));
     },
-    onDropLog: (keys, place) => {
-      logger.addLog(LOGS.DROP(keys, place));
-    },
-    onCancelLog: () => logger.addLog(LOGS.CANCEL()),
+    onCancel: () => logger.addLog(LOGS.CANCEL()),
     duration: () => animDuration(),
     animEnabled: () => animEnabled()
   });
@@ -170,12 +164,12 @@ export default function ListDemo(): JSX.Element {
 // MARK: Utils
 
 const LOGS = {
-  SELECT: (ids: string[]) => `☑ SELECT  [${ids.join(', ')}]`,
-  DRAG: (ids: string[], id: string | null = '', e: { position: { x: number; y: number } }) => {
+  SELECT: (ids: ReadonlyArray<string>) => `☑ SELECT  [${ids.join(', ')}]`,
+  DRAG: (ids: ReadonlyArray<string>, id: string | null = '', e: { position: { x: number; y: number } }) => {
     const label = ids.length > 1 ? `[${ids.join(', ')}]` : `id="${id}"`;
     return `▶ DRAG  ${label} at (${e.position.x.toFixed(0)}, ${e.position.y.toFixed(0)})`;
   },
-  DROP: (ids: string[], place: Place.Place<string> | undefined) => {
+  DROP: (ids: ReadonlyArray<string>, place: Place.Place<string> | undefined) => {
     const label = ids.length > 1 ? `[${ids.join(', ')}]` : `id="${ids[0]}"`;
     return `■ DROP  ${label} → ${Place.label(place)}`;
   },

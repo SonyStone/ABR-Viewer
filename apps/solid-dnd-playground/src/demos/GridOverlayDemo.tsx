@@ -1,8 +1,8 @@
 import { createBodyCursor } from '@solid-primitives/cursor';
-import type { GridConfig } from 'solid-dnd';
+import type { GapKey, GridConfig, MaybeAccessor } from 'solid-dnd';
 import {
+  createDisplayList,
   createDragController,
-  createDropzone,
   createSelection,
   createSortable,
   GAP_KEY,
@@ -23,104 +23,74 @@ import { SelectionInfo } from '../components/SelectionInfo';
 import { StateCard } from '../components/StateCard';
 import { createGridItems, type DemoItem } from '../data';
 
-// ============================================================================
-// MARK: Grid Overlay Demo
-// ============================================================================
-
-export default function GridOverlayDemo(): JSX.Element {
-  const logger = createEventLogger();
-
-  // ── Item state ──────────────────────────────────────────────────────────
+function useGridOverlayDemo(props: {
+  duration: MaybeAccessor<number>;
+  columns: MaybeAccessor<number>;
+  animEnabled: MaybeAccessor<boolean>;
+  gridConfig: MaybeAccessor<GridConfig>;
+  onDragStart?: (keys: ReadonlyArray<string>, pos: { x: number; y: number }) => void;
+  onDropLog?: (keys: ReadonlyArray<string | GapKey>, place: Place.Place<string | GapKey>) => void;
+  onCancelLog?: () => void;
+  onSelectionChange?: (keys: ReadonlyArray<string | GapKey>) => void;
+}) {
   const [items, setItems] = createSignal(createGridItems());
   const itemKeys = createMemo(() => items().map((i) => i.id));
 
-  // ── Grid config ─────────────────────────────────────────────────────────
-  const [columns, setColumns] = createSignal(4);
-  const gridConfig = createMemo<GridConfig>(() => ({
-    columns: columns(),
-    gap: 8,
-    rowHeight: 'auto'
-  }));
+  const itemRefs = new Map<string | GapKey, HTMLDivElement>();
+  const [containerRef, setContainerRef] = createSignal<HTMLDivElement | undefined>(undefined);
 
-  // ── Element refs ────────────────────────────────────────────────────────
-  const itemRefs = new Map<string, HTMLDivElement>();
-  let containerRef: HTMLDivElement | undefined;
+  const [flipEntries, setFlipEntries] = createSignal<FlipAnimateEntry<string | GapKey>[]>([]);
 
-  // ── Animation controls ──────────────────────────────────────────────────
-  const [animEnabled, setAnimEnabled] = createSignal(true);
-  const [animDuration, setAnimDuration] = createSignal(200);
-  const [debugEnabled, setDebugEnabled] = createSignal(false);
-  const [flipEntries, setFlipEntries] = createSignal<FlipAnimateEntry[]>([]);
-
-  // ── Selection ───────────────────────────────────────────────────────────
-  const selection = createSelection<string>({
+  const selection = createSelection<string | GapKey>({
     items: itemKeys,
-    gridColumns: () => columns(),
-    onSelectionChange: (keys) => {
-      if (keys.length > 0) logger.addLog(`☑ SELECT  [${keys.join(', ')}]`);
-    }
+    gridColumns: props.columns,
+    onSelectionChange: props.onSelectionChange
   });
 
-  // ── Sortable primitive (grid mode) ──────────────────────────────────────
-  const sortable = createSortable<string>({
+  const sortable = createSortable<string | GapKey>({
     containerKey: 'grid',
     items: itemKeys,
     layout: 'grid',
-    gridConfig: gridConfig,
+    gridConfig: props.gridConfig,
     draggedKeys: () => drag.draggedIds(),
     getRect: (key) => Rect.fromElement(itemRefs.get(key)),
-    getContainerRect: () => Rect.fromElement(containerRef)
+    getContainerRect: () => Rect.fromElement(containerRef())
   });
 
-  // ── Drag controller (sensor + overlay + FLIP) ──────────────────────────
-  const drag: DragController<string> = createDragController<string>({
-    elements: itemRefs as Map<string, HTMLElement>,
+  const drag: DragController<string | GapKey> = createDragController<string | GapKey>({
+    elements: itemRefs as Map<string | GapKey, HTMLElement>,
     getInsertionPoint: (pos) => sortable.getInsertionPoint(pos),
-
     onBeforeDragStart: (id) => {
       const ids = selection.isSelected(id) ? selection.selected() : [id];
       sortable.snapshotRects(ids);
       return ids;
     },
-
     onClick: (ev, id) => selection.handleClick(id, ev),
-
     onDrop: (keys, place) => {
       setItems((prev) => reorderItems(prev, keys, place, (i) => i.id));
+      props.onDropLog?.(keys, place);
     },
-
     onReset: () => {
       sortable.clearSnapshot();
       itemRefs.delete(GAP_KEY);
     },
-
-    onDragStart: (keys, pos) => {
-      logger.addLog(`▶ DRAG  [${keys.join(', ')}] at (${pos.x.toFixed(0)}, ${pos.y.toFixed(0)})`);
-    },
-
-    onDropLog: (keys, place) => {
-      logger.addLog(`■ DROP  [${keys.join(', ')}] → ${Place.label(place)}`);
-    },
-
-    onCancelLog: () => logger.addLog('✕ CANCEL'),
-
-    duration: () => animDuration(),
-    animEnabled: () => animEnabled(),
-    onFlipAnimate: (entries) => setFlipEntries(entries)
+    onDragStart: props.onDragStart,
+    onCancel: props.onCancelLog,
+    duration: props.duration,
+    animEnabled: props.animEnabled,
+    onFlipAnimate: setFlipEntries
   });
 
-  // ── Dropzone primitive (live gap) ───────────────────────────────────────
-  const dropzone = createDropzone<string>({
+  const display = createDisplayList<string | GapKey>({
     keys: itemKeys,
     draggedKeys: () => drag.draggedIds(),
     place: () => drag.dropPlace(),
     containerKey: 'grid'
   });
 
-  // ── FLIP on displayKeys change during drag ───────────────────────────
   createEffect(
     on(
-      () => dropzone.displayKeys(),
+      () => display.displayKeys(),
       () => {
         if (drag.sensor.isDragging()) {
           drag.flip.playFromFirst();
@@ -130,20 +100,65 @@ export default function GridOverlayDemo(): JSX.Element {
     )
   );
 
-  // ── Reactive cursor ─────────────────────────────────────────────────────
-  createBodyCursor(() => (drag.sensor.isDragging() ? 'grabbing' : null));
-
-  // ── Memoized item lookup (O(1) per key instead of O(n)) ─────────────────
   const itemMap: Accessor<Map<string, DemoItem>> = createMemo(() => {
     const map = new Map<string, DemoItem>();
     for (const item of items()) map.set(item.id, item);
     return map;
   });
+
   function getItem(key: string): DemoItem | undefined {
     return itemMap().get(key);
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────
+  return {
+    items,
+    setItems,
+    itemKeys,
+    itemRefs,
+    setContainerRef,
+    flipEntries,
+    selection,
+    sortable,
+    drag,
+    display,
+    getItem,
+    isDragging: drag.sensor.isDragging,
+    isAnimating: drag.flip.isAnimating
+  };
+}
+
+export default function GridOverlayDemo(): JSX.Element {
+  const logger = createEventLogger();
+
+  const [animEnabled, setAnimEnabled] = createSignal(true);
+  const [animDuration, setAnimDuration] = createSignal(200);
+  const [debugEnabled, setDebugEnabled] = createSignal(false);
+  const [columns, setColumns] = createSignal(4);
+  const gridConfig = createMemo<GridConfig>(() => ({
+    columns: columns(),
+    gap: 8,
+    rowHeight: 'auto'
+  }));
+
+  const dnd = useGridOverlayDemo({
+    duration: animDuration,
+    animEnabled: animEnabled,
+    columns: columns,
+    gridConfig: gridConfig,
+    onDragStart: (keys, pos) => {
+      logger.addLog(`▶ DRAG  [${keys.join(', ')}] at (${pos.x.toFixed(0)}, ${pos.y.toFixed(0)})`);
+    },
+    onDropLog: (keys, place) => {
+      logger.addLog(`■ DROP  [${keys.join(', ')}] → ${Place.label(place)}`);
+    },
+    onCancelLog: () => logger.addLog('✕ CANCEL'),
+    onSelectionChange: (keys) => {
+      if (keys.length > 0) logger.addLog(`☑ SELECT  [${keys.join(', ')}]`);
+    }
+  });
+
+  createBodyCursor(() => (dnd.isDragging() ? 'grabbing' : null));
+
   return (
     <div class="flex flex-col gap-6">
       {/* Header */}
@@ -153,53 +168,51 @@ export default function GridOverlayDemo(): JSX.Element {
           Grid items pop out as a floating overlay when dragged. A gap opens at the drop position. Combines{' '}
           <code class="rounded bg-white/10 px-1">createDragController</code> +{' '}
           <code class="rounded bg-white/10 px-1">createSortable</code> +{' '}
-          <code class="rounded bg-white/10 px-1">createDropzone</code> +{' '}
+          <code class="rounded bg-white/10 px-1">createDisplayList</code> +{' '}
           <code class="rounded bg-white/10 px-1">createSelection</code>.
         </p>
       </div>
 
-      {/* ── Selection info ─────────────────────────────────────────── */}
       <SelectionInfo
-        selected={selection.selected()}
-        items={items()}
-        onClear={() => selection.clear()}
+        selected={dnd.selection.selected()}
+        items={dnd.items()}
+        onClear={() => dnd.selection.clear()}
         hint="Click to select · Ctrl+click toggle · Shift+click rectangular range"
       />
 
-      {/* ── Grid container ─────────────────────────────────────────── */}
+      {/*  Grid container  */}
       <div
-        ref={containerRef}
+        ref={dnd.setContainerRef}
         role="listbox"
         aria-label="Sortable grid"
         class="relative rounded-xl border border-white/10 bg-white/2 p-3"
         style={{ display: 'grid', 'grid-template-columns': `repeat(${columns()}, 1fr)`, gap: '8px' }}
       >
-        <For each={dropzone.displayKeys()}>
+        <For each={dnd.display.displayKeys()}>
           {(key) => {
             if (key === GAP_KEY) {
               return (
                 <div
-                  ref={(el) => itemRefs.set(GAP_KEY, el)}
+                  ref={(el) => dnd.itemRefs.set(GAP_KEY, el)}
                   class="rounded-lg border border-dashed border-blue-500/30 bg-blue-500/5"
-                  style={{ height: `${drag.gapHeight()}px` }}
+                  style={{ height: `${dnd.drag.gapHeight()}px` }}
                 />
               );
             }
-            const item = () => getItem(key)!;
+            const item = () => dnd.getItem(key)!;
             return (
               <GridItem
                 item={item()}
-                isDragged={dropzone.isDragged(key) && drag.sensor.isDragging()}
-                isSelected={selection.isSelected(key)}
-                onPointerDown={(ev) => drag.onPointerDown(key, ev)}
-                ref={(el) => itemRefs.set(key, el)}
+                isDragged={dnd.display.isDragged(key) && dnd.drag.sensor.isDragging()}
+                isSelected={dnd.selection.isSelected(key)}
+                onPointerDown={(ev) => dnd.drag.onPointerDown(key, ev)}
+                ref={(el) => dnd.itemRefs.set(key, el)}
               />
             );
           }}
         </For>
       </div>
 
-      {/* ── Grid controls ──────────────────────────────────────────── */}
       <GridControls
         columns={columns()}
         setColumns={setColumns}
@@ -207,67 +220,65 @@ export default function GridOverlayDemo(): JSX.Element {
         setAnimEnabled={setAnimEnabled}
         animDuration={animDuration()}
         setAnimDuration={setAnimDuration}
-        isAnimating={drag.flip.isAnimating()}
+        isAnimating={dnd.drag.flip.isAnimating()}
         debugEnabled={debugEnabled()}
         setDebugEnabled={setDebugEnabled}
       />
 
-      {/* ── Drag overlay ──────────────────────────────────────────── */}
-      <Show when={drag.overlay.active()}>
+      {/*  Drag overlay  */}
+      <Show when={dnd.drag.overlay.active()}>
         <div
           class="pointer-events-none fixed z-10000"
           style={{
-            left: `${drag.overlay.position().x}px`,
-            top: `${drag.overlay.position().y}px`,
-            width: `${drag.overlay.size().x}px`,
-            height: `${drag.overlay.size().y}px`
+            left: `${dnd.drag.overlay.position().x}px`,
+            top: `${dnd.drag.overlay.position().y}px`,
+            width: `${dnd.drag.overlay.size().x}px`,
+            height: `${dnd.drag.overlay.size().y}px`
           }}
         >
-          <GridOverlayItem items={items()} draggedIds={drag.draggedIds()} />
+          <GridOverlayItem items={dnd.items()} draggedIds={dnd.drag.draggedIds()} />
         </div>
       </Show>
 
-      {/* ── FLIP debug overlay ────────────────────────────────────── */}
       <FlipDebugOverlay
-        entries={flipEntries}
-        elements={itemRefs as Map<string, HTMLElement>}
-        isAnimating={drag.flip.isAnimating}
+        entries={dnd.flipEntries}
+        elements={dnd.itemRefs as Map<string, HTMLElement>}
+        isAnimating={dnd.drag.flip.isAnimating}
         enabled={debugEnabled}
-        isDragging={drag.sensor.isDragging}
+        isDragging={dnd.drag.sensor.isDragging}
         debugContext={() =>
-          drag.sensor.isDragging()
+          dnd.drag.sensor.isDragging()
             ? {
-                dragging: drag.draggedIds(),
-                place: Place.label(drag.dropPlace()),
-                pointer: drag.sensor.position(),
+                dragging: dnd.drag.draggedIds(),
+                place: Place.label(dnd.drag.dropPlace()),
+                pointer: dnd.drag.sensor.position(),
                 columns: columns(),
-                items: itemKeys(),
-                displayKeys: dropzone.displayKeys()
+                items: dnd.items(),
+                displayKeys: dnd.display.displayKeys()
               }
             : undefined
         }
       />
 
-      {/* ── Order display ─────────────────────────────────────────── */}
-      <OrderDisplay items={items()} columns={columns()} />
+      <OrderDisplay items={dnd.items()} columns={columns()} />
 
-      {/* ── State readout ─────────────────────────────────────────── */}
+      {/* State readout  */}
       <div class="grid grid-cols-4 gap-3">
-        <StateCard
-          label="isDragging"
-          value={drag.sensor.isDragging() ? 'true' : 'false'}
-          active={drag.sensor.isDragging()}
-        />
+        <StateCard label="isDragging" value={dnd.isDragging() ? 'true' : 'false'} active={dnd.isDragging()} />
         <StateCard
           label="dragging"
-          value={drag.draggedIds().length > 0 ? drag.draggedIds().join(', ') : 'none'}
-          active={drag.draggedIds().length > 0}
+          value={dnd.drag.draggedIds().length > 0 ? dnd.drag.draggedIds().join(', ') : 'none'}
+          active={dnd.drag.draggedIds().length > 0}
         />
-        <StateCard label="dropPlace" value={Place.label(drag.dropPlace())} active={drag.dropPlace() !== undefined} />
+        <StateCard
+          label="dropPlace"
+          value={Place.label(dnd.drag.dropPlace())}
+          active={dnd.drag.dropPlace() !== undefined}
+        />
         <StateCard
           label="selected"
-          value={selection.selected().length > 0 ? `${selection.selected().length} items` : 'none'}
-          active={selection.selected().length > 0}
+          value={dnd.selection.selected().length > 0 ? `${dnd.selection.selected().length} items` : 'none'}
+          active={dnd.selection.selected().length > 0}
         />
       </div>
 

@@ -19,10 +19,6 @@ import { SelectionInfo } from '../components/SelectionInfo';
 import { StateCard } from '../components/StateCard';
 import { createGridItems } from '../data';
 
-// ============================================================================
-// MARK: Grid Demo
-// ============================================================================
-
 /**
  * Interactive grid demo combining createDragController + createSortable (grid mode)
  * + createSelection (with grid range selection).
@@ -76,27 +72,18 @@ export default function GridDemo(): JSX.Element {
   const drag: DragController<string> = createDragController<string>({
     elements: itemRefs as Map<string, HTMLElement>,
     getInsertionPoint: (pos) => sortable.getInsertionPoint(pos),
-
     onBeforeDragStart: (id) => {
       return selection.isSelected(id) ? selection.selected() : [id];
     },
-
     onClick: (ev, id) => selection.handleClick(id, ev),
-
     onDrop: (keys, place) => {
       setItems((prev) => reorderItems(prev, keys, place, (i) => i.id));
+      logger.addLog(`■ DROP  [${keys.join(', ')}] → ${Place.label(place)}`);
     },
-
     onDragStart: (keys, pos) => {
       logger.addLog(`▶ DRAG  [${keys.join(', ')}] at (${pos.x.toFixed(0)}, ${pos.y.toFixed(0)})`);
     },
-
-    onDropLog: (keys, place) => {
-      logger.addLog(`■ DROP  [${keys.join(', ')}] → ${Place.label(place)}`);
-    },
-
-    onCancelLog: () => logger.addLog('✕ CANCEL'),
-
+    onCancel: () => logger.addLog('✕ CANCEL'),
     duration: () => animDuration(),
     animEnabled: () => animEnabled()
   });

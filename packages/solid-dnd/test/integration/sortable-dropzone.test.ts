@@ -4,7 +4,7 @@ import type { Place } from 'src/core/place';
 import * as Rect from 'src/core/rect';
 import { reorderItems } from 'src/core/reorder';
 import * as Vec2 from 'src/core/vec2';
-import { createDropzone } from 'src/primitives/createDropzone';
+import { createDisplayList } from 'src/primitives/createDisplayList';
 import { createSelection } from 'src/primitives/createSelection';
 import { createSortable } from 'src/primitives/createSortable';
 import { describe, expect, it } from 'vitest';
@@ -42,11 +42,11 @@ function makeLayout() {
 }
 
 // ============================================================================
-// MARK: Sortable + Dropzone integration
+// MARK: Sortable + DisplayList integration
 // ============================================================================
 
-describe('sortable + dropzone integration', () => {
-  it('sortable produces insertion point → dropzone shows gap', () => {
+describe('sortable + display list integration', () => {
+  it('sortable produces insertion point → display list shows gap', () => {
     createRoot((dispose) => {
       const { rects, containerRect } = makeLayout();
       const [items] = createSignal(['a', 'b', 'c', 'd']);
@@ -61,7 +61,7 @@ describe('sortable + dropzone integration', () => {
         getContainerRect: () => containerRect
       });
 
-      const dropzone = createDropzone<string>({
+      const display = createDisplayList<string>({
         keys: items,
         draggedKeys,
         place: dropPlace,
@@ -69,7 +69,7 @@ describe('sortable + dropzone integration', () => {
       });
 
       // Initially no gap
-      expect(dropzone.displayKeys()).toEqual(['a', 'b', 'c', 'd']);
+      expect(display.displayKeys()).toEqual(['a', 'b', 'c', 'd']);
 
       // Simulate dragging 'b' — pointer at y=110 (below center of 'c' at 120)
       batch(() => {
@@ -81,7 +81,7 @@ describe('sortable + dropzone integration', () => {
       // Pointer at y=110 < center of c (120), so place = before 'c'
       expect(dropPlace()).toEqual({ parent: 'list', before: 'c' });
       // Display: 'b' removed, gap before 'c'
-      expect(dropzone.displayKeys()).toEqual(['a', GAP_KEY, 'c', 'd']);
+      expect(display.displayKeys()).toEqual(['a', GAP_KEY, 'c', 'd']);
 
       dispose();
     });
@@ -102,7 +102,7 @@ describe('sortable + dropzone integration', () => {
         getContainerRect: () => containerRect
       });
 
-      const dropzone = createDropzone<string>({
+      const display = createDisplayList<string>({
         keys: items,
         draggedKeys,
         place: dropPlace,
@@ -112,17 +112,17 @@ describe('sortable + dropzone integration', () => {
       // Pointer near top → before 'b' (first non-dragged item)
       setDropPlace(sortable.getInsertionPoint(Vec2.of(100, 60)));
       expect(dropPlace()).toEqual({ parent: 'list', before: 'b' });
-      expect(dropzone.displayKeys()).toEqual([GAP_KEY, 'b', 'c', 'd']);
+      expect(display.displayKeys()).toEqual([GAP_KEY, 'b', 'c', 'd']);
 
       // Pointer moves to middle → before 'c'
       setDropPlace(sortable.getInsertionPoint(Vec2.of(100, 110)));
       expect(dropPlace()).toEqual({ parent: 'list', before: 'c' });
-      expect(dropzone.displayKeys()).toEqual(['b', GAP_KEY, 'c', 'd']);
+      expect(display.displayKeys()).toEqual(['b', GAP_KEY, 'c', 'd']);
 
       // Pointer moves to bottom → append
       setDropPlace(sortable.getInsertionPoint(Vec2.of(100, 195)));
       expect(dropPlace()).toEqual({ parent: 'list', before: null });
-      expect(dropzone.displayKeys()).toEqual(['b', 'c', 'd', GAP_KEY]);
+      expect(display.displayKeys()).toEqual(['b', 'c', 'd', GAP_KEY]);
 
       dispose();
     });
@@ -180,10 +180,10 @@ describe('sortable + dropzone integration', () => {
 });
 
 // ============================================================================
-// MARK: Sortable + Selection + Dropzone integration
+// MARK: Sortable + Selection + DisplayList integration
 // ============================================================================
 
-describe('sortable + selection + dropzone integration', () => {
+describe('sortable + selection + display list integration', () => {
   it('multi-select drag moves all selected items', () => {
     createRoot((dispose) => {
       const { rects, containerRect } = makeLayout();
@@ -209,7 +209,7 @@ describe('sortable + selection + dropzone integration', () => {
         getContainerRect: () => containerRect
       });
 
-      const dropzone = createDropzone<string>({
+      const display = createDisplayList<string>({
         keys: itemKeys,
         draggedKeys,
         place: () => sortable.getInsertionPoint(Vec2.of(100, 160)),
@@ -217,11 +217,11 @@ describe('sortable + selection + dropzone integration', () => {
       });
 
       // Both 'a' and 'b' are dragged, pointer near 'd' → before 'd'
-      expect(dropzone.isDragged('a')).toBe(true);
-      expect(dropzone.isDragged('b')).toBe(true);
-      expect(dropzone.isDragged('c')).toBe(false);
+      expect(display.isDragged('a')).toBe(true);
+      expect(display.isDragged('b')).toBe(true);
+      expect(display.isDragged('c')).toBe(false);
       // Display: 'a' and 'b' removed, gap before 'd'
-      expect(dropzone.displayKeys()).toEqual(['c', GAP_KEY, 'd']);
+      expect(display.displayKeys()).toEqual(['c', GAP_KEY, 'd']);
 
       // Reorder
       const place = sortable.getInsertionPoint(Vec2.of(100, 160));
@@ -273,10 +273,10 @@ describe('sortable + selection + dropzone integration', () => {
 });
 
 // ============================================================================
-// MARK: Sortable grid + Dropzone integration
+// MARK: Sortable grid + DisplayList integration
 // ============================================================================
 
-describe('sortable grid + dropzone integration', () => {
+describe('sortable grid + display list integration', () => {
   it('grid sortable produces correct insertion points', () => {
     createRoot((dispose) => {
       // 4 items in 2 columns grid
@@ -302,7 +302,7 @@ describe('sortable grid + dropzone integration', () => {
         getContainerRect: () => containerRect
       });
 
-      const dropzone = createDropzone<string>({
+      const display = createDisplayList<string>({
         keys: items,
         draggedKeys,
         place: dropPlace,
@@ -312,7 +312,7 @@ describe('sortable grid + dropzone integration', () => {
       // Pointer in first cell → before 'a'
       setDropPlace(sortable.getInsertionPoint(Vec2.of(50, 40)));
       expect(dropPlace()?.before).toBe('a');
-      expect(dropzone.displayKeys()).toEqual([GAP_KEY, 'a', 'c', 'd']);
+      expect(display.displayKeys()).toEqual([GAP_KEY, 'a', 'c', 'd']);
 
       // Pointer in last cell → before 'd' or append depending on exact position
       setDropPlace(sortable.getInsertionPoint(Vec2.of(160, 130)));

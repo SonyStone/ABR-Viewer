@@ -4,6 +4,8 @@
 
 Assume that the dev server is always on and ask the user to check that the dev server is working properly.
 
+The project is in active development and not in production, so you can freely make changes to the codebase.
+
 ## Framework
 
 - **UI Framework**: SolidJS + Solid Primitives + Tailwind CSS
@@ -17,7 +19,7 @@ Assume that the dev server is always on and ask the user to check that the dev s
 
 ## Pointer Events
 
-**Use `PointerEvent` instead of `MouseEvent` or `TouchEvent`.**
+- Use `PointerEvent` instead of `MouseEvent` or `TouchEvent`.
 
 Pointer Events provide a unified API for mouse, touch, and pen input. Use `pointerType` to differentiate input types when needed.
 
@@ -25,11 +27,15 @@ Pointer Events provide a unified API for mouse, touch, and pen input. Use `point
 
 - Use `type` instead of `interface` for type definitions.
 
+- Use readonly arrays (`ReadonlyArray<T>`), readonly objects (`Readonly<T>`), readonly tuples (`readonly [T, U]`) and `as const` for props and state that should not be mutated, to prevent accidental mutations and improve type safety.
+
 - Prefer inferred patterns like `Parameters<typeof fn>` / `ReturnType<typeof fn>` over separate type declarations — it's DRY, keeps docs with implementation, and shows the real shape on hover.
 
 - Type + Utility Module Pattern
   When a type has associated utility functions, create a dedicated module file — not a const object.
   Benefits: function overloads, tree-shaking, clean `import * as X` usage.
+
+- Use `MaybeAccessor<T>` from `@solid-primitives/utils` for props that can be static or reactive, to allow flexible usage without forcing the caller to wrap static values in a function.
 
 ### Component Structure
 

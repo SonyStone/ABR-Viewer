@@ -1,13 +1,9 @@
-// ============================================================================
 // MARK: Types
-// ============================================================================
 
 /** How a selection click should be interpreted. */
 export type SelectionMode = 'set' | 'toggle' | 'range';
 
-// ============================================================================
 // MARK: getSelectionMode
-// ============================================================================
 
 /**
  * Determines the selection mode from modifier keys on a pointer event.
@@ -26,9 +22,7 @@ export function getSelectionMode(ev: { ctrlKey: boolean; metaKey: boolean; shift
   return 'set';
 }
 
-// ============================================================================
 // MARK: applySet
-// ============================================================================
 
 /**
  * **Set mode**: Replace the entire selection with a single key.
@@ -39,9 +33,7 @@ export function applySet<K>(key: K): K[] {
   return [key];
 }
 
-// ============================================================================
 // MARK: applyToggle
-// ============================================================================
 
 /**
  * **Toggle mode**: Add `key` if not selected, remove it if already selected.
@@ -61,9 +53,7 @@ export function applyToggle<K>(selected: K[], key: K): K[] {
   return [...selected, key];
 }
 
-// ============================================================================
 // MARK: applyRange
-// ============================================================================
 
 /**
  * **Range mode**: Select a contiguous range from `anchor` to `key` (inclusive),
@@ -77,7 +67,7 @@ export function applyToggle<K>(selected: K[], key: K): K[] {
  * @param key The key that ends the range (the shift-clicked item).
  * @returns New selection array covering the range.
  */
-export function applyRange<K>(items: K[], anchor: K, key: K): K[] {
+export function applyRange<K>(items: ReadonlyArray<K>, anchor: K, key: K): K[] {
   const anchorIdx = items.indexOf(anchor);
   const keyIdx = items.indexOf(key);
 
@@ -91,9 +81,7 @@ export function applyRange<K>(items: K[], anchor: K, key: K): K[] {
   return items.slice(start, end + 1);
 }
 
-// ============================================================================
 // MARK: applyGridRange
-// ============================================================================
 
 /**
  * **Grid range mode**: Select a rectangular region from `anchor` to `key`.
@@ -107,7 +95,7 @@ export function applyRange<K>(items: K[], anchor: K, key: K): K[] {
  * @param columns Number of columns in the grid.
  * @returns New selection array covering the rectangular region, in items order.
  */
-export function applyGridRange<K>(items: K[], anchor: K, key: K, columns: number): K[] {
+export function applyGridRange<K>(items: ReadonlyArray<K>, anchor: K, key: K, columns: number): K[] {
   const anchorIdx = items.indexOf(anchor);
   const keyIdx = items.indexOf(key);
 

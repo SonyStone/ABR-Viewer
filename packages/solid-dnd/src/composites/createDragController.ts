@@ -1,6 +1,7 @@
 import { createLazyMemo } from '@solid-primitives/memo';
 import { type MaybeAccessor, access, defer } from '@solid-primitives/utils';
 import { type Accessor, batch, createEffect, createSignal } from 'solid-js';
+import { GapKey, isGapKey } from '..';
 import * as Place from '../core/place';
 import { fromElement } from '../core/rect';
 import { type Vec2, of as vec2, Zero as Vec2Zero } from '../core/vec2';
@@ -34,7 +35,7 @@ export type DragController<K> = ReturnType<typeof createDragController<K>>;
  * - Item state (`items` signal, `setItems`)
  * - Element refs (`itemRefs` map, ref callbacks in JSX)
  * - `createSortable` / `createNestable` (provides `getInsertionPoint`)
- * - `createDropzone` (renders display keys with gap)
+ * - `createDisplayList` (renders display keys with gap)
  * - Overlay JSX (`<Show when={drag.overlay.active()}>...`)
  * - Selection state (optional, wired via `onBeforeDragStart` + `onClick`)
  *
@@ -92,13 +93,13 @@ export function createDragController<K>(options: {
    * }
    * ```
    */
-  onBeforeDragStart?: (id: K) => K[];
+  onBeforeDragStart?: (id: Exclude<K, GapKey>) => ReadonlyArray<Exclude<K, GapKey>>;
 
   /**
    * Apply the drop — reorder items, move tree nodes, etc.
    * Called inside `flip.animate()` so the DOM change is FLIP-animated.
    */
-  onDrop: (keys: K[], place: Place.Place<K>) => void;
+  onDrop: (keys: ReadonlyArray<Exclude<K, GapKey>>, place: Place.Place<K>) => void;
 
   /**
    * Called when drag ends (after drop or cancel), inside the FLIP callback.
@@ -111,27 +112,21 @@ export function createDragController<K>(options: {
    * Called when a pointerdown doesn't result in a drag (click).
    * Wire selection handling here.
    */
-  onClick?: (ev: PointerEvent, id: K) => void;
+  onClick?: (ev: PointerEvent, id: Exclude<K, GapKey>) => void;
 
   /**
    * Called when drag starts, after state is set.
    * Useful for logging.
    */
-  onDragStart?: (keys: K[], position: Vec2) => void;
-
-  /**
-   * Called when a successful drop occurs, before FLIP animates.
-   * Useful for logging.
-   */
-  onDropLog?: (keys: K[], place: Place.Place<K>) => void;
+  onDragStart?: (keys: ReadonlyArray<Exclude<K, GapKey>>, position: Vec2) => void;
 
   /**
    * Called when drag is cancelled.
    * Useful for logging.
    */
-  onCancelLog?: () => void;
+  onCancel?: () => void;
 
-  // ── Sensor options ────────────────────────────────────────────────────
+  // MARK: Sensor options
 
   /**
    * Pixel distance threshold before a pointerdown becomes a drag.
@@ -139,7 +134,7 @@ export function createDragController<K>(options: {
    */
   threshold?: MaybeAccessor<number>;
 
-  // ── FLIP options ──────────────────────────────────────────────────────
+  // MARK: FLIP options
 
   /**
    * FLIP animation duration in ms.
@@ -168,7 +163,7 @@ export function createDragController<K>(options: {
 
   /**
    * An accessor that changes whenever the visual display list changes
-   * (e.g., `dropzone.displayKeys()`). The controller watches this and
+   * (e.g., `display.displayKeys()`). The controller watches this and
    * triggers `flip.playFromFirst()` during drag so items animate to
    * their new positions when the gap moves.
    *
@@ -177,12 +172,12 @@ export function createDragController<K>(options: {
    */
   displayKeys?: Accessor<unknown>;
 }) {
-  const [draggedIds, setDraggedIds] = createSignal<K[]>([]);
+  const [draggedIds, setDraggedIds] = createSignal<ReadonlyArray<Exclude<K, GapKey>>>([]);
   const [dropPlace, setDropPlace] = createSignal<Place.Place<K> | undefined>(undefined, {
     equals: Place.equals
   });
   const [gapHeight, setGapHeight] = createSignal(0);
-  let pendingDragId: K | null = null;
+  let pendingDragId: Exclude<K, GapKey> | null = null;
   let moveSwallowed = false;
 
   const duration = createLazyMemo(() => (isAnimEnabled() ? (access(options.duration) ?? 300) : 0));
@@ -237,7 +232,9 @@ export function createDragController<K>(options: {
 
     onDragStart: (e) => {
       const id = pendingDragId;
-      if (id === null) return;
+      if (id === null || id === undefined || isGapKey(id)) {
+        return;
+      }
 
       // 1. Measure source element BEFORE any state changes
       const sourceEl = options.elements.get(id);
@@ -295,7 +292,6 @@ export function createDragController<K>(options: {
       if (place && ids.length > 0) {
         flip.animate(() => {
           options.onDrop(ids, place);
-          options.onDropLog?.(ids, place);
           resetDragState();
         });
       } else {
@@ -304,12 +300,12 @@ export function createDragController<K>(options: {
     },
 
     onDragCancel: () => {
-      options.onCancelLog?.();
+      options.onCancel?.();
       flip.animate(() => resetDragState());
     }
   });
 
-  // ── Animate display key changes during drag ──────────────────────────
+  // MARK: Animate display key changes during drag
   if (options.displayKeys) {
     createEffect(
       defer(options.displayKeys, () => {
@@ -320,7 +316,7 @@ export function createDragController<K>(options: {
     );
   }
 
-  // ── Re-evaluate insertion when FLIP ends (swallowed moves) ──────────────
+  // MARK: Re-evaluate insertion when FLIP ends (swallowed moves)
   createEffect(
     defer(
       () => flip.isAnimating(),
@@ -337,8 +333,8 @@ export function createDragController<K>(options: {
     )
   );
 
-  // ── Per-item pointer down ───────────────────────────────────────────────
-  function onPointerDown(id: K, ev: PointerEvent): void {
+  // MARK: Per-item pointer down
+  function onPointerDown(id: Exclude<K, GapKey>, ev: PointerEvent): void {
     pendingDragId = id;
     sensor.onPointerDown(ev);
   }

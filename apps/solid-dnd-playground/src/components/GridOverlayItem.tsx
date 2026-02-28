@@ -1,12 +1,9 @@
+import { GapKey } from 'solid-dnd';
 import { Show, type JSX } from 'solid-js';
 import type { DemoItem } from '../data';
 
-// ============================================================================
-// MARK: GridOverlayItem
-// ============================================================================
-
 /** Floating overlay showing the primary dragged grid item with a "+N more" badge. */
-export function GridOverlayItem(props: { items: DemoItem[]; draggedIds: string[] }): JSX.Element {
+export function GridOverlayItem(props: { items: DemoItem[]; draggedIds: readonly (string | GapKey)[] }): JSX.Element {
   const primary = () => props.items.find((i) => props.draggedIds.includes(i.id));
 
   return (

@@ -73,7 +73,7 @@ export function createNestable<K>(options: {
    * Keys of items currently being dragged.
    * Used for cycle prevention: can't drop a container into itself or its descendants.
    */
-  draggedKeys?: Accessor<K[]>;
+  draggedKeys?: Accessor<ReadonlyArray<K>>;
   /**
    * Returns the parent container key for a given key, or `undefined` for root-level containers.
    * Required for cycle detection.

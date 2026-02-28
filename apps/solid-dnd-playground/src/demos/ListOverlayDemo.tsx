@@ -1,10 +1,11 @@
 import { createBodyCursor } from '@solid-primitives/cursor';
 import {
+  createDisplayList,
   createDragController,
-  createDropzone,
   createSelection,
   createSortable,
   GAP_KEY,
+  GapKey,
   MaybeAccessor,
   Place,
   Rect,
@@ -23,32 +24,28 @@ import { SelectionInfo } from '../components/SelectionInfo';
 import { StateCard } from '../components/StateCard';
 import { createDemoItems, type DemoItem } from '../data';
 
-// ============================================================================
-// MARK: List Overlay Demo
-// ============================================================================
-
 function useListOverlayDemo(props: {
   duration: MaybeAccessor<number>;
   animEnabled: MaybeAccessor<boolean>;
-  onDragStart?: (keys: string[], pos: { x: number; y: number }) => void;
-  onDropLog?: (keys: string[], place: Place.Place<string>) => void;
+  onDragStart?: (keys: ReadonlyArray<string>, pos: { x: number; y: number }) => void;
+  onDropLog?: (keys: ReadonlyArray<string | GapKey>, place: Place.Place<string | GapKey>) => void;
   onCancelLog?: () => void;
-  onSelectionChange?: (keys: string[]) => void;
+  onSelectionChange?: (keys: ReadonlyArray<string | GapKey>) => void;
 }) {
   const [items, setItems] = createSignal(createDemoItems());
   const itemKeys = createMemo(() => items().map((i) => i.id));
 
-  const itemRefs = new Map<string, HTMLDivElement>();
+  const itemRefs = new Map<string | GapKey, HTMLDivElement>();
   const [containerRef, setContainerRef] = createSignal<HTMLDivElement | undefined>(undefined);
 
-  const [flipEntries, setFlipEntries] = createSignal<FlipAnimateEntry<string>[]>([]);
+  const [flipEntries, setFlipEntries] = createSignal<FlipAnimateEntry<string | GapKey>[]>([]);
 
-  const selection = createSelection<string>({
+  const selection = createSelection<string | GapKey>({
     items: itemKeys,
     onSelectionChange: props.onSelectionChange
   });
 
-  const sortable = createSortable<string>({
+  const sortable = createSortable<string | GapKey>({
     containerKey: 'list',
     items: itemKeys,
     draggedKeys: () => drag.draggedIds(),
@@ -56,13 +53,12 @@ function useListOverlayDemo(props: {
     getContainerRect: () => Rect.fromElement(containerRef())
   });
 
-  // MARK: Drag controller (sensor + overlay + FLIP)
-  const drag: DragController<string> = createDragController<string>({
-    elements: itemRefs as Map<string, HTMLElement>,
+  const drag: DragController<string | GapKey> = createDragController<string | GapKey>({
+    elements: itemRefs as Map<string | GapKey, HTMLElement>,
     getInsertionPoint: (pos) => sortable.getInsertionPoint(pos),
 
     onBeforeDragStart: (id) => {
-      const ids = selection.isSelected(id) ? selection.selected() : [id];
+      const ids = selection.isSelected(id) ? selection.selected() : ([id] as const);
       sortable.snapshotRects(ids);
       return ids;
     },
@@ -71,6 +67,7 @@ function useListOverlayDemo(props: {
 
     onDrop: (keys, place) => {
       setItems((prev) => reorderItems(prev, keys, place, (i) => i.id));
+      props.onDropLog?.(keys, place);
     },
 
     onReset: () => {
@@ -78,14 +75,13 @@ function useListOverlayDemo(props: {
       itemRefs.delete(GAP_KEY);
     },
     onDragStart: props.onDragStart,
-    onDropLog: props.onDropLog,
-    onCancelLog: props.onCancelLog,
+    onCancel: props.onCancelLog,
     duration: props.duration,
     animEnabled: props.animEnabled,
     onFlipAnimate: setFlipEntries
   });
 
-  const dropzone = createDropzone<string>({
+  const display = createDisplayList<string | GapKey>({
     keys: itemKeys,
     draggedKeys: () => drag.draggedIds(),
     place: () => drag.dropPlace(),
@@ -94,7 +90,7 @@ function useListOverlayDemo(props: {
 
   createEffect(
     on(
-      () => dropzone.displayKeys(),
+      () => display.displayKeys(),
       () => {
         if (drag.sensor.isDragging()) {
           drag.flip.playFromFirst();
@@ -116,7 +112,7 @@ function useListOverlayDemo(props: {
   return {
     items,
     selection,
-    dropzone,
+    display,
     drag,
     itemRefs,
     flipEntries,
@@ -140,16 +136,17 @@ export default function ListOverlayDemo(): JSX.Element {
     onSelectionChange: (keys) => {
       if (keys.length > 0) logger.addLog(`☑ SELECT  [${keys.join(', ')}]`);
     },
-    onDragStart: (keys, pos) =>
-      logger.addLog(`▶ DRAG  [${keys.join(', ')}] at (${pos.x.toFixed(0)}, ${pos.y.toFixed(0)})`),
-    onDropLog: (keys, place) => logger.addLog(`■ DROP  [${keys.join(', ')}] → ${Place.label(place)}`),
+    onDragStart: (keys, pos) => {
+      logger.addLog(`▶ DRAG  [${keys.join(', ')}] at (${pos.x.toFixed(0)}, ${pos.y.toFixed(0)})`);
+    },
+    onDropLog: (keys, place) => {
+      logger.addLog(`■ DROP  [${keys.join(', ')}] → ${Place.label(place)}`);
+    },
     onCancelLog: () => logger.addLog('✕ CANCEL')
   });
 
-  // ── Reactive cursor ─────────────────────────────────────────────────────
   createBodyCursor(() => (dnd.isDragging() ? 'grabbing' : null));
 
-  // ── Render ──────────────────────────────────────────────────────────────
   return (
     <div class="flex flex-col gap-6">
       {/* Header */}
@@ -159,7 +156,7 @@ export default function ListOverlayDemo(): JSX.Element {
           Items pop out as a floating overlay when dragged. A gap opens at the drop position and items animate around
           it. Combines <code class="rounded bg-white/10 px-1">createDragController</code> +{' '}
           <code class="rounded bg-white/10 px-1">createSortable</code> +{' '}
-          <code class="rounded bg-white/10 px-1">createDropzone</code> +{' '}
+          <code class="rounded bg-white/10 px-1">createDisplayList</code> +{' '}
           <code class="rounded bg-white/10 px-1">createSelection</code>.
         </p>
       </div>
@@ -182,7 +179,7 @@ export default function ListOverlayDemo(): JSX.Element {
         aria-label="Sortable list"
         class="relative flex flex-col gap-2 rounded-xl border border-white/10 bg-white/2 p-3"
       >
-        <For each={dnd.dropzone.displayKeys()}>
+        <For each={dnd.display.displayKeys()}>
           {(key) => {
             if (key === GAP_KEY) {
               return (
@@ -197,7 +194,7 @@ export default function ListOverlayDemo(): JSX.Element {
             return (
               <ListItem
                 item={item()}
-                isDragged={dnd.dropzone.isDragged(key) && dnd.drag.sensor.isDragging()}
+                isDragged={dnd.display.isDragged(key) && dnd.drag.sensor.isDragging()}
                 isSelected={dnd.selection.isSelected(key)}
                 onPointerDown={(ev) => dnd.drag.onPointerDown(key, ev)}
                 ref={(el) => dnd.itemRefs.set(key, el)}
@@ -207,7 +204,7 @@ export default function ListOverlayDemo(): JSX.Element {
         </For>
       </div>
 
-      {/* ── Drag overlay ──────────────────────────────────────────── */}
+      {/*  Drag overlay  */}
       <Show when={dnd.drag.overlay.active()}>
         <div
           class="pointer-events-none fixed z-10000"
@@ -222,7 +219,6 @@ export default function ListOverlayDemo(): JSX.Element {
         </div>
       </Show>
 
-      {/* ── FLIP debug overlay ────────────────────────────────────── */}
       <FlipDebugOverlay
         entries={dnd.flipEntries}
         elements={dnd.itemRefs as Map<string, HTMLElement>}
@@ -231,9 +227,8 @@ export default function ListOverlayDemo(): JSX.Element {
         isDragging={dnd.drag.sensor.isDragging}
       />
 
-      {/* ── Current order ─────────────────────────────────────────── */}
       <OrderDisplay items={dnd.items()} />
-      {/* ── State readout ─────────────────────────────────────────── */}
+      {/*  State readout */}
       <div class="grid grid-cols-4 gap-3">
         <StateCard
           label="isDragging"
@@ -257,7 +252,6 @@ export default function ListOverlayDemo(): JSX.Element {
         />
       </div>
 
-      {/* ── Event log ─────────────────────────────────────────────── */}
       <EventLog logger={logger} />
     </div>
   );

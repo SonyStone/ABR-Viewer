@@ -1,7 +1,3 @@
-// ============================================================================
-// Tag Constraints — accept/reject logic for nested containers
-// ============================================================================
-
 /**
  * Checks whether a container accepts items with the given drag tags.
  *

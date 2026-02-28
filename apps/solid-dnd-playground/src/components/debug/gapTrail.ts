@@ -1,3 +1,4 @@
+import { GAP_KEY, isGapKey, type GapKey } from 'solid-dnd';
 import { createEffect, createSignal, on, onCleanup, type Accessor } from 'solid-js';
 
 // ============================================================================
@@ -24,13 +25,15 @@ export function getCenter(el: HTMLElement): Point {
 
 /**
  * Find the gap element in the elements map.
- * Handles both flat demos (`__dnd_gap__`) and nested demos (`__gap_root__`, etc.).
+ * Handles both flat demos and nested demos.
  */
-export function findGapElement(elements: Map<string, HTMLElement>): HTMLElement | null {
-  const direct = elements.get('__dnd_gap__');
-  if (direct?.isConnected) return direct;
+export function findGapElement(elements: Map<string | GapKey, HTMLElement>): HTMLElement | null {
+  const direct = elements.get(GAP_KEY);
+  if (direct?.isConnected) {
+    return direct;
+  }
   for (const [key, el] of elements) {
-    if (key.startsWith('__gap_') && el.isConnected) return el;
+    if (isGapKey(key) && el.isConnected) return el;
   }
   return null;
 }

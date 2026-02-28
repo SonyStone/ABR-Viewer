@@ -76,9 +76,7 @@ export function move<K extends string>(tree: Tree<K>, key: K, place: Place<K>): 
   return result;
 }
 
-// ============================================================================
 // MARK: parentMap
-// ============================================================================
 
 /**
  * Build a child→parent lookup map from a tree.
@@ -91,8 +89,8 @@ export function move<K extends string>(tree: Tree<K>, key: K, place: Place<K>): 
  * // map.get('a') → 'root'
  * ```
  */
-export function parentMap<K extends string>(tree: Tree<K>): Map<K, K> {
-  const map = new Map<K, K>();
+export function parentMap<K extends string>(tree: Tree<K>): Map<K, K | 'root'> {
+  const map = new Map<K, K | 'root'>();
   for (const [parent, kids] of entries(tree)) {
     for (const kid of kids) {
       map.set(kid, parent);

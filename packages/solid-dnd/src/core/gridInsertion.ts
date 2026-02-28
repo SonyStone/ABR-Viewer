@@ -164,7 +164,7 @@ function insertionFromHalf<K>(pointerX: number, rect: Rect, index: number, items
  */
 export function getGridIndicatorPosition<K>(
   place: Place<K> | undefined,
-  items: K[],
+  items: ReadonlyArray<K>,
   grid: ResolvedGrid,
   containerRect: Rect,
   getRectForItem?: (key: K) => Rect | undefined

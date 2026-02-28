@@ -1,11 +1,12 @@
 import {
+  createDisplayList,
   createDragController,
-  createDropzone,
   createSortable,
   GAP_KEY,
   Rect,
   reorderItems,
-  type DragController
+  type DragController,
+  type GapKey
 } from 'solid-dnd';
 import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from 'solid-js';
 
@@ -27,13 +28,13 @@ export default function OverlayFixture(): JSX.Element {
   const [items, setItems] = createSignal<Item[]>(INITIAL_ITEMS);
   const itemKeys = createMemo(() => items().map((i) => i.id));
 
-  const itemRefs = new Map<string, HTMLElement>();
+  const itemRefs = new Map<string | GapKey, HTMLElement>();
   let containerRef: HTMLDivElement | undefined;
 
   // ── Sortable ─────────────────────────────────────────────────────────
   // Created first. draggedKeys is lazy — only called inside
   // getInsertionPoint, never during construction for list layout.
-  const sortable = createSortable<string>({
+  const sortable = createSortable<string | GapKey>({
     containerKey: 'list',
     items: itemKeys,
     draggedKeys: () => drag.draggedIds(),
@@ -43,9 +44,9 @@ export default function OverlayFixture(): JSX.Element {
 
   // ── Overlay drag (sensor + overlay + flip orchestration) ─────────────
   // Created second. getInsertionPoint is lazy (only called during drag
-  // events). displayKeys is omitted here because dropzone doesn't exist
+  // events). displayKeys is omitted here because display list doesn't exist
   // yet — we wire up the FLIP effect manually below.
-  const drag: DragController<string> = createDragController<string>({
+  const drag: DragController<string | GapKey> = createDragController<string | GapKey>({
     elements: itemRefs,
     getInsertionPoint: (pos) => sortable.getInsertionPoint(pos),
 
@@ -68,10 +69,10 @@ export default function OverlayFixture(): JSX.Element {
     easing: 'ease-out'
   });
 
-  // ── Dropzone (live gap — removes dragged items, inserts gap) ─────────
+  // ── Display list (live gap — removes dragged items, inserts gap) ──────
   // Created third. drag.draggedIds() and drag.dropPlace() are now safe
   // to call — drag is fully initialized.
-  const dropzone = createDropzone<string>({
+  const display = createDisplayList<string | GapKey>({
     keys: itemKeys,
     draggedKeys: () => drag.draggedIds(),
     place: () => drag.dropPlace(),
@@ -80,10 +81,10 @@ export default function OverlayFixture(): JSX.Element {
 
   // ── FLIP on displayKeys change during drag ───────────────────────────
   // Wired manually because displayKeys couldn't be passed to
-  // createDragController (dropzone didn't exist at that point).
+  // createDragController (display list didn't exist at that point).
   createEffect(
     on(
-      () => dropzone.displayKeys(),
+      () => display.displayKeys(),
       () => {
         if (drag.sensor.isDragging()) {
           drag.flip.playFromFirst();
@@ -95,7 +96,7 @@ export default function OverlayFixture(): JSX.Element {
 
   // ── Item lookup ─────────────────────────────────────────────────────
   const itemMap = createMemo(() => {
-    const map = new Map<string, Item>();
+    const map = new Map<string | GapKey, Item>();
     for (const item of items()) map.set(item.id, item);
     return map;
   });
@@ -129,7 +130,7 @@ export default function OverlayFixture(): JSX.Element {
         </div>
       </div>
 
-      {/* Sortable list with dropzone (items removed during drag, gap inserted) */}
+      {/* Sortable list with display list (items removed during drag, gap inserted) */}
       <div
         ref={containerRef}
         data-testid="overlay-list"
@@ -144,7 +145,7 @@ export default function OverlayFixture(): JSX.Element {
           'border-radius': '8px'
         }}
       >
-        <For each={dropzone.displayKeys()}>
+        <For each={display.displayKeys()}>
           {(key) => {
             if (key === GAP_KEY) {
               return (

@@ -53,7 +53,7 @@ import type { Vec2 } from './vec2';
  * ```
  */
 export function getListInsertionPoint<K>(
-  keys: K[],
+  keys: ReadonlyArray<K>,
   parentKey: K,
   position: Vec2,
   getRect: (key: K) => Rect | undefined

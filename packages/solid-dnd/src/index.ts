@@ -16,8 +16,7 @@ export * as Tree from './core/tree';
 export * as Vec2 from './core/vec2';
 
 // Core utilities
-export { GAP_KEY, computeDisplayKeys, computeTreeDisplayKeys } from './core/displayList';
-export type { GapKey } from './core/displayList';
+export { GAP_KEY, computeDisplayKeys, computeTreeDisplayKeys, isGapKey, type GapKey } from './core/displayList';
 export { getListInsertionPoint } from './core/listInsertion';
 export { reorderItems } from './core/reorder';
 export { applyGridRange, applyRange, applySet, applyToggle, getSelectionMode } from './core/selectionModes';
@@ -28,6 +27,13 @@ export { createDragController } from './composites/createDragController';
 export type { DragController, DragControllerOptions } from './composites/createDragController';
 export { getGridIndicatorPosition, getGridInsertionPoint } from './core/gridInsertion';
 export { accepts, wouldCycle } from './core/tagConstraints';
+export { createDisplayList, createTreeDisplayList } from './primitives/createDisplayList';
+export type {
+  DisplayList,
+  DisplayListOptions,
+  TreeDisplayList,
+  TreeDisplayListOptions
+} from './primitives/createDisplayList';
 export { createDragOverlay } from './primitives/createDragOverlay';
 export type { DragOverlay, DragOverlayOptions } from './primitives/createDragOverlay';
 export { createDragSensor } from './primitives/createDragSensor';
@@ -38,8 +44,6 @@ export type {
   DragSensorOptions,
   DragStartEvent
 } from './primitives/createDragSensor';
-export { createDropzone, createTreeDropzone } from './primitives/createDropzone';
-export type { Dropzone, DropzoneOptions, TreeDropzone, TreeDropzoneOptions } from './primitives/createDropzone';
 export { createFlip } from './primitives/createFlip';
 export type { Flip, FlipAnimateEntry, FlipOptions } from './primitives/createFlip';
 export { createNestable } from './primitives/createNestable';
@@ -49,7 +53,7 @@ export type { Selection, SelectionOptions } from './primitives/createSelection';
 export { createSortable } from './primitives/createSortable';
 export type { Sortable, SortableOptions } from './primitives/createSortable';
 export { calculateDeltas, measureElements } from './primitives/flipUtils';
-export type { Rect as ElementSnapshot, FlipDelta } from './primitives/flipUtils';
+export type { FlipDelta } from './primitives/flipUtils';
 // export { createAutoScroll } from './primitives/createAutoScroll';
 
 // Utilities types re-export

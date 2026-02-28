@@ -2,12 +2,8 @@ import { For, Show, type JSX } from 'solid-js';
 import type { DemoItem } from '../data';
 import { GripIcon } from './icons';
 
-// ============================================================================
-// MARK: ListOverlayItem
-// ============================================================================
-
 /** Floating overlay showing the dragged list item(s) with a stacking effect. */
-export function ListOverlayItem(props: { items: DemoItem[]; draggedIds: string[] }): JSX.Element {
+export function ListOverlayItem(props: { items: DemoItem[]; draggedIds: ReadonlyArray<string> }): JSX.Element {
   const draggedItems = () => props.items.filter((i) => props.draggedIds.includes(i.id));
 
   return (

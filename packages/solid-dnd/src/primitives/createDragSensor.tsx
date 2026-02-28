@@ -82,7 +82,7 @@ export function createDragSensor(
      * When enabled, pointer capture is transferred from the source element to an
      * invisible proxy `<div>` when the drag threshold is exceeded. This allows the
      * source element to be safely removed from the DOM during drag (e.g., when using
-     * `createDropzone` which removes dragged items from the display list).
+     * `createDisplayList` which removes dragged items from the display list).
      *
      * Without this, removing the source element from the DOM causes the browser to
      * fire `lostpointercapture`, which cancels the drag.

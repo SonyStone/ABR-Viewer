@@ -7,11 +7,15 @@ import type { Place } from './place';
 // ============================================================================
 
 /**
- * A sentinel key used for the gap (dropzone placeholder) in display key lists.
+ * A sentinel key used for the gap (display list placeholder) in display key lists.
  * This value will never collide with real item keys.
  */
-export const GAP_KEY = '__dnd_gap__' as const;
+export const GAP_KEY = Symbol('dnd_gap');
 export type GapKey = typeof GAP_KEY;
+
+export function isGapKey(key: unknown): key is GapKey {
+  return key === GAP_KEY;
+}
 
 // ============================================================================
 // MARK: computeDisplayKeys
@@ -42,12 +46,12 @@ export type GapKey = typeof GAP_KEY;
  *   { parent: 'list', before: 'c' },
  *   'list'
  * );
- * // → ['a', '__dnd_gap__', 'c', 'd']
+ * // → ['a', Symbol(dnd_gap), 'c', 'd']
  * // 'b' is removed from the list, gap inserted before 'c'
  * ```
  */
 export function computeDisplayKeys<K>(
-  keys: K[],
+  keys: ReadonlyArray<K>,
   draggedKeys: Set<K>,
   place: Place<K> | undefined,
   containerKey: K | string
@@ -97,12 +101,12 @@ export function computeDisplayKeys<K>(
  *   { parent: 'groupB', before: 'z' }
  * );
  * // displays['groupA'] → ['x']               ('y' is removed)
- * // displays['groupB'] → ['__dnd_gap__', 'z']
+ * // displays['groupB'] → ['Symbol(dnd_gap)', 'z']
  * // displays['root']   → ['groupA', 'groupB']
  * ```
  */
 export function computeTreeDisplayKeys<K extends string>(
-  tree: Record<K | 'root', K[]>,
+  tree: Record<K | 'root', ReadonlyArray<K>>,
   draggedKeys: Set<K>,
   place: Place<K> | undefined
 ): Record<string, (K | GapKey)[]> {

@@ -1,4 +1,6 @@
+import { access } from '@solid-primitives/utils';
 import { type Accessor, createMemo, createSignal } from 'solid-js';
+import { GapKey, isGapKey, MaybeAccessor } from '..';
 import {
   applyGridRange,
   applyRange,
@@ -8,16 +10,8 @@ import {
   type SelectionMode
 } from '../core/selectionModes';
 
-// ============================================================================
-// MARK: Types
-// ============================================================================
-
 export type SelectionOptions<K> = Parameters<typeof createSelection<K>>[0];
 export type Selection<K> = ReturnType<typeof createSelection<K>>;
-
-// ============================================================================
-// MARK: createSelection
-// ============================================================================
 
 /**
  * A primitive for multi-select in an ordered list of items.
@@ -58,39 +52,39 @@ export type Selection<K> = ReturnType<typeof createSelection<K>>;
  */
 export function createSelection<K>(options: {
   /** The ordered list of selectable items. */
-  items: Accessor<K[]>;
+  items: Accessor<ReadonlyArray<K>>;
   /**
    * Whether multi-selection (toggle / range) is enabled.
    * When `false`, modifier keys are ignored and clicks always use set mode.
    * @default true
    */
-  multiselect?: boolean;
+  multiselect?: MaybeAccessor<boolean>;
   /**
    * Grid columns for rectangular range selection.
    * When set, Shift+click selects a rectangular region instead of a linear range.
    * When `undefined`, Shift+click selects a linear range (default list behavior).
    */
-  gridColumns?: Accessor<number | undefined>;
+  gridColumns?: MaybeAccessor<number | undefined>;
   /** Called whenever the selection changes. */
-  onSelectionChange?: (keys: K[]) => void;
+  onSelectionChange?: (keys: ReadonlyArray<K>) => void;
 }) {
-  const [selected, setSelected] = createSignal<K[]>([]);
+  const [selected, setSelected] = createSignal<Exclude<K, GapKey>[]>([]);
   const [anchor, setAnchor] = createSignal<K | null>(null) as [Accessor<K | null>, (v: K | null) => void];
 
   // Fast lookup set, derived from selected()
   const selectedSet = createMemo(() => new Set(selected()));
 
-  function isSelected(key: K): boolean {
+  function isSelected(key: Exclude<K, GapKey>): boolean {
     return selectedSet().has(key);
   }
 
   function getMode(ev: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }): SelectionMode {
-    if (options.multiselect === false) return 'set';
+    if (access(options.multiselect) === false) return 'set';
     return getSelectionMode(ev);
   }
 
-  function updateSelection(keys: K[]): void {
-    setSelected(keys);
+  function updateSelection(keys: ReadonlyArray<K>): void {
+    setSelected(keys.filter((k): k is Exclude<K, GapKey> => (isGapKey(k) ? false : true)));
     options.onSelectionChange?.(keys);
   }
 
@@ -115,7 +109,7 @@ export function createSelection<K>(options: {
           updateSelection(applySet(key));
           setAnchor(key);
         } else {
-          const cols = options.gridColumns?.();
+          const cols = access(options.gridColumns);
           if (cols !== undefined && cols > 0) {
             updateSelection(applyGridRange(options.items(), a, key, cols));
           } else {

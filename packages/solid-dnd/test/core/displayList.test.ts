@@ -130,13 +130,3 @@ describe('computeTreeDisplayKeys', () => {
     expect(result['groupA']).toEqual(['x', 'y']);
   });
 });
-
-// ============================================================================
-// MARK: GAP_KEY
-// ============================================================================
-
-describe('GAP_KEY', () => {
-  it('is a recognizable constant', () => {
-    expect(GAP_KEY).toBe('__dnd_gap__');
-  });
-});

@@ -7,16 +7,8 @@ import type { Rect } from '../core/rect';
 import type { GridConfig } from '../core/types';
 import type { Vec2 } from '../core/vec2';
 
-// ============================================================================
-// MARK: Types
-// ============================================================================
-
 export type SortableOptions<K> = Parameters<typeof createSortable<K>>[0];
 export type Sortable<K> = ReturnType<typeof createSortable<K>>;
-
-// ============================================================================
-// MARK: createSortable
-// ============================================================================
 
 /**
  * A pure computation primitive for sortable lists.
@@ -70,7 +62,7 @@ export function createSortable<K>(options: {
   /** The key of the container these items belong to. */
   containerKey: K;
   /** Accessor returning the ordered list of item keys. */
-  items: Accessor<K[]>;
+  items: Accessor<ReadonlyArray<K>>;
   /** Returns the bounding rect for an item by its key. */
   getRect: (key: K) => Rect | undefined;
   /** Returns the bounding rect for the container element. */
@@ -111,7 +103,7 @@ export function createSortable<K>(options: {
    * Keys currently being dragged. These are excluded from insertion point
    * calculations so the dragged item's own rect doesn't interfere.
    */
-  draggedKeys?: Accessor<K[]>;
+  draggedKeys?: Accessor<ReadonlyArray<K>>;
 }) {
   const isGrid = () => options.layout === 'grid';
 
@@ -150,7 +142,7 @@ export function createSortable<K>(options: {
    *
    * @param excludeKeys  Keys to exclude from the snapshot (typically the dragged items).
    */
-  function snapshotRects(excludeKeys?: K[]): void {
+  function snapshotRects(excludeKeys?: readonly K[]): void {
     const allKeys = options.items();
     const snap = new Map<K, Rect>();
 
@@ -214,10 +206,12 @@ export function createSortable<K>(options: {
   }
 
   // ── Active items (excluding dragged) ───────────────────────────────────
-  function activeItems(): K[] {
+  function activeItems(): ReadonlyArray<K> {
     const dKeys = options.draggedKeys?.();
     const allKeys = options.items();
-    if (!dKeys || dKeys.length === 0) return allKeys;
+    if (!dKeys || dKeys.length === 0) {
+      return allKeys;
+    }
     const dragSet = new Set(dKeys);
     return allKeys.filter((k) => !dragSet.has(k));
   }
