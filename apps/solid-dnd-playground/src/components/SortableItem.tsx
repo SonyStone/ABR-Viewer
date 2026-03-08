@@ -13,7 +13,7 @@ import { GHOST_CLASS } from './styles';
  * - **Narrow** (< 320 px / `@xs`): vertical card — color swatch, label, id.
  * - **Wide** (≥ 320 px / `@xs`): horizontal row — grip icon, dot, label, id.
  *
- * The outer element uses `@container` (`container-type: inline-size`) so
+ * An inner wrapper uses `@container` (`container-type: inline-size`) so
  * child elements switch between layouts automatically based on the item's
  * own width, which is determined by the parent grid / flex container.
  */
@@ -48,30 +48,32 @@ export function SortableItem(props: SortableItemProps): JSX.Element {
       role="option"
       aria-selected={props.isSelected}
       aria-roledescription="sortable item"
-      class={`@container cursor-grab touch-none rounded-lg border transition-all select-none active:cursor-grabbing ${stateClass()} ${props.class ?? ''}`}
+      class={`cursor-grab touch-none rounded-lg border transition-all select-none active:cursor-grabbing ${stateClass()} ${props.class ?? ''}`}
     >
-      {/* Inner content — switches between column (card) and row layout at @xs */}
-      <div class="flex flex-col items-center gap-2 p-4 @xs:flex-row @xs:gap-3 @xs:px-4 @xs:py-3">
-        {/* Grip / check icon — visible only in row mode */}
-        <div class="hidden shrink-0 @xs:block">
-          <Show when={props.isSelected} fallback={<GripIcon />}>
-            <CheckIcon />
-          </Show>
+      <div class="@container w-full">
+        {/* Inner content — switches between column (card) and row layout at @xs */}
+        <div class="flex flex-col items-center gap-2 p-4 @xs:flex-row @xs:gap-3 @xs:px-4 @xs:py-3">
+          {/* Grip / check icon — visible only in row mode */}
+          <div class="hidden shrink-0 @xs:block">
+            <Show when={props.isSelected} fallback={<GripIcon />}>
+              <CheckIcon />
+            </Show>
+          </div>
+
+          {/* Color swatch — large square in card mode, small circle in row mode */}
+          <div
+            class="h-8 w-8 shrink-0 rounded @xs:h-3 @xs:w-3 @xs:rounded-full"
+            style={{ background: props.item.color }}
+          />
+
+          {/* Label */}
+          <span class={`text-xs @xs:text-sm ${props.isSelected ? 'text-purple-200' : 'text-neutral-200'}`}>
+            {props.item.label}
+          </span>
+
+          {/* ID */}
+          <span class="font-mono text-[10px] text-neutral-500 @xs:ml-auto @xs:text-xs">{props.item.id}</span>
         </div>
-
-        {/* Color swatch — large square in card mode, small circle in row mode */}
-        <div
-          class="h-8 w-8 shrink-0 rounded @xs:h-3 @xs:w-3 @xs:rounded-full"
-          style={{ background: props.item.color }}
-        />
-
-        {/* Label */}
-        <span class={`text-xs @xs:text-sm ${props.isSelected ? 'text-purple-200' : 'text-neutral-200'}`}>
-          {props.item.label}
-        </span>
-
-        {/* ID */}
-        <span class="font-mono text-[10px] text-neutral-500 @xs:ml-auto @xs:text-xs">{props.item.id}</span>
       </div>
     </div>
   );
