@@ -1,10 +1,41 @@
-import { access, MaybeAccessor } from '@solid-primitives/utils';
+import { access, type MaybeAccessor } from '@solid-primitives/utils';
 import { batch, createSignal } from 'solid-js';
-import { type Rect } from 'src/core/rect';
-import { calculateDeltas, measureElements, snapshotsEqual, type FlipDelta } from './flipUtils';
+import { type Rect } from '../core/rect';
+import {
+  buildFlipAnimateEntries,
+  type FlipAnimationBatch,
+  runLayoutTransitionAnimations,
+  runStandardFlipAnimations
+} from './createFlipAnimations';
+import { createFlipAnimationSchedule } from './createFlipAnimationSchedule';
+import { createFlipSnapshot, type FlipDeltasResult, type SimpleRect } from './createFlipSnapshot';
+import { type FlipDelta } from './flipUtils';
 
 export type FlipOptions = Parameters<typeof createFlip>[0];
 export type Flip = ReturnType<typeof createFlip>;
+
+/**
+ * Describes a single element's FLIP animation for debug/visualization.
+ */
+export type FlipAnimateEntry<K> = {
+  /** The item key. */
+  key: K;
+  /** Center position before the DOM change (viewport coords). */
+  from: { x: number; y: number };
+  /** Center position after the DOM change (viewport coords). */
+  to: { x: number; y: number };
+  /** The inverse delta applied at animation start. */
+  delta: FlipDelta;
+};
+
+type FlipPlaybackContext<K> = Readonly<{
+  duration: number;
+  easing: string;
+  first: Map<K, Rect>;
+  firstContainerRect: SimpleRect | null;
+  last: Map<K, Rect>;
+  deltas: Map<K, FlipDelta>;
+}>;
 
 /**
  * A primitive that animates layout transitions using the FLIP technique.
@@ -60,142 +91,135 @@ export function createFlip<K>(options: {
    * Called when a FLIP animation cycle starts. Receives an array of entries
    * describing each element's motion. Useful for debug visualization.
    */
-  onAnimate?: (entries: FlipAnimateEntry<K>[]) => void;
+  onAnimate?: (entries: ReadonlyArray<FlipAnimateEntry<K>>) => void;
 }) {
   const [isAnimating, setIsAnimating] = createSignal(false);
+  const snapshot = createFlipSnapshot<K>();
+  const animationSchedule = createFlipAnimationSchedule<K>();
 
-  let firstSnapshot: Map<K, Rect> | null = null;
   let activeAnimations: Animation[] = [];
-
-  // Track the target positions and start time of the current animation cycle.
-  // When playFromFirst() is called redundantly (same targets), we use the
-  // remaining time so the animation still completes on schedule.
-  let lastTargets: Map<K, Rect> | null = null;
-  let animationStartTime = 0;
   // Per-call duration override set by animate(), consumed by playFromFirst().
   let animateDurationOverride: number | undefined;
+  // Per-call container for layout transition mode (absolute positioning).
+  let layoutContainer: HTMLElement | null = null;
+  // Cleanup function to restore inline styles after layout transition.
+  let pendingCleanup: (() => void) | null = null;
 
   // First: capture current positions
   function captureFirst(): void {
-    // Simply measure current visual positions. getBoundingClientRect()
-    // includes Web Animation API transforms, so this captures where
-    // elements truly are on screen — even mid-animation.
-
-    firstSnapshot = measureElements(options.elements);
+    snapshot.captureFirst(options.elements, layoutContainer);
   }
 
   // Last + Invert + Play
   function playFromFirst(): void {
-    if (!firstSnapshot) return;
-    const first = firstSnapshot;
-    firstSnapshot = null;
-
-    // Cancel any still-running animations so elements snap to their
-    // current position and getBoundingClientRect() reads layout values.
-    cancelActive();
-
-    const lastSnapshot = measureElements(options.elements);
-    const deltas = calculateDeltas(first, lastSnapshot);
-
-    if (deltas.size === 0) {
-      lastTargets = null;
+    const playback = collectPlaybackContext();
+    if (!playback) {
       return;
     }
 
-    const baseDur = animateDurationOverride ?? access(options.duration) ?? 200;
-    const ease = access(options.easing) ?? 'linear';
-
-    // If targets haven't changed (same layout as previous animation),
-    // use remaining time so the overall animation finishes on schedule
-    // instead of restarting a full-duration animation every call.
-    const targetsUnchanged = lastTargets !== null && snapshotsEqual(lastTargets, lastSnapshot);
-
-    let dur: number;
-    if (targetsUnchanged && animationStartTime > 0) {
-      const elapsed = performance.now() - animationStartTime;
-      dur = Math.max(baseDur - elapsed, 16);
-    } else {
-      dur = baseDur;
-      animationStartTime = performance.now();
-    }
-    lastTargets = lastSnapshot;
-
-    // Fire debug callback with animation entries
     if (options.onAnimate) {
-      const entries: FlipAnimateEntry<K>[] = [];
-      for (const [key, delta] of deltas) {
-        const snap = lastSnapshot.get(key);
-        if (!snap) {
-          continue;
-        }
-        entries.push({
-          key,
-          from: { x: snap.x + snap.width / 2 + delta.dx, y: snap.y + snap.height / 2 + delta.dy },
-          to: { x: snap.x + snap.width / 2, y: snap.y + snap.height / 2 },
-          delta
-        });
-      }
-      options.onAnimate(entries);
+      options.onAnimate(buildFlipAnimateEntries(playback.deltas, playback.last));
     }
 
-    setIsAnimating(true);
-    const animations: Animation[] = [];
+    const animationBatch =
+      layoutContainer && playback.firstContainerRect
+        ? runLayoutTransitionAnimations({
+            duration: playback.duration,
+            easing: playback.easing,
+            deltas: playback.deltas,
+            elements: options.elements,
+            first: playback.first,
+            firstContainerRect: playback.firstContainerRect,
+            last: playback.last,
+            layoutContainer
+          })
+        : runStandardFlipAnimations({
+            deltas: playback.deltas,
+            duration: playback.duration,
+            easing: playback.easing,
+            elements: options.elements
+          });
 
-    for (const [key, delta] of deltas) {
-      const el = options.elements.get(key);
-      if (!el || typeof el.animate !== 'function') {
-        continue;
-      }
+    playAnimationBatch(animationBatch);
+  }
 
-      const hasScale = delta.scaleX !== 1 || delta.scaleY !== 1;
-      const fromTransform = hasScale
-        ? `translate(${delta.dx}px, ${delta.dy}px) scale(${delta.scaleX}, ${delta.scaleY})`
-        : `translate(${delta.dx}px, ${delta.dy}px)`;
-      const toTransform = hasScale ? 'translate(0, 0) scale(1, 1)' : 'translate(0, 0)';
-
-      const anim = el.animate([{ transform: fromTransform }, { transform: toTransform }], {
-        duration: dur,
-        easing: ease
-      });
-
-      animations.push(anim);
+  function collectPlaybackContext(): FlipPlaybackContext<K> | null {
+    if (!snapshot.hasFirst()) {
+      return null;
     }
 
-    if (animations.length === 0) {
+    cancelActive();
+    snapshot.captureLast(options.elements);
+
+    const result: FlipDeltasResult<K> | null = snapshot.computeDeltas();
+    if (!result) {
+      return null;
+    }
+
+    if (result.deltas.size === 0 && !layoutContainer) {
+      animationSchedule.clearTargets();
+      return null;
+    }
+
+    return {
+      duration: animationSchedule.effectiveDuration(
+        result.last,
+        animateDurationOverride ?? access(options.duration) ?? 200
+      ),
+      easing: access(options.easing) ?? 'linear',
+      first: result.first,
+      firstContainerRect: result.containerRect,
+      last: result.last,
+      deltas: result.deltas
+    };
+  }
+
+  function playAnimationBatch(batch: FlipAnimationBatch): void {
+    pendingCleanup = batch.cleanup ?? null;
+
+    if (batch.animations.length === 0) {
+      runPendingCleanup();
       setIsAnimating(false);
       return;
     }
 
-    activeAnimations = animations;
+    setIsAnimating(true);
+    activeAnimations = batch.animations;
 
-    // Wait for all animations to finish, then clear the animating state.
-    // If cancelActive() is called before they finish, the promises reject
-    // (via cancel) and we ignore them.
-    const currentBatch = animations;
-    Promise.all(animations.map((a) => a.finished))
+    const currentBatch = batch.animations;
+    Promise.all(batch.animations.map((animation) => animation.finished))
       .then(() => {
-        // Only clear if this is still the active batch (not replaced by a newer FLIP).
-        // IMPORTANT: Clear activeAnimations BEFORE the signal write.
-        // setIsAnimating(false) triggers synchronous SolidJS effects which may
-        // call playFromFirst() and start a NEW animation batch. If we cleared
-        // activeAnimations after, we'd overwrite the new batch, orphaning it
-        // so isAnimating gets stuck at true and all future moves are swallowed.
         if (activeAnimations === currentBatch) {
-          activeAnimations = [];
-          setIsAnimating(false);
+          finishActiveBatch();
         }
       })
       .catch(() => {
-        // Animation was cancelled — ignore
+        // Animation was cancelled — cleanup handled by cancelActive
       });
   }
 
-  // Cancel running animations
+  function finishActiveBatch(): void {
+    activeAnimations = [];
+    runPendingCleanup();
+    setIsAnimating(false);
+  }
+
+  function runPendingCleanup(): void {
+    if (!pendingCleanup) {
+      return;
+    }
+
+    pendingCleanup();
+    pendingCleanup = null;
+  }
+
+  // Cancel running animations and restore any layout-transition styles
   function cancelActive(): void {
     for (const anim of activeAnimations) {
       anim.cancel();
     }
     activeAnimations = [];
+    runPendingCleanup();
     if (isAnimating()) {
       setIsAnimating(false);
     }
@@ -231,18 +255,17 @@ export function createFlip<K>(options: {
      *
      * Accepts an optional per-call duration override.
      */
-    animate(fn: () => void, overrides?: { duration?: number }): void {
+    animate(fn: () => void, overrides?: { duration?: number; container?: HTMLElement }): void {
       // animate() is a discrete operation (e.g., on dragEnd).
       // Reset animation tracking so playFromFirst() uses full duration.
-      lastTargets = null;
-      animationStartTime = 0;
-      // Use a local override instead of mutating the caller's options object.
-      console.log(`1. animate animateDurationOverride`, overrides?.duration);
+      animationSchedule.reset();
       animateDurationOverride = overrides?.duration;
+      layoutContainer = overrides?.container ?? null;
       captureFirst();
       batch(() => fn());
       playFromFirst();
       animateDurationOverride = undefined;
+      layoutContainer = null;
     },
     /**
      * Whether a FLIP animation is currently in progress.
@@ -251,17 +274,3 @@ export function createFlip<K>(options: {
     isAnimating
   };
 }
-
-/**
- * Describes a single element's FLIP animation for debug/visualization.
- */
-export type FlipAnimateEntry<K> = {
-  /** The item key. */
-  key: K;
-  /** Center position before the DOM change (viewport coords). */
-  from: { x: number; y: number };
-  /** Center position after the DOM change (viewport coords). */
-  to: { x: number; y: number };
-  /** The inverse delta applied at animation start. */
-  delta: FlipDelta;
-};

@@ -1,8 +1,9 @@
 import type { JSX } from 'solid-js';
 
-export function StateCard(props: { label: string; value: string; active?: boolean }): JSX.Element {
+export function StateCard(props: { label: string; value: string; active?: boolean; testId?: string }): JSX.Element {
   return (
     <div
+      data-testid={props.testId}
       class={`rounded-lg border p-3 ${
         props.active ? 'border-blue-500/40 bg-blue-500/10' : 'border-white/10 bg-white/5'
       }`}

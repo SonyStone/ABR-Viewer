@@ -83,7 +83,7 @@ export default function NestedOverlayDemo(): JSX.Element {
   // ── FLIP animation ─────────────────────────────────────────────────────
   const flip = createFlip({
     elements: itemRefs as Map<string, HTMLElement>,
-    onAnimate: (entries) => setFlipEntries(entries)
+    onAnimate: (entries) => setFlipEntries([...entries])
   });
 
   // ── Drag overlay ────────────────────────────────────────────────────────
@@ -306,11 +306,11 @@ export default function NestedOverlayDemo(): JSX.Element {
 
       {/* ── FLIP debug overlay ────────────────────────────────────── */}
       <FlipDebugOverlay
-        entries={flipEntries}
+        entries={flipEntries()}
         elements={itemRefs as Map<string, HTMLElement>}
-        isAnimating={flip.isAnimating}
-        enabled={debugEnabled}
-        isDragging={sensor.isDragging}
+        isAnimating={flip.isAnimating()}
+        enabled={debugEnabled()}
+        isDragging={sensor.isDragging()}
       />
 
       {/* ── Controls ──────────────────────────────────────────────── */}

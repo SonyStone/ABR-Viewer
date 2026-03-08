@@ -1,5 +1,6 @@
-import { access, isClient, MaybeAccessor } from '@solid-primitives/utils';
-import { createEffect, createSignal, on, onCleanup } from 'solid-js';
+import { createEventListener } from '@solid-primitives/event-listener';
+import { access, isClient, type MaybeAccessor } from '@solid-primitives/utils';
+import { type Accessor, createSignal, onCleanup } from 'solid-js';
 import { type Vec2, of as vec2, Zero as Vec2Zero } from '../core/vec2';
 import { createCapture } from './createCapture';
 
@@ -108,13 +109,13 @@ export function createDragSensor(
 ) {
   const threshold = () => access(options.threshold) ?? 8;
 
-  // ── Reactive state ──────────────────────────────────────────────────────
+  // Reactive state
   const [isDragging, setIsDragging] = createSignal(false);
   const [position, setPosition] = createSignal<Vec2 | null>(null);
   const [delta, setDelta] = createSignal<Vec2 | null>(null);
   const [pointerType, setPointerType] = createSignal<string>('mouse');
 
-  // ── Internal mutable state (not reactive — perf-critical) ─────────────
+  // Internal mutable state (not reactive — perf-critical)
   let tracking = false; // pointerdown received, waiting for threshold
   let dragging = false; // threshold exceeded, actively dragging
   let origin: Vec2 = Vec2Zero; // position at pointerdown
@@ -128,38 +129,12 @@ export function createDragSensor(
     onLostCapture
   });
 
-  // ── Reactive tracking of active state (for scoped Escape listener) ────
+  // Reactive tracking of active state (for scoped Escape listener)
   const [isActive, setIsActive] = createSignal(false);
 
-  // ── Escape key handler ────────────────────────────────────────────────
-  // Only registered when tracking or dragging to avoid firing on every
-  // keydown when multiple sensors exist.
-  if (isClient) {
-    let escapeCleanup: (() => void) | null = null;
-
-    createEffect(
-      on(isActive, (active) => {
-        if (active && !escapeCleanup) {
-          const handler = ((ev: KeyboardEvent) => {
-            if (ev.key === 'Escape') cancelDrag();
-          }) as EventListener;
-          document.addEventListener('keydown', handler);
-          escapeCleanup = () => {
-            document.removeEventListener('keydown', handler);
-            escapeCleanup = null;
-          };
-        } else if (!active && escapeCleanup) {
-          escapeCleanup();
-        }
-      })
-    );
-
-    onCleanup(() => escapeCleanup?.());
-  }
+  createEscapeKeyHandler({ cancel, isActive });
 
   onCleanup(resetState);
-
-  // ── Event handlers ────────────────────────────────────────────────────
 
   function onPointerDown(ev: PointerEvent): void {
     if (!isPrimaryPointer(ev)) {
@@ -280,7 +255,7 @@ export function createDragSensor(
     }
   }
 
-  function cancelDrag(): void {
+  function cancel(): void {
     if (dragging) {
       options.onDragCancel?.();
     }
@@ -311,11 +286,23 @@ export function createDragSensor(
     /** Bind this to `onPointerDown` on the drag handle element. */
     onPointerDown,
     /** Programmatically cancel the current drag. */
-    cancel: cancelDrag
+    cancel
   };
 }
 
 /** Only true if primary pointer (left mouse / first finger) */
 function isPrimaryPointer(event: Pick<PointerEvent, 'isPrimary' | 'button'>): boolean {
   return event.isPrimary && event.button === 0;
+}
+
+// Only registered when tracking or dragging to avoid firing on every
+// keydown when multiple sensors exist.
+function createEscapeKeyHandler(props: { cancel(): void; isActive: Accessor<boolean> }) {
+  if (isClient) {
+    createEventListener(document, 'keydown', (ev) => {
+      if (props.isActive() && ev.key === 'Escape') {
+        props.cancel();
+      }
+    });
+  }
 }

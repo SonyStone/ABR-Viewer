@@ -1,17 +1,18 @@
-import { createMemo, type Accessor } from 'solid-js';
+import { access, type MaybeAccessor } from '@solid-primitives/utils';
+import { createMemo } from 'solid-js';
 import { getGridIndicatorPosition } from '../core/gridInsertion';
 import { cellToIndex, pointToCell, resolveGrid, type ResolvedGrid } from '../core/gridLayout';
-import { getListInsertionPoint } from '../core/listInsertion';
+import { getLinearInsertionPoint } from '../core/linearInsertion';
 import type { Place } from '../core/place';
 import type { Rect } from '../core/rect';
-import type { GridConfig } from '../core/types';
+import type { GridConfig, LayoutMode, ListAxis } from '../core/types';
 import type { Vec2 } from '../core/vec2';
 
 export type SortableOptions<K> = Parameters<typeof createSortable<K>>[0];
 export type Sortable<K> = ReturnType<typeof createSortable<K>>;
 
 /**
- * A pure computation primitive for sortable lists.
+ * A pure computation primitive for sortable one-dimensional and grid layouts.
  *
  * Given an ordered list of item keys and measurement functions for their
  * bounding rects, computes where a dragged item would be inserted based
@@ -22,7 +23,7 @@ export type Sortable<K> = ReturnType<typeof createSortable<K>>;
  *
  * ## How insertion points work
  *
- * For a vertical list with items A, B, C there are 4 insertion positions:
+ * For a one-dimensional layout with items A, B, C there are 4 insertion positions:
  *
  * ```
  *   ──── before A ────
@@ -40,9 +41,9 @@ export type Sortable<K> = ReturnType<typeof createSortable<K>>;
  *   ──── append ──────
  * ```
  *
- * The boundary between adjacent positions is at the vertical center of
- * each item. Pointer above center → insert before that item. Below all
- * centers → append at end.
+ * The boundary between adjacent positions is computed along the primary
+ * axis. Pointer before the boundary → insert before that item. Beyond all
+ * boundaries → append at end.
  *
  * @example
  * ```tsx
@@ -61,8 +62,8 @@ export type Sortable<K> = ReturnType<typeof createSortable<K>>;
 export function createSortable<K>(options: {
   /** The key of the container these items belong to. */
   containerKey: K;
-  /** Accessor returning the ordered list of item keys. */
-  items: Accessor<ReadonlyArray<K>>;
+  /** Ordered item keys. Supports static or reactive input. */
+  items: MaybeAccessor<ReadonlyArray<K>>;
   /** Returns the bounding rect for an item by its key. */
   getRect: (key: K) => Rect | undefined;
   /** Returns the bounding rect for the container element. */
@@ -80,19 +81,20 @@ export function createSortable<K>(options: {
   getHitRect?: () => Rect | undefined;
   /**
    * Layout mode for insertion point calculation.
-   * - `'list'` — vertical list (default)
+   * - `'vertical'` — vertical one-dimensional layout (default)
+   * - `'horizontal'` — horizontal one-dimensional layout
    * - `'grid'` — CSS grid / flex-wrap layout (requires `gridConfig`)
-   * @default 'list'
+   * @default 'vertical'
    */
-  layout?: 'list' | 'grid';
+  layout?: MaybeAccessor<LayoutMode>;
   /**
    * Grid configuration. Required when `layout` is `'grid'`.
    * Defines columns, row height, and gap.
    *
-   * Accepts either a static `GridConfig` object or an `Accessor<GridConfig>`
-   * for reactive updates (e.g., when the user changes column count).
+   * Accepts either a static `GridConfig` object or reactive `MaybeAccessor<GridConfig>`
+   * input for updates such as changing the column count.
    */
-  gridConfig?: GridConfig | Accessor<GridConfig>;
+  gridConfig?: MaybeAccessor<GridConfig>;
   /**
    * Spacing between items in pixels. Used as a hint for indicator placement
    * in list mode. Does not affect grid mode (use gridConfig.gap instead).
@@ -103,15 +105,28 @@ export function createSortable<K>(options: {
    * Keys currently being dragged. These are excluded from insertion point
    * calculations so the dragged item's own rect doesn't interfere.
    */
-  draggedKeys?: Accessor<ReadonlyArray<K>>;
+  draggedKeys?: MaybeAccessor<ReadonlySet<K> | ReadonlyArray<K>>;
 }) {
-  const isGrid = () => options.layout === 'grid';
+  const layout = (): LayoutMode => access(options.layout) ?? 'vertical';
+  const isGrid = () => layout() === 'grid';
+  const primaryAxis = (): ListAxis => (layout() === 'horizontal' ? 'horizontal' : 'vertical');
 
-  // Unwrap gridConfig: supports both static GridConfig and Accessor<GridConfig>
   const getGridConfig = (): GridConfig | undefined => {
-    const cfg = options.gridConfig;
-    return typeof cfg === 'function' ? cfg() : cfg;
+    return access(options.gridConfig);
   };
+
+  function getItems(): ReadonlyArray<K> {
+    return access(options.items);
+  }
+
+  function getDraggedKeySet(): ReadonlySet<K> | null {
+    const draggedKeys = access(options.draggedKeys);
+    if (!draggedKeys) {
+      return null;
+    }
+
+    return draggedKeys instanceof Set ? draggedKeys : new Set(draggedKeys);
+  }
 
   // ── Resolved grid (memoized, undefined for list layout) ────────────────
   // Uses options.items() (all items) rather than activeItems() (dragged
@@ -121,9 +136,11 @@ export function createSortable<K>(options: {
   // the consumer to declare their drag controller before createSortable.
   const resolvedGrid = createMemo<ResolvedGrid | undefined>(() => {
     const gc = getGridConfig();
-    if (!isGrid() || !gc) return undefined;
+    if (!isGrid() || !gc) {
+      return undefined;
+    }
     const containerRect = options.getContainerRect();
-    const keys = options.items();
+    const keys = getItems();
     // Measure first item height for 'auto' rowHeight
     const firstRect = keys.length > 0 ? options.getRect(keys[0]) : undefined;
     return resolveGrid(gc, keys.length, containerRect?.width, firstRect?.height);
@@ -143,7 +160,7 @@ export function createSortable<K>(options: {
    * @param excludeKeys  Keys to exclude from the snapshot (typically the dragged items).
    */
   function snapshotRects(excludeKeys?: readonly K[]): void {
-    const allKeys = options.items();
+    const allKeys = getItems();
     const snap = new Map<K, Rect>();
 
     if (!excludeKeys || excludeKeys.length === 0) {
@@ -158,36 +175,43 @@ export function createSortable<K>(options: {
 
     const excludeSet = new Set(excludeKeys);
 
-    // Measure all items and sort by vertical position
+    // Measure all items and sort by primary list axis
     type Measured = { key: K; rect: Rect };
     const measured: Measured[] = [];
     for (const key of allKeys) {
       const rect = options.getRect(key);
       if (rect) measured.push({ key, rect });
     }
-    measured.sort((a, b) => a.rect.y - b.rect.y);
+    measured.sort((a, b) => {
+      return primaryAxis() === 'horizontal' ? a.rect.x - b.rect.x : a.rect.y - b.rect.y;
+    });
 
     // Detect spacing between adjacent items (CSS flex gap / margin)
     let spacing = 0;
     for (let i = 1; i < measured.length; i++) {
-      const gap = measured[i].rect.y - (measured[i - 1].rect.y + measured[i - 1].rect.height);
+      const previousRect = measured[i - 1].rect;
+      const currentRect = measured[i].rect;
+      const gap =
+        primaryAxis() === 'horizontal'
+          ? currentRect.x - (previousRect.x + previousRect.width)
+          : currentRect.y - (previousRect.y + previousRect.height);
       if (gap > 0) {
         spacing = gap;
         break;
       }
     }
 
-    // Build compact snapshot: excluded items' vertical space is removed,
-    // and items below them shift up accordingly.
-    let removedHeight = 0;
+    // Build compact snapshot: excluded items' primary-axis space is removed,
+    // and following items shift accordingly.
+    let removedSize = 0;
     for (const m of measured) {
       if (excludeSet.has(m.key)) {
-        removedHeight += m.rect.height + spacing;
+        removedSize += (primaryAxis() === 'horizontal' ? m.rect.width : m.rect.height) + spacing;
         continue;
       }
       snap.set(m.key, {
-        x: m.rect.x,
-        y: m.rect.y - removedHeight,
+        x: primaryAxis() === 'horizontal' ? m.rect.x - removedSize : m.rect.x,
+        y: primaryAxis() === 'horizontal' ? m.rect.y : m.rect.y - removedSize,
         width: m.rect.width,
         height: m.rect.height
       });
@@ -207,18 +231,17 @@ export function createSortable<K>(options: {
 
   // ── Active items (excluding dragged) ───────────────────────────────────
   function activeItems(): ReadonlyArray<K> {
-    const dKeys = options.draggedKeys?.();
-    const allKeys = options.items();
-    if (!dKeys || dKeys.length === 0) {
+    const dKeys = getDraggedKeySet();
+    const allKeys = getItems();
+    if (!dKeys || dKeys.size === 0) {
       return allKeys;
     }
-    const dragSet = new Set(dKeys);
-    return allKeys.filter((k) => !dragSet.has(k));
+    return allKeys.filter((key) => !dKeys.has(key));
   }
 
   // ── Derived: all valid insertion points ────────────────────────────────
-  const insertionPoints = createMemo<Place<K>[]>(() => {
-    const keys = options.items();
+  const insertionPoints = createMemo<ReadonlyArray<Place<K>>>(() => {
+    const keys = getItems();
     const points: Place<K>[] = keys.map((key) => ({
       parent: options.containerKey,
       before: key
@@ -231,7 +254,9 @@ export function createSortable<K>(options: {
   // ── Imperative: find best insertion point ─────────────────────────────
   function getInsertionPoint(position: Vec2): Place<K> | undefined {
     const containerRect = options.getContainerRect();
-    if (!containerRect) return undefined;
+    if (!containerRect) {
+      return undefined;
+    }
 
     const containerKey = options.containerKey;
 
@@ -247,16 +272,12 @@ export function createSortable<K>(options: {
     // side of the last column, which feels wrong.
     if (isGrid()) {
       const gc = getGridConfig();
-      if (!gc) return undefined;
-      const allKeys = options.items();
-      const dKeys = options.draggedKeys?.() ?? [];
-      const visibleKeys =
-        dKeys.length > 0
-          ? (() => {
-              const s = new Set(dKeys);
-              return allKeys.filter((k) => !s.has(k));
-            })()
-          : allKeys;
+      if (!gc) {
+        return undefined;
+      }
+      const allKeys = getItems();
+      const dKeys = getDraggedKeySet() ?? new Set<K>();
+      const visibleKeys = dKeys.size > 0 ? allKeys.filter((key) => !dKeys.has(key)) : allKeys;
 
       // Measure row height from the first visible (non-dragged) item
       let measuredHeight: number | undefined;
@@ -312,29 +333,35 @@ export function createSortable<K>(options: {
 
     // Use snapshot rects when available so gap displacement doesn't
     // shift item center-lines and make insertion zones unresponsive.
-    return getListInsertionPoint(keys, containerKey, position, getInsertionRect);
+    return getLinearInsertionPoint(keys, containerKey, position, getInsertionRect, primaryAxis());
   }
 
   // ── Indicator offset for a given place (list layout) ───────────────────
   function getIndicatorOffset(place: Place<K> | undefined): number | undefined {
-    if (!place) return undefined;
+    if (!place) {
+      return undefined;
+    }
 
     const containerRect = options.getContainerRect();
-    if (!containerRect) return undefined;
+    if (!containerRect) {
+      return undefined;
+    }
 
     if (place.before !== null) {
       const rect = options.getRect(place.before);
       if (!rect) return undefined;
-      return rect.y - containerRect.y;
+      return primaryAxis() === 'horizontal' ? rect.x - containerRect.x : rect.y - containerRect.y;
     }
 
-    // Append: bottom edge of last non-dragged item
+    // Append: trailing edge of last non-dragged item
     const keys = activeItems();
     if (keys.length === 0) return 0;
 
     const lastRect = options.getRect(keys[keys.length - 1]);
     if (!lastRect) return undefined;
-    return lastRect.y + lastRect.height - containerRect.y;
+    return primaryAxis() === 'horizontal'
+      ? lastRect.x + lastRect.width - containerRect.x
+      : lastRect.y + lastRect.height - containerRect.y;
   }
 
   // ── Grid indicator position ────────────────────────────────────────────
@@ -355,15 +382,14 @@ export function createSortable<K>(options: {
      * returns the best insertion point, or `undefined` if the pointer is
      * outside the container bounds.
      *
-     * For a vertical list, the boundary between "before item[i]" and
-     * "before item[i+1]" is at the vertical center of item[i]'s rect.
+     * For list layouts, boundaries are computed along the primary list axis.
      *
-     * For a grid, uses 2D cell detection with left/right half logic.
+     * For a grid, uses 2D cell detection without left/right half splitting.
      */
     getInsertionPoint,
     /**
-     * Returns the Y offset (relative to the container's top) where a drop
-     * indicator should be drawn for the given insertion `place`.
+     * Returns the primary-axis offset (relative to the container origin)
+     * where a drop indicator should be drawn for the given insertion `place`.
      *
      * - `before: key` → top edge of that item's rect, relative to container.
      * - `before: null` (append) → bottom edge of the last item, relative to container.

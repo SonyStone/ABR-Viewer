@@ -20,6 +20,7 @@
     "@solid-primitives/event-listener": "^2.3.3",
     "@solid-primitives/memo": "^1.4.5",
     "@solid-primitives/scheduled": "^1.5.3",
+    "@solid-primitives/set": "^0.7.3",
     "@solid-primitives/utils": "^6.3.2"
   },
   "devDependencies": {

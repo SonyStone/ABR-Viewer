@@ -1,5 +1,5 @@
-import type { FlipAnimateEntry } from 'solid-dnd';
-import { createEffect, createSignal, For, on, Show, type Accessor, type JSX } from 'solid-js';
+import { isGapKey, type FlipAnimateEntry, type GapKey } from 'solid-dnd';
+import { createEffect, createSignal, For, on, Show, type JSX } from 'solid-js';
 import {
   pointsToSvg,
   roundPt,
@@ -10,24 +10,7 @@ import {
   type Point
 } from './debug';
 
-// ============================================================================
-// MARK: FlipDebugOverlay
-// ============================================================================
-
-export type FlipDebugOverlayProps = {
-  /** Animation entries from `createFlip`'s `onAnimate` callback. */
-  entries: Accessor<FlipAnimateEntry[]>;
-  /** The elements map — used to sample live positions via RAF. */
-  elements: Map<string, HTMLElement>;
-  /** Whether a FLIP animation is currently running. */
-  isAnimating: Accessor<boolean>;
-  /** Whether to show the overlay. */
-  enabled: Accessor<boolean>;
-  /** Whether a drag session is active (start → drop/cancel). */
-  isDragging: Accessor<boolean>;
-  /** Optional extra context to include in Copy Debug output (e.g. drag state). */
-  debugContext?: Accessor<Record<string, unknown> | undefined>;
-};
+export type FlipDebugOverlayProps = Parameters<typeof FlipDebugOverlay>[0];
 
 /**
  * Full-screen SVG overlay that visualizes the gap element's trajectory
@@ -45,7 +28,20 @@ export type FlipDebugOverlayProps = {
  *
  * **Copy Debug** button serializes all trajectory data as JSON for pasting.
  */
-export function FlipDebugOverlay(props: FlipDebugOverlayProps): JSX.Element {
+export function FlipDebugOverlay(props: {
+  /** Animation entries from `createFlip`'s `onAnimate` callback. */
+  entries: ReadonlyArray<FlipAnimateEntry<string | GapKey>>;
+  /** The elements map — used to sample live positions via RAF. */
+  elements: Map<string, HTMLElement>;
+  /** Whether a FLIP animation is currently running. */
+  isAnimating: boolean;
+  /** Whether to show the overlay. */
+  enabled: boolean;
+  /** Whether a drag session is active (start → drop/cancel). */
+  isDragging: boolean;
+  /** Optional extra context to include in Copy Debug output (e.g. drag state). */
+  debugContext?: Record<string, unknown> | undefined;
+}): JSX.Element {
   // ── Extracted hooks ─────────────────────────────────────────────────────
   const { gapTrail, cycleMarkers, addCycleMarker } = useGapTrail({
     elements: props.elements,
@@ -54,7 +50,7 @@ export function FlipDebugOverlay(props: FlipDebugOverlayProps): JSX.Element {
   });
 
   const { allCycleTrails, clear: clearTrails } = useElementTrails({
-    entries: props.entries,
+    entries: () => [...props.entries],
     elements: props.elements,
     isAnimating: props.isAnimating,
     enabled: props.enabled,
@@ -64,9 +60,9 @@ export function FlipDebugOverlay(props: FlipDebugOverlayProps): JSX.Element {
   // Clear element trails on new drag session
   createEffect(
     on(
-      () => props.isDragging(),
+      () => props.isDragging,
       (dragging) => {
-        if (dragging && props.enabled()) {
+        if (dragging && props.enabled) {
           clearTrails();
         }
       }
@@ -84,7 +80,7 @@ export function FlipDebugOverlay(props: FlipDebugOverlayProps): JSX.Element {
   };
 
   function copyDebugData() {
-    const ctx = props.debugContext?.();
+    const ctx = props.debugContext;
     const data = {
       ...(ctx ? { ctx } : {}),
       gap: gapTrail().map(pt),
@@ -117,12 +113,12 @@ export function FlipDebugOverlay(props: FlipDebugOverlayProps): JSX.Element {
   const hasData = () => gapTrail().length > 0 || allCycleTrails().length > 0;
 
   return (
-    <Show when={props.enabled() && hasData()}>
+    <Show when={props.enabled && hasData()}>
       <OverlaySvg
         gapTrail={gapTrail()}
         cycleMarkers={cycleMarkers()}
         allCycleTrails={allCycleTrails()}
-        isDragging={props.isDragging()}
+        isDragging={props.isDragging}
       />
 
       {/* ── Copy button (outside SVG so it's clickable) ─────────────── */}
@@ -228,7 +224,7 @@ function ElementTrailPath(props: { trail: ElementTrail; showLabel: boolean }): J
           font-family="monospace"
           opacity="0.5"
         >
-          {props.trail.key}
+          {isGapKey(props.trail.key) ? 'GAP' : props.trail.key}
         </text>
       </Show>
     </>

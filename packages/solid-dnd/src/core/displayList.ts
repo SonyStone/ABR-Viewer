@@ -52,12 +52,12 @@ export function isGapKey(key: unknown): key is GapKey {
  */
 export function computeDisplayKeys<K>(
   keys: ReadonlyArray<K>,
-  draggedKeys: Set<K>,
+  draggedKeys: ReadonlySet<K>,
   place: Place<K> | undefined,
   containerKey: K | string
-): (K | GapKey)[] {
+): ReadonlyArray<K | GapKey> {
   const placeHere = place !== undefined && place.parent === containerKey;
-  const result: (K | GapKey)[] = [];
+  const result: Array<K | GapKey> = [];
   let gapInserted = false;
 
   for (const key of keys) {
@@ -106,11 +106,11 @@ export function computeDisplayKeys<K>(
  * ```
  */
 export function computeTreeDisplayKeys<K extends string>(
-  tree: Record<K | 'root', ReadonlyArray<K>>,
-  draggedKeys: Set<K>,
+  tree: Readonly<Record<K | 'root', ReadonlyArray<K>>>,
+  draggedKeys: ReadonlySet<K>,
   place: Place<K> | undefined
-): Record<string, (K | GapKey)[]> {
-  const result: Record<string, (K | GapKey)[]> = {};
+): Record<string, ReadonlyArray<K | GapKey>> {
+  const result: Record<string, ReadonlyArray<K | GapKey>> = {};
 
   for (const containerKey of keys(tree)) {
     const kids = tree[containerKey] ?? [];

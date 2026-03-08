@@ -1,4 +1,6 @@
-import { equals, fromElement, Rect } from 'src/core/rect';
+import { equals, fromElement, type Rect } from '../core/rect';
+
+type MeasurableElement = Pick<HTMLElement, 'isConnected' | 'getBoundingClientRect'>;
 
 /**
  * The inverse transform needed to visually move an element from its
@@ -24,9 +26,7 @@ export type FlipDelta = Readonly<{
  * @param elements Map of item keys → DOM elements to measure.
  * @returns A new map of item keys → snapshot rects (viewport-relative).
  */
-export function measureElements<K>(
-  elements: Map<K, Pick<HTMLElement, 'isConnected' | 'getBoundingClientRect'>>
-): Map<K, Rect> {
+export function measureElements<K>(elements: ReadonlyMap<K, MeasurableElement>): Map<K, Rect> {
   const snapshots = new Map<K, Rect>();
   for (const [key, el] of elements) {
     // Skip detached elements (e.g., stale refs from items removed by <For>).
@@ -44,7 +44,7 @@ export function measureElements<K>(
  * Compares two element snapshots for exact positional equality.
  * Used by createFlip to detect whether animation targets have changed.
  */
-export function snapshotsEqual<K>(a: Map<K, Rect>, b: Map<K, Rect>): boolean {
+export function snapshotsEqual<K>(a: ReadonlyMap<K, Rect>, b: ReadonlyMap<K, Rect>): boolean {
   if (a.size !== b.size) {
     return false;
   }
@@ -73,7 +73,7 @@ export function snapshotsEqual<K>(a: Map<K, Rect>, b: Map<K, Rect>): boolean {
  * @param last  Snapshot taken after the DOM change.
  * @returns Map of keys → inverse translation deltas for elements that moved.
  */
-export function calculateDeltas<K>(first: Map<K, Rect>, last: Map<K, Rect>): Map<K, FlipDelta> {
+export function calculateDeltas<K>(first: ReadonlyMap<K, Rect>, last: ReadonlyMap<K, Rect>): Map<K, FlipDelta> {
   const deltas = new Map<K, FlipDelta>();
   for (const [key, lastSnap] of last) {
     const firstSnap = first.get(key);

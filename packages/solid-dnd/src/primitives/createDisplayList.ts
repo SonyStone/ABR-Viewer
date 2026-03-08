@@ -1,4 +1,5 @@
-import { type Accessor, createMemo } from 'solid-js';
+import { access, type MaybeAccessor } from '@solid-primitives/utils';
+import { createMemo } from 'solid-js';
 import { computeDisplayKeys, computeTreeDisplayKeys, type GapKey } from '../core/displayList';
 import type { Place } from '../core/place';
 
@@ -35,22 +36,25 @@ export type DisplayList<K> = ReturnType<typeof createDisplayList<K>>;
  */
 export function createDisplayList<K>(options: {
   /** Ordered item keys. */
-  keys: Accessor<ReadonlyArray<K>>;
+  keys: MaybeAccessor<ReadonlyArray<K>>;
   /** Keys currently being dragged. */
-  draggedKeys: Accessor<ReadonlyArray<Exclude<K, GapKey>>>;
+  draggedKeys: MaybeAccessor<ReadonlySet<Exclude<K, GapKey>> | ReadonlyArray<Exclude<K, GapKey>>>;
   /** Current insertion point (where the gap should appear), or `undefined`. */
-  place: Accessor<Place<K> | undefined>;
+  place: MaybeAccessor<Place<K> | undefined>;
   /** The container key to match against `place.parent`. */
   containerKey: K | string;
 }) {
-  const draggedSet = createMemo(() => new Set(options.draggedKeys()));
+  function getDraggedKeySet(): ReadonlySet<Exclude<K, GapKey>> {
+    const draggedKeys = access(options.draggedKeys);
+    return draggedKeys instanceof Set ? draggedKeys : new Set(draggedKeys);
+  }
 
-  const displayKeys = createMemo(() =>
-    computeDisplayKeys(options.keys(), draggedSet(), options.place(), options.containerKey)
+  const displayKeys = createMemo<ReadonlyArray<K | GapKey>>(() =>
+    computeDisplayKeys(access(options.keys), getDraggedKeySet(), access(options.place), options.containerKey)
   );
 
   function isDragged(key: Exclude<K, GapKey>): boolean {
-    return draggedSet().has(key);
+    return getDraggedKeySet().has(key);
   }
 
   return {
@@ -101,22 +105,29 @@ export type TreeDisplayList<K extends string> = ReturnType<typeof createTreeDisp
  */
 export function createTreeDisplayList<K extends string>(options: {
   /** Tree structure: containerKey → ordered child keys. */
-  tree: Accessor<Record<K | 'root', K[]>>;
+  tree: MaybeAccessor<Readonly<Record<K | 'root', ReadonlyArray<K>>>>;
   /** Keys currently being dragged. */
-  draggedKeys: Accessor<ReadonlyArray<Exclude<K, GapKey>>>;
+  draggedKeys: MaybeAccessor<ReadonlySet<Exclude<K, GapKey>> | ReadonlyArray<Exclude<K, GapKey>>>;
   /** Current insertion point (where the gap should appear), or `undefined`. */
-  place: Accessor<Place<K> | undefined>;
+  place: MaybeAccessor<Place<K> | undefined>;
 }) {
-  const draggedSet = createMemo(() => new Set(options.draggedKeys()));
+  function getTree(): Readonly<Record<K | 'root', ReadonlyArray<K>>> {
+    return access(options.tree) as Readonly<Record<K | 'root', ReadonlyArray<K>>>;
+  }
 
-  const allDisplayKeys = createMemo(() => computeTreeDisplayKeys(options.tree(), draggedSet(), options.place()));
+  function getDraggedKeySet(): ReadonlySet<Exclude<K, GapKey>> {
+    const draggedKeys = access(options.draggedKeys);
+    return draggedKeys instanceof Set ? draggedKeys : new Set(draggedKeys);
+  }
 
-  function getDisplayKeys(containerKey: K | 'root'): (K | GapKey)[] {
+  const allDisplayKeys = createMemo(() => computeTreeDisplayKeys(getTree(), getDraggedKeySet(), access(options.place)));
+
+  function getDisplayKeys(containerKey: K | 'root'): ReadonlyArray<K | GapKey> {
     return allDisplayKeys()[containerKey as string] ?? [];
   }
 
   function isDragged(key: K): boolean {
-    return draggedSet().has(key);
+    return getDraggedKeySet().has(key);
   }
 
   return {

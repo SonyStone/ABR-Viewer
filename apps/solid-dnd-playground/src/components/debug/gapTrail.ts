@@ -1,5 +1,5 @@
-import { GAP_KEY, isGapKey, type GapKey } from 'solid-dnd';
-import { createEffect, createSignal, on, onCleanup, type Accessor } from 'solid-js';
+import { access, GAP_KEY, isGapKey, MaybeAccessor, type GapKey } from 'solid-dnd';
+import { createEffect, createSignal, on, onCleanup } from 'solid-js';
 
 // ============================================================================
 // MARK: Types
@@ -58,8 +58,8 @@ export function roundPt(p: Point): { x: number; y: number } {
  */
 export function useGapTrail(opts: {
   elements: Map<string, HTMLElement>;
-  isDragging: Accessor<boolean>;
-  enabled: Accessor<boolean>;
+  isDragging: MaybeAccessor<boolean>;
+  enabled: MaybeAccessor<boolean>;
 }) {
   const [gapTrail, setGapTrail] = createSignal<Point[]>([]);
   const [cycleMarkers, setCycleMarkers] = createSignal<CycleMarker[]>([]);
@@ -103,9 +103,9 @@ export function useGapTrail(opts: {
 
   createEffect(
     on(
-      () => opts.isDragging(),
+      () => access(opts.isDragging),
       (dragging) => {
-        if (!opts.enabled()) return;
+        if (!access(opts.enabled)) return;
 
         if (dragging) {
           setGapTrail([]);

@@ -17,30 +17,40 @@ export function createCapture(props: {
   let capturedElement: MinimumPointerEventTarget | null = null;
   let capturedPointerId: number | null = null;
 
-  function cleanupListeners() {
-    if (capturedElement) {
-      capturedElement.removeEventListener('pointermove', props.onPointerMove);
-      capturedElement.removeEventListener('pointerup', props.onPointerUp);
-      capturedElement.removeEventListener('pointercancel', props.onPointerCancel);
-      capturedElement.removeEventListener('lostpointercapture', props.onLostCapture);
+  function attachListeners(element: MinimumPointerEventTarget): void {
+    element.addEventListener('pointermove', props.onPointerMove);
+    element.addEventListener('pointerup', props.onPointerUp);
+    element.addEventListener('pointercancel', props.onPointerCancel);
+    element.addEventListener('lostpointercapture', props.onLostCapture);
+  }
+
+  function cleanupListeners(): void {
+    if (!capturedElement) {
+      return;
     }
+
+    capturedElement.removeEventListener('pointermove', props.onPointerMove);
+    capturedElement.removeEventListener('pointerup', props.onPointerUp);
+    capturedElement.removeEventListener('pointercancel', props.onPointerCancel);
+    capturedElement.removeEventListener('lostpointercapture', props.onLostCapture);
   }
 
   return {
     /** Capture the pointer for reliable tracking */
     set(element: MinimumPointerEventTarget, pointerId: number): void {
+      if (capturedElement) {
+        this.release();
+      }
+
       element.setPointerCapture(pointerId);
       capturedElement = element;
       capturedPointerId = pointerId;
-
-      // Attach pointer events on the capturing elements
-      capturedElement.addEventListener('pointermove', props.onPointerMove);
-      capturedElement.addEventListener('pointerup', props.onPointerUp);
-      capturedElement.addEventListener('pointercancel', props.onPointerCancel);
-      capturedElement.addEventListener('lostpointercapture', props.onLostCapture);
+      attachListeners(element);
     },
     /** Release pointer capture and clean up listeners */
     release(): void {
+      cleanupListeners();
+
       // Don't call releaseCapture if we already lost it.
       if (capturedElement && capturedPointerId !== null) {
         try {
@@ -48,7 +58,6 @@ export function createCapture(props: {
         } catch {
           // Already released — ignore
         }
-        cleanupListeners();
       }
       capturedElement = null;
       capturedPointerId = null;
@@ -64,7 +73,9 @@ export function createCapture(props: {
      * 5. Update internal state to point at the proxy
      */
     transferToProxy(): void {
-      if (!capturedElement || capturedPointerId === null) return;
+      if (!capturedElement || capturedPointerId === null) {
+        return;
+      }
 
       // Remove listeners from source — must happen BEFORE releasing capture
       // so the lostpointercapture event (fired by releasePointerCapture)
@@ -83,10 +94,7 @@ export function createCapture(props: {
       proxy.setPointerCapture(capturedPointerId);
 
       // Bind listeners to the proxy
-      proxy.addEventListener('pointermove', props.onPointerMove);
-      proxy.addEventListener('pointerup', props.onPointerUp);
-      proxy.addEventListener('pointercancel', props.onPointerCancel);
-      proxy.addEventListener('lostpointercapture', props.onLostCapture);
+      attachListeners(proxy);
 
       // Update internal state
       capturedElement = proxy;
@@ -103,10 +111,15 @@ function createProxyElement() {
    * It persists for the lifetime of the sensor and is cleaned up on disposal.
    */
   function getOrCreateProxy(): HTMLElement {
-    if (!proxyElement && isClient) {
+    if (!isClient) {
+      throw new Error('createCapture proxy element requires a client environment.');
+    }
+
+    if (!proxyElement) {
       proxyElement = getProxyElement();
     }
-    return proxyElement!;
+
+    return proxyElement;
   }
 
   onCleanup(() => {

@@ -1,5 +1,5 @@
-import type { FlipAnimateEntry } from 'solid-dnd';
-import { createEffect, createSignal, on, onCleanup, type Accessor } from 'solid-js';
+import { access, GapKey, type FlipAnimateEntry, type MaybeAccessor } from 'solid-dnd';
+import { createEffect, createSignal, on, onCleanup } from 'solid-js';
 import { getCenter, type Point } from './gapTrail';
 
 // ============================================================================
@@ -7,7 +7,7 @@ import { getCenter, type Point } from './gapTrail';
 // ============================================================================
 
 export type ElementTrail = {
-  key: string;
+  key: string | GapKey;
   from: Point;
   to: Point;
   /** Sampled positions via RAF during the FLIP animation. */
@@ -49,10 +49,10 @@ export const TRAIL_COLORS = [
  * that samples each animated element's center position until `isAnimating` is false.
  */
 export function useElementTrails(opts: {
-  entries: Accessor<FlipAnimateEntry[]>;
-  elements: Map<string, HTMLElement>;
-  isAnimating: Accessor<boolean>;
-  enabled: Accessor<boolean>;
+  entries: MaybeAccessor<FlipAnimateEntry<string | GapKey>[]>;
+  elements: Map<string | GapKey, HTMLElement>;
+  isAnimating: MaybeAccessor<boolean>;
+  enabled: MaybeAccessor<boolean>;
   /** Called to get the current cycle number. */
   addCycleMarker: () => number;
 }) {
@@ -60,9 +60,9 @@ export function useElementTrails(opts: {
 
   createEffect(
     on(
-      () => opts.entries(),
+      () => access(opts.entries),
       (entries) => {
-        if (!opts.enabled() || entries.length === 0) return;
+        if (!access(opts.enabled) || entries.length === 0) return;
 
         const currentCycle = opts.addCycleMarker();
 
@@ -99,7 +99,7 @@ export function useElementTrails(opts: {
             return [...prev.slice(0, -1), { ...last, trails: updatedTrails }];
           });
 
-          if (opts.isAnimating()) {
+          if (access(opts.isAnimating)) {
             elemRafId = requestAnimationFrame(sampleElements);
           } else {
             // Final sample

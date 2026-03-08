@@ -19,17 +19,7 @@ export const navSections: NavSection[] = [
   },
   {
     title: 'Sortable',
-    items: [
-      { label: 'Vertical list', href: '/list' },
-      { label: 'Grid', href: '/grid' }
-    ]
-  },
-  {
-    title: 'Sortable + Overlay',
-    items: [
-      { label: 'List overlay', href: '/list-overlay' },
-      { label: 'Grid overlay', href: '/grid-overlay' }
-    ]
+    items: [{ label: 'Sortable overlay', href: '/sortable-overlay' }]
   },
   {
     title: 'Containers',

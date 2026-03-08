@@ -135,7 +135,7 @@ describe('createFlip', () => {
 
         // Inverse delta: first.y(0) - last.y(100) = -100
         expect(keyframes).toEqual([{ transform: 'translate(0px, -100px)' }, { transform: 'translate(0, 0)' }]);
-        expect(options).toMatchObject({ duration: 200, easing: 'ease-out' });
+        expect(options).toMatchObject({ duration: 200, easing: 'linear' });
       });
     });
 

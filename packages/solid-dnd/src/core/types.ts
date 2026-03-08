@@ -13,7 +13,8 @@ export function createItemId(value: string): ItemId {
 // MARK: Layout Modes
 // ============================================================================
 
-export type LayoutMode = 'list' | 'wrap' | 'grid';
+export type LayoutMode = 'vertical' | 'horizontal' | 'grid';
+export type ListAxis = 'vertical' | 'horizontal';
 
 export type GridConfig = {
   /** Number of columns, or 'auto' to compute from container width + columnWidth. */

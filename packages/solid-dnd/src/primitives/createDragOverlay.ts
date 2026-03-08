@@ -60,18 +60,15 @@ export function createDragOverlay(options: {
 }) {
   const [isActive, setIsActive] = createSignal(false);
   const [grabOffset, setGrabOffset] = createSignal<Vec2>(Vec2Zero);
-  const [capturedSize, setCapturedSize] = createSignal<Vec2>(Vec2Zero);
   const [capturedRect, setCapturedRect] = createSignal<Rect | undefined>(undefined);
 
   function start(element: HTMLElement, pointerPosition: Vec2): void {
     const rect = fromElement(element);
     if (rect) {
       setGrabOffset(vec2(pointerPosition.x - rect.x, pointerPosition.y - rect.y));
-      setCapturedSize(vec2(rect.width, rect.height));
       setCapturedRect(rect);
     } else {
       setGrabOffset(Vec2Zero);
-      setCapturedSize(Vec2Zero);
       setCapturedRect(undefined);
     }
     setIsActive(true);
@@ -80,7 +77,6 @@ export function createDragOverlay(options: {
   function stop(): void {
     setIsActive(false);
     setGrabOffset(Vec2Zero);
-    setCapturedSize(Vec2Zero);
     setCapturedRect(undefined);
   }
 
@@ -94,6 +90,15 @@ export function createDragOverlay(options: {
     }
     const offset = grabOffset();
     return vec2(pos.x - offset.x, pos.y - offset.y);
+  });
+
+  const size = createMemo<Vec2>(() => {
+    const rect = capturedRect();
+    if (!rect) {
+      return Vec2Zero;
+    }
+
+    return vec2(rect.width, rect.height);
   });
 
   return {
@@ -110,7 +115,7 @@ export function createDragOverlay(options: {
      *
      * Returns `Vec2.Zero` when not active.
      */
-    size: capturedSize,
+    size,
     /**
      * The source element's bounding rect captured at drag start.
      * Useful for creating a clone or snapshot.

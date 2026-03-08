@@ -1,7 +1,7 @@
-import { type Accessor, createMemo } from 'solid-js';
-import { getListInsertionPoint } from '../core/listInsertion';
+import { access, type MaybeAccessor } from '@solid-primitives/utils';
+import { createMemo } from 'solid-js';
+import { getLinearInsertionPoint } from '../core/linearInsertion';
 import type { Place } from '../core/place';
-import type { Rect } from '../core/rect';
 import { accepts, wouldCycle } from '../core/tagConstraints';
 import type { NestableContainer } from '../core/types';
 import type { Vec2 } from '../core/vec2';
@@ -66,24 +66,32 @@ export type Nestable<K> = ReturnType<typeof createNestable<K>>;
  */
 export function createNestable<K>(options: {
   /** All containers in the tree. Order determines priority for same-depth overlaps. */
-  containers: Accessor<NestableContainer<K>[]>;
+  containers: MaybeAccessor<ReadonlyArray<NestableContainer<K>>>;
   /** Tags of the currently dragged items. Used for accept/reject. */
-  dragTags?: Accessor<string[] | undefined>;
+  dragTags?: MaybeAccessor<ReadonlyArray<string> | undefined>;
   /**
    * Keys of items currently being dragged.
    * Used for cycle prevention: can't drop a container into itself or its descendants.
    */
-  draggedKeys?: Accessor<ReadonlyArray<K>>;
+  draggedKeys?: MaybeAccessor<ReadonlyArray<K>>;
   /**
    * Returns the parent container key for a given key, or `undefined` for root-level containers.
    * Required for cycle detection.
    */
   getParent?: (key: K) => K | undefined;
 }) {
+  function getContainers(): ReadonlyArray<NestableContainer<K>> {
+    return access(options.containers);
+  }
+
+  function getDraggedKeys(): ReadonlyArray<K> {
+    return access(options.draggedKeys) ?? [];
+  }
+
   // ── Container lookup (memoized) ─────────────────────────────────────────
   const containerMap = createMemo(() => {
     const map = new Map<K, NestableContainer<K>>();
-    for (const c of options.containers()) {
+    for (const c of getContainers()) {
       map.set(c.key, c);
     }
     return map;
@@ -91,18 +99,20 @@ export function createNestable<K>(options: {
 
   // ── Find best insertion point ───────────────────────────────────────────
   function getInsertionPoint(position: Vec2): Place<K> | undefined {
-    const containers = options.containers();
-    const tags = options.dragTags?.();
-    const draggedKeys = options.draggedKeys?.();
+    const containers = getContainers();
+    const tags = access(options.dragTags);
+    const acceptedTags = tags ? [...tags] : undefined;
+    const draggedKeys = getDraggedKeys();
     const getParent = options.getParent;
 
     // 1. Find all containers whose rect contains the pointer
-    type Candidate = { container: NestableContainer<K>; rect: Rect; area: number };
-    const candidates: Candidate[] = [];
+    let best: { container: NestableContainer<K>; area: number } | undefined;
 
     for (const container of containers) {
       const rect = container.getContainerRect();
-      if (!rect) continue;
+      if (!rect) {
+        continue;
+      }
 
       if (
         position.x >= rect.x &&
@@ -111,37 +121,41 @@ export function createNestable<K>(options: {
         position.y <= rect.y + rect.height
       ) {
         // 2. Tag constraint check
-        if (!accepts(container.acceptTags, tags)) continue;
-
-        // 3. Cycle check — skip if any dragged key would create a cycle
-        if (draggedKeys && getParent) {
-          const hasCycle = draggedKeys.some((dk) => wouldCycle(dk, container.key, getParent));
-          if (hasCycle) continue;
+        if (!accepts(container.acceptTags, acceptedTags)) {
+          continue;
         }
 
-        candidates.push({
-          container,
-          rect,
-          area: rect.width * rect.height
-        });
+        // 3. Cycle check — skip if any dragged key would create a cycle
+        if (draggedKeys.length > 0 && getParent) {
+          const hasCycle = draggedKeys.some((dk) => wouldCycle(dk, container.key, getParent));
+          if (hasCycle) {
+            continue;
+          }
+        }
+
+        const area = rect.width * rect.height;
+        if (!best || area < best.area) {
+          best = { container, area };
+        }
       }
     }
 
-    if (candidates.length === 0) return undefined;
+    if (!best) {
+      return undefined;
+    }
 
-    // 4. Pick the deepest container (smallest area = most specific)
-    candidates.sort((a, b) => a.area - b.area);
-    const best = candidates[0];
-
-    // 5. Compute insertion point within the chosen container
+    // 4. Compute insertion point within the chosen container
     return getInsertionPointInContainer(best.container, position);
   }
 
   // ── Helper: items minus dragged keys ────────────────────────────────────
-  function activeItems(container: NestableContainer<K>): K[] {
+  function activeItems(container: NestableContainer<K>): ReadonlyArray<K> {
     const all = container.items();
-    const dKeys = options.draggedKeys?.();
-    if (!dKeys || dKeys.length === 0) return all;
+    const dKeys = getDraggedKeys();
+    if (dKeys.length === 0) {
+      return all;
+    }
+
     const dragSet = new Set(dKeys);
     return all.filter((k) => !dragSet.has(k));
   }
@@ -150,22 +164,30 @@ export function createNestable<K>(options: {
   function getInsertionPointInContainer(container: NestableContainer<K>, position: Vec2): Place<K> {
     const keys = activeItems(container);
     // Delegate to shared vertical center-line algorithm
-    return getListInsertionPoint(keys, container.key, position, container.getRect);
+    return getLinearInsertionPoint(keys, container.key, position, container.getRect);
   }
 
   // ── Indicator offset ──────────────────────────────────────────────────
   function getIndicatorOffset(place: Place<K> | undefined): { containerKey: K; offset: number } | undefined {
-    if (!place) return undefined;
+    if (!place) {
+      return undefined;
+    }
 
     const container = containerMap().get(place.parent);
-    if (!container) return undefined;
+    if (!container) {
+      return undefined;
+    }
 
     const containerRect = container.getContainerRect();
-    if (!containerRect) return undefined;
+    if (!containerRect) {
+      return undefined;
+    }
 
     if (place.before !== null) {
       const rect = container.getRect(place.before);
-      if (!rect) return undefined;
+      if (!rect) {
+        return undefined;
+      }
       return { containerKey: place.parent, offset: rect.y - containerRect.y };
     }
 
@@ -174,7 +196,9 @@ export function createNestable<K>(options: {
     if (keys.length === 0) return { containerKey: place.parent, offset: 0 };
 
     const lastRect = container.getRect(keys[keys.length - 1]);
-    if (!lastRect) return undefined;
+    if (!lastRect) {
+      return undefined;
+    }
     return { containerKey: place.parent, offset: lastRect.y + lastRect.height - containerRect.y };
   }
 
@@ -200,6 +224,6 @@ export function createNestable<K>(options: {
      */
     getIndicatorOffset,
     /** All containers, for iteration in rendering. */
-    containers: options.containers
+    containers: getContainers
   };
 }

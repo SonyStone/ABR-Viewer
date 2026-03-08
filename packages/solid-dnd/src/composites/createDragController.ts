@@ -1,6 +1,7 @@
 import { createLazyMemo } from '@solid-primitives/memo';
+import { ReactiveSet } from '@solid-primitives/set';
 import { type MaybeAccessor, access, defer } from '@solid-primitives/utils';
-import { type Accessor, batch, createEffect, createSignal } from 'solid-js';
+import { type Accessor, batch, createEffect, createMemo, createSignal } from 'solid-js';
 import { GapKey, isGapKey } from '..';
 import * as Place from '../core/place';
 import { fromElement } from '../core/rect';
@@ -11,6 +12,45 @@ import { type FlipAnimateEntry, createFlip } from '../primitives/createFlip';
 
 export type DragControllerOptions<K> = Parameters<typeof createDragController<K>>[0];
 export type DragController<K> = ReturnType<typeof createDragController<K>>;
+
+function createDragging<K>() {
+  const draggedIdsSet = new ReactiveSet<K>();
+  const draggedIds = createLazyMemo(() => [...draggedIdsSet]);
+  const isDragging = createMemo(() => draggedIdsSet.size > 0);
+
+  return {
+    draggedIdsSet,
+    draggedIds,
+    isDragging,
+    clear(): void {
+      draggedIdsSet.clear();
+    }
+  };
+}
+
+function createGap() {
+  const [height, setHeight] = createSignal(0);
+  const [width, setWidth] = createSignal(0);
+
+  function setGapSizeFromElement(el: HTMLElement): void {
+    const rect = fromElement(el);
+    if (!rect) {
+      return;
+    }
+    setHeight(rect.height);
+    setWidth(rect.width);
+  }
+
+  return {
+    height,
+    width,
+    setGapSizeFromElement,
+    reset(): void {
+      setHeight(0);
+      setWidth(0);
+    }
+  };
+}
 
 /**
  * High-level composite that orchestrates overlay-based drag-and-drop.
@@ -99,7 +139,7 @@ export function createDragController<K>(options: {
    * Apply the drop — reorder items, move tree nodes, etc.
    * Called inside `flip.animate()` so the DOM change is FLIP-animated.
    */
-  onDrop: (keys: ReadonlyArray<Exclude<K, GapKey>>, place: Place.Place<K>) => void;
+  onDrop: (keys: ReadonlySet<Exclude<K, GapKey>>, place: Place.Place<K>) => void;
 
   /**
    * Called when drag ends (after drop or cancel), inside the FLIP callback.
@@ -159,7 +199,7 @@ export function createDragController<K>(options: {
    * Called with FLIP animation entries when they play.
    * Useful for debug overlays.
    */
-  onFlipAnimate?: (entries: FlipAnimateEntry<K>[]) => void;
+  onFlipAnimate?: (entries: ReadonlyArray<FlipAnimateEntry<K>>) => void;
 
   /**
    * An accessor that changes whenever the visual display list changes
@@ -172,11 +212,13 @@ export function createDragController<K>(options: {
    */
   displayKeys?: Accessor<unknown>;
 }) {
-  const [draggedIds, setDraggedIds] = createSignal<ReadonlyArray<Exclude<K, GapKey>>>([]);
+  const dragging = createDragging<Exclude<K, GapKey>>();
+  const gap = createGap();
+
   const [dropPlace, setDropPlace] = createSignal<Place.Place<K> | undefined>(undefined, {
     equals: Place.equals
   });
-  const [gapHeight, setGapHeight] = createSignal(0);
+
   let pendingDragId: Exclude<K, GapKey> | null = null;
   let moveSwallowed = false;
 
@@ -186,40 +228,45 @@ export function createDragController<K>(options: {
 
   const flip = createFlip({
     elements: options.elements,
-    // easing: options.easing,
-    easing: 'linear',
+    easing: options.easing,
     onAnimate: options.onFlipAnimate,
     duration: duration
   });
 
-  const overlay = createDragOverlay({
+  const dragOverlay = createDragOverlay({
     currentPosition: () => sensor.position() ?? Vec2Zero
   });
 
-  // ── Insertion position (overlay center, not raw cursor) ─────────────────
   function insertionPos(): Vec2 | undefined {
-    if (overlay.active()) {
-      const pos = overlay.position();
-      const size = overlay.size();
+    if (dragOverlay.active()) {
+      const pos = dragOverlay.position();
+      const size = dragOverlay.size();
       return vec2(pos.x + size.x / 2, pos.y + size.y / 2);
     }
     return sensor.position() ?? undefined;
   }
 
-  // Shared cleanup
+  function updateDropPlace(position?: Vec2): void {
+    if (!position) {
+      return;
+    }
+
+    setDropPlace(options.getInsertionPoint(position));
+  }
+
   function resetDragState(): void {
     pendingDragId = null;
     moveSwallowed = false;
-    setDraggedIds([]);
+    dragging.clear();
+
     setDropPlace(undefined);
-    setGapHeight(0);
-    overlay.stop();
+    gap.reset();
+    dragOverlay.stop();
     options.onReset?.();
   }
 
-  // ── Drag sensor ─────────────────────────────────────────────────────────
   const sensor = createDragSensor({
-    threshold: access(options.threshold) ?? 5,
+    threshold: options.threshold ?? 5,
     proxyCapture: true,
 
     onClick: (ev) => {
@@ -239,9 +286,8 @@ export function createDragController<K>(options: {
       // 1. Measure source element BEFORE any state changes
       const sourceEl = options.elements.get(id);
       if (sourceEl) {
-        const rect = fromElement(sourceEl);
-        if (rect) setGapHeight(rect.height);
-        overlay.start(sourceEl, e.position);
+        gap.setGapSizeFromElement(sourceEl);
+        dragOverlay.start(sourceEl, e.position);
       }
 
       // 2. Let consumer prepare (snapshot rects, expand selection, etc.)
@@ -254,8 +300,10 @@ export function createDragController<K>(options: {
 
       // 4. Set drag state (batched so displayKeys computes once)
       batch(() => {
-        setDraggedIds(ids);
-        setDropPlace(options.getInsertionPoint(insertionPos() ?? e.position));
+        for (const id of ids) {
+          dragging.draggedIdsSet.add(id);
+        }
+        updateDropPlace(insertionPos() ?? e.position);
       });
 
       options.onDragStart?.(ids, e.position);
@@ -270,28 +318,21 @@ export function createDragController<K>(options: {
       if (isAnimEnabled()) {
         flip.captureFirst();
       }
-      const pos = insertionPos();
-      if (pos) {
-        setDropPlace(options.getInsertionPoint(pos));
-      }
+      updateDropPlace(insertionPos());
     },
 
     onDragEnd: () => {
       // Re-evaluate swallowed move before reading final place
       if (moveSwallowed) {
         moveSwallowed = false;
-        const pos = insertionPos();
-        if (pos) {
-          setDropPlace(options.getInsertionPoint(pos));
-        }
+        updateDropPlace(insertionPos());
       }
 
       const place = dropPlace();
-      const ids = draggedIds();
 
-      if (place && ids.length > 0) {
+      if (place && dragging.draggedIdsSet.size > 0) {
         flip.animate(() => {
-          options.onDrop(ids, place);
+          options.onDrop(dragging.draggedIdsSet, place);
           resetDragState();
         });
       } else {
@@ -324,10 +365,12 @@ export function createDragController<K>(options: {
         if (!animating && moveSwallowed && sensor.isDragging()) {
           moveSwallowed = false;
           const pos = insertionPos();
-          if (pos) {
-            flip.captureFirst();
-            setDropPlace(options.getInsertionPoint(pos));
+          if (!pos) {
+            return;
           }
+
+          flip.captureFirst();
+          updateDropPlace(pos);
         }
       }
     )
@@ -343,16 +386,23 @@ export function createDragController<K>(options: {
     /** The underlying drag sensor. */
     sensor,
     /** The drag overlay (position, size, active). */
-    overlay,
+    overlay: dragOverlay,
     /** The FLIP animation controller. */
     flip,
 
     /** Keys currently being dragged. Empty when idle. */
-    draggedIds,
+    draggedIdsSet: dragging.draggedIdsSet,
+
+    draggedIds: dragging.draggedIds,
+
+    isDragging: dragging.isDragging,
+
     /** Current insertion point, or `undefined` when idle or outside bounds. */
     dropPlace,
     /** Height of the source element at drag start. Use for gap placeholder sizing. */
-    gapHeight,
+    gapHeight: gap.height,
+
+    gapWidth: gap.width,
 
     /**
      * Bind this to `onPointerDown` on each draggable item.

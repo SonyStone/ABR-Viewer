@@ -1,6 +1,6 @@
-import { access } from '@solid-primitives/utils';
-import { type Accessor, createMemo, createSignal } from 'solid-js';
-import { GapKey, isGapKey, MaybeAccessor } from '..';
+import { access, type MaybeAccessor } from '@solid-primitives/utils';
+import { createMemo, createSignal } from 'solid-js';
+import { GapKey, isGapKey } from '..';
 import {
   applyGridRange,
   applyRange,
@@ -52,7 +52,7 @@ export type Selection<K> = ReturnType<typeof createSelection<K>>;
  */
 export function createSelection<K>(options: {
   /** The ordered list of selectable items. */
-  items: Accessor<ReadonlyArray<K>>;
+  items: MaybeAccessor<ReadonlyArray<K>>;
   /**
    * Whether multi-selection (toggle / range) is enabled.
    * When `false`, modifier keys are ignored and clicks always use set mode.
@@ -69,7 +69,8 @@ export function createSelection<K>(options: {
   onSelectionChange?: (keys: ReadonlyArray<K>) => void;
 }) {
   const [selected, setSelected] = createSignal<Exclude<K, GapKey>[]>([]);
-  const [anchor, setAnchor] = createSignal<K | null>(null) as [Accessor<K | null>, (v: K | null) => void];
+
+  const [anchor, setAnchor] = createSignal<K | null>(null);
 
   // Fast lookup set, derived from selected()
   const selectedSet = createMemo(() => new Set(selected()));
@@ -94,12 +95,12 @@ export function createSelection<K>(options: {
     switch (mode) {
       case 'set': {
         updateSelection(applySet(key));
-        setAnchor(key);
+        setAnchor(() => key);
         break;
       }
       case 'toggle': {
         updateSelection(applyToggle(selected(), key));
-        setAnchor(key);
+        setAnchor(() => key);
         break;
       }
       case 'range': {
@@ -107,13 +108,13 @@ export function createSelection<K>(options: {
         if (a === null) {
           // No anchor yet — treat as set
           updateSelection(applySet(key));
-          setAnchor(key);
+          setAnchor(() => key);
         } else {
           const cols = access(options.gridColumns);
           if (cols !== undefined && cols > 0) {
-            updateSelection(applyGridRange(options.items(), a, key, cols));
+            updateSelection(applyGridRange(access(options.items), a, key, cols));
           } else {
-            updateSelection(applyRange(options.items(), a, key));
+            updateSelection(applyRange(access(options.items), a, key));
           }
           // Don't update anchor on range — user can shift-click again to adjust
         }
@@ -122,9 +123,9 @@ export function createSelection<K>(options: {
     }
   }
 
-  function select(keys: K[]): void {
+  function select(keys: ReadonlyArray<K>): void {
     updateSelection(keys);
-    setAnchor(keys.length > 0 ? keys[0] : null);
+    setAnchor(() => (keys.length > 0 ? keys[0]! : null));
   }
 
   function clear(): void {

@@ -12,7 +12,11 @@
   "dependencies": {
     "@corvu/drawer": "^0.2.4",
     "@solid-primitives/cursor": "^0.1.2",
+    "@solid-primitives/event-listener": "^2.4.5",
+    "@solid-primitives/map": "^0.7.3",
+    "@solid-primitives/mutation-observer": "^1.2.3",
     "@solid-primitives/scheduled": "^1.5.3",
+    "@solid-primitives/utils": "^6.3.2",
     "@solidjs/router": "^0.15.3",
     "solid-dnd": "workspace:*",
     "solid-js": "^1.9.4"
